@@ -66,7 +66,7 @@ See **[AGENTS.md](./AGENTS.md#spec-kit-workflow)** for the complete workflow gui
 
 **Skills** (`.codex/skills/`)
 
-- `claude-ask`, `claude-exec`, `claude-review` - Claude Code integration (native)
+- `claude-ask`, `claude-exec`, `claude-review`, `claude-search` - Claude Code integration (native)
 - `copilot-*`, `speckit-*` - Symlinks to `.claude/skills/`
 
 **Prompts** (`.codex/prompts/`)
