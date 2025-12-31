@@ -39,6 +39,7 @@ Each skill lives in a small folder with a `SKILL.md` that documents how to run i
 
 - `claude-ask`, `claude-exec`, `claude-review`
 - `copilot-ask`, `copilot-exec`, `copilot-review`
+- `spec-kit-*` workflow skills
 
 ## Structure
 
