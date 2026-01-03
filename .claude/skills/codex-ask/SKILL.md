@@ -39,7 +39,7 @@ Extract what the user wants to know. Good questions include:
 Run Codex in read-only mode:
 
 ```bash
-codex exec "Answer this question about the codebase: [QUESTION]
+codex --sandbox=read-only exec "Answer this question about the codebase: [QUESTION]
 
 Provide:
 1. Direct answer to the question
@@ -65,25 +65,25 @@ Format the response with:
 ### Understanding Flow
 
 ```bash
-codex exec "Explain how user authentication works in this app. Include all files involved, the complete flow, and security measures. Do NOT modify code."
+codex --sandbox=read-only exec "Explain how user authentication works in this app. Include all files involved, the complete flow, and security measures. Do NOT modify code."
 ```
 
 ### Finding Implementation
 
 ```bash
-codex exec "Where is email validation implemented? Show all locations with file paths and line numbers. Do NOT modify code."
+codex --sandbox=read-only exec "Where is email validation implemented? Show all locations with file paths and line numbers. Do NOT modify code."
 ```
 
 ### Architecture Questions
 
 ```bash
-codex exec "What's the overall architecture of this application? Describe patterns used, component organization, and data flow. Do NOT modify code."
+codex --sandbox=read-only exec "What's the overall architecture of this application? Describe patterns used, component organization, and data flow. Do NOT modify code."
 ```
 
 ### Debugging
 
 ```bash
-codex exec "What could cause 'Cannot read property of undefined' in UserProfile component? Analyze potential causes with specific line references. Do NOT modify code."
+codex --sandbox=read-only exec "What could cause 'Cannot read property of undefined' in UserProfile component? Analyze potential causes with specific line references. Do NOT modify code."
 ```
 
 ## Output Format

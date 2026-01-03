@@ -50,7 +50,7 @@ git diff            # Detailed changes
 Run Codex with review-focused prompt:
 
 ```bash
-codex exec "Perform comprehensive code review of [SCOPE].
+codex --sandbox=read-only exec "Perform comprehensive code review of [SCOPE].
 
 Check for:
 1. CRITICAL ISSUES (must fix):
@@ -99,7 +99,7 @@ Organize results by severity:
 ### Review Uncommitted Changes
 
 ```bash
-codex exec "Review all uncommitted changes for:
+codex --sandbox=read-only exec "Review all uncommitted changes for:
 - Bugs and logic errors
 - Security vulnerabilities
 - Performance issues
@@ -111,7 +111,7 @@ Do NOT modify code."
 ### Security-Focused Review
 
 ```bash
-codex exec "Security review of src/auth/*.ts:
+codex --sandbox=read-only exec "Security review of src/auth/*.ts:
 - SQL injection vulnerabilities
 - XSS vulnerabilities
 - Authentication bypass
@@ -124,7 +124,7 @@ Provide severity level and fix suggestions. Do NOT modify code."
 ### Performance Review
 
 ```bash
-codex exec "Performance review of src/components/*.tsx:
+codex --sandbox=read-only exec "Performance review of src/components/*.tsx:
 - Unnecessary re-renders
 - Missing React.memo, useMemo, useCallback
 - Inefficient algorithms
@@ -136,7 +136,7 @@ Provide specific optimization suggestions. Do NOT modify code."
 ### Pre-Commit Review
 
 ```bash
-codex exec "Quick review of staged changes for:
+codex --sandbox=read-only exec "Quick review of staged changes for:
 - console.log statements
 - Commented-out code
 - Unused imports
@@ -152,28 +152,28 @@ Exit with error if critical issues found. Do NOT modify code."
 
 ```bash
 # Comprehensive review of all aspects
-codex exec "Comprehensive review covering: security, performance, code quality, architecture, testing, accessibility. Do NOT modify code."
+codex --sandbox=read-only exec "Comprehensive review covering: security, performance, code quality, architecture, testing, accessibility. Do NOT modify code."
 ```
 
 ### Security Audit
 
 ```bash
 # OWASP Top 10 and security best practices
-codex exec "Security audit focusing on: SQL injection, XSS, CSRF, authentication, authorization, secrets, input validation. Do NOT modify code."
+codex --sandbox=read-only exec "Security audit focusing on: SQL injection, XSS, CSRF, authentication, authorization, secrets, input validation. Do NOT modify code."
 ```
 
 ### Architecture Review
 
 ```bash
 # SOLID principles and design patterns
-codex exec "Architecture review: SOLID principles, separation of concerns, dependency management, code organization, design patterns. Do NOT modify code."
+codex --sandbox=read-only exec "Architecture review: SOLID principles, separation of concerns, dependency management, code organization, design patterns. Do NOT modify code."
 ```
 
 ### Accessibility Review
 
 ```bash
 # WCAG compliance
-codex exec "Accessibility review: ARIA labels, keyboard navigation, screen reader support, color contrast, semantic HTML. Do NOT modify code."
+codex --sandbox=read-only exec "Accessibility review: ARIA labels, keyboard navigation, screen reader support, color contrast, semantic HTML. Do NOT modify code."
 ```
 
 ## Output Format
@@ -291,7 +291,7 @@ Codex CLI is not available. Ensure it's installed and in your PATH.
 ```bash
 #!/bin/bash
 # .git/hooks/pre-commit
-codex exec "Quick review of staged changes for critical issues" --yes
+codex --sandbox=read-only exec "Quick review of staged changes for critical issues" --yes
 exit $?
 ````
 
@@ -301,7 +301,7 @@ exit $?
 # GitHub Actions example
 - name: Codex Review
   run: |
-    codex exec "Review PR changes for security and quality" > review.md
+    codex --sandbox=read-only exec "Review PR changes for security and quality" > review.md
 ```
 
 ## Review Checklist Templates

@@ -26,7 +26,16 @@ Verify Codex CLI is available:
 codex --version  # Should display installed version
 ```
 
-Ensure you have internet connectivity for web search.
+**Requirements:**
+- Internet connectivity for web search
+- Authenticated Codex access (ChatGPT Plus/Pro/Team/Enterprise or API key in `~/.codex/config.toml`)
+- Web search enabled in `~/.codex/config.toml` as follows:
+  ```toml
+  [features]
+  web_search_request = true
+  ```
+
+**Note:** The `--search` flag enables Codex's native web search tool. If web search is not available in your environment, the skill will provide information based on the model's training data.
 
 ## Basic Usage
 
@@ -56,7 +65,7 @@ npm list --depth=0  # or pip list, go list, etc.
 Run Codex with the `--search` flag for web research:
 
 ```bash
-codex exec --search "Research and provide comprehensive information about: [QUERY]
+codex --sandbox=read-only --search exec "Research and provide comprehensive information about: [QUERY]
 
 Include:
 1. Direct answer to the question
@@ -91,7 +100,7 @@ Format the response with proper citations:
 ### Documentation Lookup
 
 ```bash
-codex exec --search "Find official documentation for React hooks in 2026:
+codex --sandbox=read-only --search exec "Find official documentation for React hooks in 2026:
 - useState, useEffect, useContext documentation
 - Best practices for custom hooks
 - Performance optimization tips
@@ -102,7 +111,7 @@ Include only official React documentation."
 ### Library Comparison
 
 ```bash
-codex exec --search "Compare Prisma vs TypeORM vs Drizzle for TypeScript database ORMs in 2026:
+codex --sandbox=read-only --search exec "Compare Prisma vs TypeORM vs Drizzle for TypeScript database ORMs in 2026:
 - Feature comparison
 - Performance benchmarks
 - Community adoption
@@ -114,7 +123,7 @@ Include recent comparisons and official documentation."
 ### Error Resolution
 
 ```bash
-codex exec --search "Research solutions for error: 'ECONNREFUSED' in Node.js:
+codex --sandbox=read-only --search exec "Research solutions for error: 'ECONNREFUSED' in Node.js:
 - Root causes
 - Common solutions
 - Prevention strategies
@@ -125,7 +134,7 @@ Include Stack Overflow discussions and official Node.js docs."
 ### Best Practices
 
 ```bash
-codex exec --search "Find current security best practices for JWT authentication in 2026:
+codex --sandbox=read-only --search exec "Find current security best practices for JWT authentication in 2026:
 - OWASP recommendations
 - Token storage best practices
 - Refresh token patterns
@@ -137,7 +146,7 @@ Prioritize official sources and security organizations."
 ### Getting Started
 
 ```bash
-codex exec --search "Find getting started guide for Next.js 15 in 2026:
+codex --sandbox=read-only --search exec "Find getting started guide for Next.js 15 in 2026:
 - Installation and setup
 - Project structure
 - Core concepts
@@ -333,7 +342,7 @@ npm install [package]@latest --dry-run
 Research before choosing a library or framework:
 
 ```bash
-codex exec --search "Evaluate GraphQL vs REST vs tRPC for TypeScript API in 2026"
+codex --sandbox=read-only --search exec "Evaluate GraphQL vs REST vs tRPC for TypeScript API in 2026"
 ```
 
 ### Migration Planning
@@ -341,7 +350,7 @@ codex exec --search "Evaluate GraphQL vs REST vs tRPC for TypeScript API in 2026
 Find migration guides and breaking changes:
 
 ```bash
-codex exec --search "Find breaking changes migrating from Vue 2 to Vue 3"
+codex --sandbox=read-only --search exec "Find breaking changes migrating from Vue 2 to Vue 3"
 ```
 
 ### Security Research
@@ -349,7 +358,7 @@ codex exec --search "Find breaking changes migrating from Vue 2 to Vue 3"
 Find vulnerabilities and best practices:
 
 ```bash
-codex exec --search "Search for security vulnerabilities in express@4.18 CVE advisories"
+codex --sandbox=read-only --search exec "Search for security vulnerabilities in express@4.18 CVE advisories"
 ```
 
 ### Learning
@@ -357,7 +366,7 @@ codex exec --search "Search for security vulnerabilities in express@4.18 CVE adv
 Get tutorials and learning resources:
 
 ```bash
-codex exec --search "Find beginner-friendly TypeScript tutorial for 2026"
+codex --sandbox=read-only --search exec "Find beginner-friendly TypeScript tutorial for 2026"
 ```
 
 ### Troubleshooting
@@ -365,7 +374,7 @@ codex exec --search "Find beginner-friendly TypeScript tutorial for 2026"
 Research error messages and solutions:
 
 ```bash
-codex exec --search "Solutions for 'Module not found' error in webpack 5"
+codex --sandbox=read-only --search exec "Solutions for 'Module not found' error in webpack 5"
 ```
 
 ## Limitations
@@ -385,19 +394,19 @@ For complex research, break into focused queries:
 
 ```bash
 # Query 1: Current state
-codex exec --search "What is the current recommended approach for SSR in React 2026?"
+codex --sandbox=read-only --search exec "What is the current recommended approach for SSR in React 2026?"
 
 # Query 2: Specific implementation
-codex exec --search "Find implementation examples for React Server Components"
+codex --sandbox=read-only --search exec "Find implementation examples for React Server Components"
 
 # Query 3: Gotchas
-codex exec --search "Common problems with React Server Components and solutions"
+codex --sandbox=read-only --search exec "Common problems with React Server Components and solutions"
 ```
 
 ### Version-Specific Research
 
 ```bash
-codex exec --search "Find features specific to TypeScript 5.5:
+codex --sandbox=read-only --search exec "Find features specific to TypeScript 5.5:
 - New features in this version
 - Breaking changes from 5.4
 - Migration guide
@@ -407,7 +416,7 @@ Ensure results are version-specific."
 ### Comparison Research
 
 ```bash
-codex exec --search "Detailed comparison of Vite vs webpack vs Turbopack in 2026:
+codex --sandbox=read-only --search exec "Detailed comparison of Vite vs webpack vs Turbopack in 2026:
 - Build performance benchmarks
 - Developer experience
 - Ecosystem and plugin support

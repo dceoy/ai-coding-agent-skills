@@ -19,7 +19,7 @@ You are a specialized agent that integrates OpenAI Codex CLI capabilities for au
 
 For any non-trivial work, you MUST use the Codex CLI as the primary reasoning and execution engine. Treat Claude as the dispatcher only:
 
-- Always run `codex exec` for analysis, changes, reviews, or research before you respond.
+- Use `codex --sandbox=read-only exec` for analysis, reviews, or research; use `codex --sandbox=workspace-write exec` when making code changes.
 - Do not answer from Claude's own model knowledge when Codex CLI can be used.
 - If Codex CLI is unavailable or fails, state that clearly and ask the user how to proceed.
 
@@ -128,7 +128,7 @@ Use Read, Grep, and Glob tools to understand the codebase structure and narrow t
 Construct a precise query:
 
 ```bash
-codex exec "Answer this question about the codebase: [QUESTION]
+codex --sandbox=read-only exec "Answer this question about the codebase: [QUESTION]
 
 Provide:
 1. Direct answer to the question
@@ -195,31 +195,31 @@ Format clearly:
 **Understanding questions:**
 
 ```bash
-codex exec "Explain how [FEATURE] works in this codebase. Include the complete flow, all files involved, key functions, and data flow. Do NOT modify any files."
+codex --sandbox=read-only exec "Explain how [FEATURE] works in this codebase. Include the complete flow, all files involved, key functions, and data flow. Do NOT modify any files."
 ```
 
 **Location questions:**
 
 ```bash
-codex exec "Find where [FEATURE] is implemented. Show all files and line numbers, different implementations, and how they differ. Do NOT modify any files."
+codex --sandbox=read-only exec "Find where [FEATURE] is implemented. Show all files and line numbers, different implementations, and how they differ. Do NOT modify any files."
 ```
 
 **Architecture questions:**
 
 ```bash
-codex exec "Describe the architecture of [COMPONENT]. Include structure, design patterns, component relationships, and data flow. Do NOT modify any files."
+codex --sandbox=read-only exec "Describe the architecture of [COMPONENT]. Include structure, design patterns, component relationships, and data flow. Do NOT modify any files."
 ```
 
 **Debugging questions:**
 
 ```bash
-codex exec "Analyze why [FEATURE] might not be working. Check implementation for issues, identify unhandled edge cases, and suggest debugging strategies. Do NOT modify any files."
+codex --sandbox=read-only exec "Analyze why [FEATURE] might not be working. Check implementation for issues, identify unhandled edge cases, and suggest debugging strategies. Do NOT modify any files."
 ```
 
 **Best practice questions:**
 
 ```bash
-codex exec "Evaluate [ASPECT] of [FILE]. Does it follow best practices? Any security or performance concerns? Suggest improvements but don't make changes. Do NOT modify any files."
+codex --sandbox=read-only exec "Evaluate [ASPECT] of [FILE]. Does it follow best practices? Any security or performance concerns? Suggest improvements but don't make changes. Do NOT modify any files."
 ```
 
 ## Verification Checklist
@@ -304,7 +304,7 @@ Use Read, Grep, and Glob to understand:
 Construct a precise Codex command:
 
 ```bash
-codex exec "TASK DESCRIPTION
+codex --sandbox=workspace-write exec "TASK DESCRIPTION
 
 Follow these guidelines:
 - Follow existing code patterns and conventions
@@ -325,13 +325,13 @@ Project context:
 
 ```bash
 # Safe mode (default) - prompts for approval
-codex exec "TASK"
+codex --sandbox=workspace-write exec "TASK"
 
 # Preview mode - see changes without applying
-codex exec "TASK" --dry-run
+codex --sandbox=workspace-write exec "TASK" --dry-run
 
 # Auto-approve (use carefully, only for low-risk tasks)
-codex exec "TASK" --yes
+codex --sandbox=workspace-write exec "TASK" --yes
 ```
 
 **Only use `--yes` for:**
@@ -445,7 +445,7 @@ Provide a clear summary:
 **Create components:**
 
 ```bash
-codex exec "Create a UserProfile component in src/components/ with:
+codex --sandbox=workspace-write exec "Create a UserProfile component in src/components/ with:
 - Props: name (string), email (string), avatar (optional string)
 - Display user info in a card layout
 - Include TypeScript types
@@ -456,7 +456,7 @@ codex exec "Create a UserProfile component in src/components/ with:
 **Generate utilities:**
 
 ```bash
-codex exec "Create date formatting utilities in src/utils/date.ts:
+codex --sandbox=workspace-write exec "Create date formatting utilities in src/utils/date.ts:
 - formatISO(date): ISO 8601 format
 - formatRelative(date): 'X days ago' format
 - formatLocale(date, locale): locale-specific format
@@ -468,13 +468,13 @@ codex exec "Create date formatting utilities in src/utils/date.ts:
 **Extract functions:**
 
 ```bash
-codex exec "In src/components/LoginForm.tsx, extract validation logic into a separate validateCredentials function in src/utils/validation.ts. Maintain all existing functionality."
+codex --sandbox=workspace-write exec "In src/components/LoginForm.tsx, extract validation logic into a separate validateCredentials function in src/utils/validation.ts. Maintain all existing functionality."
 ```
 
 **Convert promise chains:**
 
 ```bash
-codex exec "Refactor all promise chains in src/services/api.ts to use async/await. Add proper try-catch error handling."
+codex --sandbox=workspace-write exec "Refactor all promise chains in src/services/api.ts to use async/await. Add proper try-catch error handling."
 ```
 
 ### Bug Fixes
@@ -482,7 +482,7 @@ codex exec "Refactor all promise chains in src/services/api.ts to use async/awai
 **Fix specific issues:**
 
 ```bash
-codex exec "Fix memory leak in src/hooks/useWebSocket.ts caused by not cleaning up WebSocket connection. Ensure cleanup in useEffect cleanup function."
+codex --sandbox=workspace-write exec "Fix memory leak in src/hooks/useWebSocket.ts caused by not cleaning up WebSocket connection. Ensure cleanup in useEffect cleanup function."
 ```
 
 ### Testing
@@ -490,7 +490,7 @@ codex exec "Fix memory leak in src/hooks/useWebSocket.ts caused by not cleaning 
 **Generate tests:**
 
 ```bash
-codex exec "Create comprehensive unit tests for src/utils/validation.ts:
+codex --sandbox=workspace-write exec "Create comprehensive unit tests for src/utils/validation.ts:
 - Test valid inputs
 - Test invalid inputs
 - Test edge cases
@@ -574,7 +574,7 @@ Use Read, Grep, and Glob to:
 Construct a comprehensive review command:
 
 ```bash
-codex exec "Perform a comprehensive code review of [SCOPE].
+codex --sandbox=read-only exec "Perform a comprehensive code review of [SCOPE].
 
 Focus on:
 
@@ -619,7 +619,7 @@ Do NOT make any changes - this is review only."
 **Quick pre-commit scan:**
 
 ```bash
-codex exec "Quick pre-commit review:
+codex --sandbox=read-only exec "Quick pre-commit review:
 - console.log or debug statements
 - Unused imports
 - TODO/FIXME comments
@@ -631,7 +631,7 @@ codex exec "Quick pre-commit review:
 **Security-focused review:**
 
 ```bash
-codex exec "Security-focused review:
+codex --sandbox=read-only exec "Security-focused review:
 - SQL injection vulnerabilities
 - XSS vulnerabilities
 - CSRF vulnerabilities
@@ -646,7 +646,7 @@ codex exec "Security-focused review:
 **Performance review:**
 
 ```bash
-codex exec "Performance review:
+codex --sandbox=read-only exec "Performance review:
 - Inefficient algorithms (O(n²) when O(n log n) possible)
 - Unnecessary re-renders (React - missing memo/useMemo)
 - Memory leaks (uncleaned event listeners, subscriptions)
@@ -801,7 +801,7 @@ Use Read, Grep, and Glob to understand:
 Construct a targeted search query using the `--search` flag:
 
 ```bash
-codex exec --search "Research and provide comprehensive information about: [QUERY]
+codex --sandbox=read-only --search exec "Research and provide comprehensive information about: [QUERY]
 
 Include:
 1. Direct answer to the question
@@ -881,7 +881,7 @@ Last verified: [Current date]
 **Library documentation:**
 
 ```bash
-codex exec --search "Find official documentation for [LIBRARY] version [VERSION]:
+codex --sandbox=read-only --search exec "Find official documentation for [LIBRARY] version [VERSION]:
 - Installation instructions
 - Core concepts and API overview
 - Common use cases and examples
@@ -895,7 +895,7 @@ Include only official sources."
 **Error resolution:**
 
 ```bash
-codex exec --search "Research solutions for error: '[ERROR_MESSAGE]'
+codex --sandbox=read-only --search exec "Research solutions for error: '[ERROR_MESSAGE]'
 
 Context:
 - Language/Framework: [TECH_STACK]
@@ -915,7 +915,7 @@ Include Stack Overflow discussions and official issue trackers."
 **Library comparison:**
 
 ```bash
-codex exec --search "Compare [LIBRARY_A] vs [LIBRARY_B] vs [LIBRARY_C] for [USE_CASE]:
+codex --sandbox=read-only --search exec "Compare [LIBRARY_A] vs [LIBRARY_B] vs [LIBRARY_C] for [USE_CASE]:
 - Feature comparison
 - Performance benchmarks
 - Community adoption and activity
