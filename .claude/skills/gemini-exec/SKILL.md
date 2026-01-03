@@ -62,7 +62,7 @@ grep -r "existing-pattern"
 **Basic execution:**
 
 ```bash
-gemini -p "TASK DESCRIPTION
+gemini --sandbox -p "TASK DESCRIPTION
 
 Follow these guidelines:
 - Follow existing code patterns and conventions
@@ -80,7 +80,7 @@ Project context:
 **With directory context:**
 
 ```bash
-gemini --include-directories src,lib -p "TASK DESCRIPTION
+gemini --sandbox --include-directories src,lib -p "TASK DESCRIPTION
 
 Analyze existing patterns in src/ and lib/ before implementing.
 Follow the same conventions."
@@ -89,7 +89,7 @@ Follow the same conventions."
 **Generate from design files:**
 
 ```bash
-gemini --include-files mockup.png,spec.pdf -p "Implement the user profile component:
+gemini --sandbox --include-files mockup.png,spec.pdf -p "Implement the user profile component:
 - Follow the exact layout from mockup.png
 - Implement requirements from spec.pdf
 - Use existing component patterns from src/components/
@@ -125,7 +125,7 @@ Provide a clear summary of what was done, what was verified, and any next steps.
 **Create components:**
 
 ```bash
-gemini --include-directories src/components -p "Create a UserProfile component in src/components/ with:
+gemini --sandbox --include-directories src/components -p "Create a UserProfile component in src/components/ with:
 - Props: name (string), email (string), avatar (optional string)
 - Display user info in a card layout
 - Include TypeScript types
@@ -136,7 +136,7 @@ gemini --include-directories src/components -p "Create a UserProfile component i
 **Generate from mockups:**
 
 ```bash
-gemini --include-files wireframe.png -p "Generate a React component based on this wireframe:
+gemini --sandbox --include-files wireframe.png -p "Generate a React component based on this wireframe:
 - Component structure matching the layout
 - Proper props and state management
 - CSS modules for styling
@@ -147,7 +147,7 @@ gemini --include-files wireframe.png -p "Generate a React component based on thi
 **Generate from PDFs:**
 
 ```bash
-gemini --include-files api-spec.pdf -p "Generate TypeScript types and API client from the API specification:
+gemini --sandbox --include-files api-spec.pdf -p "Generate TypeScript types and API client from the API specification:
 - Create types for all request/response schemas
 - Generate API client with proper error handling
 - Include authentication headers
@@ -157,7 +157,7 @@ gemini --include-files api-spec.pdf -p "Generate TypeScript types and API client
 **Create utilities:**
 
 ```bash
-gemini -p "Create date formatting utilities in src/utils/date.ts:
+gemini --sandbox -p "Create date formatting utilities in src/utils/date.ts:
 - formatISO(date): ISO 8601 format
 - formatRelative(date): 'X days ago' format
 - formatLocale(date, locale): locale-specific format
@@ -169,19 +169,19 @@ gemini -p "Create date formatting utilities in src/utils/date.ts:
 **Extract functions:**
 
 ```bash
-gemini -p "In src/components/LoginForm.tsx, extract validation logic into a separate validateCredentials function in src/utils/validation.ts. Maintain all existing functionality."
+gemini --sandbox -p "In src/components/LoginForm.tsx, extract validation logic into a separate validateCredentials function in src/utils/validation.ts. Maintain all existing functionality."
 ```
 
 **Convert patterns:**
 
 ```bash
-gemini --include-directories src/services -p "Refactor all promise chains in src/services/api.ts to use async/await. Add proper try-catch error handling."
+gemini --sandbox --include-directories src/services -p "Refactor all promise chains in src/services/api.ts to use async/await. Add proper try-catch error handling."
 ```
 
 **Improve structure:**
 
 ```bash
-gemini -p "Split UserService in src/services/user.ts into:
+gemini --sandbox -p "Split UserService in src/services/user.ts into:
 - AuthService: login, logout, resetPassword
 - ProfileService: getProfile, updateProfile
 Maintain all functionality and update imports."
@@ -192,7 +192,7 @@ Maintain all functionality and update imports."
 **Add validation:**
 
 ```bash
-gemini -p "Add input validation to registration form in src/components/RegisterForm.tsx:
+gemini --sandbox -p "Add input validation to registration form in src/components/RegisterForm.tsx:
 - Email: valid format, required
 - Password: min 8 chars, uppercase, lowercase, number, special char
 - Name: required, min 2 chars
@@ -203,7 +203,7 @@ gemini -p "Add input validation to registration form in src/components/RegisterF
 **Implement from requirements:**
 
 ```bash
-gemini --include-files requirements.pdf -p "Implement the caching layer described in requirements.pdf:
+gemini --sandbox --include-files requirements.pdf -p "Implement the caching layer described in requirements.pdf:
 - Use the architecture specified
 - Follow existing service patterns
 - Include proper error handling
@@ -215,13 +215,13 @@ gemini --include-files requirements.pdf -p "Implement the caching layer describe
 **Fix specific issues:**
 
 ```bash
-gemini -p "Fix memory leak in src/hooks/useWebSocket.ts caused by not cleaning up WebSocket connection. Ensure cleanup in useEffect cleanup function."
+gemini --sandbox -p "Fix memory leak in src/hooks/useWebSocket.ts caused by not cleaning up WebSocket connection. Ensure cleanup in useEffect cleanup function."
 ```
 
 **Address edge cases:**
 
 ```bash
-gemini -p "Fix race condition in src/services/auth.ts where concurrent logins create duplicate sessions. Add proper locking or queueing."
+gemini --sandbox -p "Fix race condition in src/services/auth.ts where concurrent logins create duplicate sessions. Add proper locking or queueing."
 ```
 
 ### Testing
@@ -229,7 +229,7 @@ gemini -p "Fix race condition in src/services/auth.ts where concurrent logins cr
 **Generate tests:**
 
 ```bash
-gemini -p "Create comprehensive unit tests for src/utils/validation.ts:
+gemini --sandbox -p "Create comprehensive unit tests for src/utils/validation.ts:
 - Test valid inputs
 - Test invalid inputs
 - Test edge cases
@@ -241,7 +241,7 @@ gemini -p "Create comprehensive unit tests for src/utils/validation.ts:
 **Integration tests:**
 
 ```bash
-gemini -p "Create integration tests for authentication flow:
+gemini --sandbox -p "Create integration tests for authentication flow:
 - Test successful login
 - Test failed login
 - Test password reset
@@ -256,7 +256,7 @@ gemini -p "Create integration tests for authentication flow:
 **From wireframes:**
 
 ```bash
-gemini --include-files wireframe-1.png,wireframe-2.png,wireframe-3.png -p "Implement the complete user onboarding flow:
+gemini --sandbox --include-files wireframe-1.png,wireframe-2.png,wireframe-3.png -p "Implement the complete user onboarding flow:
 - Step 1 from wireframe-1.png
 - Step 2 from wireframe-2.png
 - Step 3 from wireframe-3.png
@@ -267,7 +267,7 @@ gemini --include-files wireframe-1.png,wireframe-2.png,wireframe-3.png -p "Imple
 **From architecture diagrams:**
 
 ```bash
-gemini --include-files architecture.png -p "Implement the service layer shown in this diagram:
+gemini --sandbox --include-files architecture.png -p "Implement the service layer shown in this diagram:
 - Create all services and interfaces
 - Implement dependency injection as shown
 - Add proper error handling
@@ -277,7 +277,7 @@ gemini --include-files architecture.png -p "Implement the service layer shown in
 **From design systems:**
 
 ```bash
-gemini --include-files design-system.pdf,mockup.png -p "Create components matching the mockup:
+gemini --sandbox --include-files design-system.pdf,mockup.png -p "Create components matching the mockup:
 - Follow design-system.pdf for colors, typography, spacing
 - Implement mockup.png layout
 - Use component library patterns
@@ -287,7 +287,7 @@ gemini --include-files design-system.pdf,mockup.png -p "Create components matchi
 ### Google Search Grounding
 
 ```bash
-gemini -p "Implement OAuth2 authentication using current best practices. Use Google Search to find latest security recommendations and implement them."
+gemini --sandbox -p "Implement OAuth2 authentication using current best practices. Use Google Search to find latest security recommendations and implement them."
 ```
 
 ### Conversation Checkpointing
@@ -296,19 +296,19 @@ Multi-phase implementation (context preserved):
 
 ```bash
 # Phase 1
-gemini -p "First, create the base component structure for the dashboard"
+gemini --sandbox -p "First, create the base component structure for the dashboard"
 
 # Phase 2 (context preserved)
-gemini -p "Now add data fetching logic to the dashboard we just created"
+gemini --sandbox -p "Now add data fetching logic to the dashboard we just created"
 
 # Phase 3
-gemini -p "Finally, add error handling and loading states"
+gemini --sandbox -p "Finally, add error handling and loading states"
 ```
 
 ### Large Context Window
 
 ```bash
-gemini --include-directories src,lib,tests,config -p "Refactor the entire authentication system:
+gemini --sandbox --include-directories src,lib,tests,config -p "Refactor the entire authentication system:
 - Analyze all auth-related code
 - Modernize patterns
 - Improve error handling
@@ -382,18 +382,18 @@ Then sign in with Google account or configure API key.
 git restore .
 
 # Re-execute with better prompt
-gemini -p "More specific task description..."
+gemini --sandbox -p "More specific task description..."
 ```
 
 **If context window exceeded:**
 
 ```bash
 # Narrow scope
-gemini --include-directories src/specific-module -p "Task"
+gemini --sandbox --include-directories src/specific-module -p "Task"
 
 # Break into phases
-gemini -p "First, implement core functionality"
-gemini -p "Now add additional features"
+gemini --sandbox -p "First, implement core functionality"
+gemini --sandbox -p "Now add additional features"
 ```
 
 ## Output Format
@@ -446,13 +446,13 @@ After execution, report:
 
 ```bash
 # Step 1: Core functionality
-gemini -p "Implement basic user authentication"
+gemini --sandbox -p "Implement basic user authentication"
 
 # Step 2: Enhance (context preserved)
-gemini -p "Add password reset to the authentication we just implemented"
+gemini --sandbox -p "Add password reset to the authentication we just implemented"
 
 # Step 3: Test
-gemini -p "Create tests for the authentication system"
+gemini --sandbox -p "Create tests for the authentication system"
 
 # Step 4: Review
 # Use gemini-review skill
@@ -461,7 +461,7 @@ gemini -p "Create tests for the authentication system"
 ### Multi-Artifact Generation
 
 ```bash
-gemini --include-files page-1.png,page-2.png,page-3.png -p "Create complete multi-page form:
+gemini --sandbox --include-files page-1.png,page-2.png,page-3.png -p "Create complete multi-page form:
 - Page 1 from page-1.png (personal info)
 - Page 2 from page-2.png (address)
 - Page 3 from page-3.png (confirmation)
@@ -472,7 +472,7 @@ gemini --include-files page-1.png,page-2.png,page-3.png -p "Create complete mult
 ### Integration from Specs
 
 ```bash
-gemini --include-files openapi-spec.yaml -p "Generate complete API client from OpenAPI spec:
+gemini --sandbox --include-files openapi-spec.yaml -p "Generate complete API client from OpenAPI spec:
 - TypeScript types for all schemas
 - API methods for all endpoints
 - Error handling and retries

@@ -63,7 +63,7 @@ npm run typecheck 2>&1 | head -20
 **Comprehensive review:**
 
 ```bash
-gemini --include-directories src,lib,tests -p "Perform a comprehensive code review of changes in git diff.
+gemini --sandbox --include-directories src,lib,tests -p "Perform a comprehensive code review of changes in git diff.
 
 Focus on:
 
@@ -105,7 +105,7 @@ Do NOT make any changes - this is review only."
 **Quick pre-commit scan:**
 
 ```bash
-gemini -p "Quick pre-commit review of git diff:
+gemini --sandbox -p "Quick pre-commit review of git diff:
 - console.log or debug statements
 - Unused imports
 - TODO/FIXME comments
@@ -117,7 +117,7 @@ gemini -p "Quick pre-commit review of git diff:
 **Security-focused review:**
 
 ```bash
-gemini -p "Security-focused review of git diff:
+gemini --sandbox -p "Security-focused review of git diff:
 - SQL injection vulnerabilities
 - XSS vulnerabilities
 - CSRF vulnerabilities
@@ -133,7 +133,7 @@ Use Google Search to verify against current OWASP 2026 recommendations."
 **Performance review:**
 
 ```bash
-gemini --include-directories src -p "Performance review of git diff:
+gemini --sandbox --include-directories src -p "Performance review of git diff:
 - Inefficient algorithms
 - Unnecessary re-renders
 - Memory leaks
@@ -146,7 +146,7 @@ gemini --include-directories src -p "Performance review of git diff:
 **Design compliance review (multimodal):**
 
 ```bash
-gemini --include-files design-spec.pdf,mockup.png -p "Review code changes for compliance with design:
+gemini --sandbox --include-files design-spec.pdf,mockup.png -p "Review code changes for compliance with design:
 - Compare implementation with mockup.png
 - Verify requirements from design-spec.pdf are met
 - Check for visual/functional discrepancies
@@ -241,7 +241,7 @@ const result = await db.execute(query, [email]);
 ### Pre-Commit Review
 
 ```bash
-gemini -p "Quick pre-commit review for obvious issues:
+gemini --sandbox -p "Quick pre-commit review for obvious issues:
 - No debug code
 - No commented-out code
 - All imports used
@@ -254,7 +254,7 @@ gemini -p "Quick pre-commit review for obvious issues:
 ### Pull Request Review
 
 ```bash
-gemini -p "Comprehensive PR review of all changes vs main:
+gemini --sandbox -p "Comprehensive PR review of all changes vs main:
 - Code quality and standards
 - Security vulnerabilities (verify with Google Search)
 - Performance implications
@@ -268,7 +268,7 @@ gemini -p "Comprehensive PR review of all changes vs main:
 ### Pre-Deployment Review
 
 ```bash
-gemini -p "Pre-deployment security and stability review:
+gemini --sandbox -p "Pre-deployment security and stability review:
 - No secrets in code
 - Environment configs externalized
 - Error logging implemented
@@ -281,7 +281,7 @@ gemini -p "Pre-deployment security and stability review:
 ### Test Coverage Review
 
 ```bash
-gemini --include-directories src,tests -p "Test coverage review:
+gemini --sandbox --include-directories src,tests -p "Test coverage review:
 - Untested code paths
 - Missing edge cases
 - Brittle tests
@@ -293,7 +293,7 @@ gemini --include-directories src,tests -p "Test coverage review:
 ### Design Compliance Review
 
 ```bash
-gemini --include-files design.pdf,mockup-1.png,mockup-2.png -p "Review implementation against design:
+gemini --sandbox --include-files design.pdf,mockup-1.png,mockup-2.png -p "Review implementation against design:
 - Visual accuracy vs mockups
 - All requirements from design.pdf implemented
 - Responsive behavior matches design
@@ -309,7 +309,7 @@ gemini --include-files design.pdf,mockup-1.png,mockup-2.png -p "Review implement
 Verify against current standards:
 
 ```bash
-gemini -p "Review authentication implementation. Use Google Search to verify it follows current OWASP 2026 authentication security standards."
+gemini --sandbox -p "Review authentication implementation. Use Google Search to verify it follows current OWASP 2026 authentication security standards."
 ```
 
 ### Multimodal Review
@@ -317,7 +317,7 @@ gemini -p "Review authentication implementation. Use Google Search to verify it 
 Compare with design artifacts:
 
 ```bash
-gemini --include-files original-design.png -p "Review Dashboard component vs original-design.png:
+gemini --sandbox --include-files original-design.png -p "Review Dashboard component vs original-design.png:
 - Visual fidelity
 - Implementation of all design elements
 - Responsive behavior
@@ -330,7 +330,7 @@ gemini --include-files original-design.png -p "Review Dashboard component vs ori
 Review entire projects:
 
 ```bash
-gemini --include-directories src,lib,tests,config -p "Comprehensive review of entire application:
+gemini --sandbox --include-directories src,lib,tests,config -p "Comprehensive review of entire application:
 - Architecture patterns
 - Security across all modules
 - Performance bottlenecks
@@ -344,13 +344,13 @@ Multi-phase review:
 
 ```bash
 # Phase 1: Security
-gemini -p "First, review for security issues only"
+gemini --sandbox -p "First, review for security issues only"
 
 # Phase 2: Performance (context preserved)
-gemini -p "Now review the same changes for performance issues"
+gemini --sandbox -p "Now review the same changes for performance issues"
 
 # Phase 3: Code quality
-gemini -p "Finally, review for code quality and maintainability"
+gemini --sandbox -p "Finally, review for code quality and maintainability"
 ```
 
 ## Best Practices
@@ -427,8 +427,8 @@ Then sign in with Google account or configure API key.
 
 ```bash
 # Review in focused chunks
-gemini --include-directories src/auth -p "Review auth code only"
-gemini --include-directories src/api -p "Review API code only"
+gemini --sandbox --include-directories src/auth -p "Review auth code only"
+gemini --sandbox --include-directories src/api -p "Review API code only"
 ```
 
 ## Review Checklist Template
@@ -493,7 +493,7 @@ Documentation:
 ### Comparative Review
 
 ```bash
-gemini --include-files spec-v1.pdf,spec-v2.pdf -p "Review implementation and explain:
+gemini --sandbox --include-files spec-v1.pdf,spec-v2.pdf -p "Review implementation and explain:
 - Which spec version is implemented
 - Discrepancies from both versions
 - Missing features from target spec"
@@ -502,7 +502,7 @@ gemini --include-files spec-v1.pdf,spec-v2.pdf -p "Review implementation and exp
 ### Architecture Review
 
 ```bash
-gemini --include-files architecture-diagram.png --include-directories src -p "Review architecture implementation:
+gemini --sandbox --include-files architecture-diagram.png --include-directories src -p "Review architecture implementation:
 - Compare code structure with diagram
 - Identify architectural violations
 - Suggest improvements for alignment
@@ -512,7 +512,7 @@ gemini --include-files architecture-diagram.png --include-directories src -p "Re
 ### Cross-Module Review
 
 ```bash
-gemini --include-directories src/frontend,src/backend -p "Review integration between frontend and backend:
+gemini --sandbox --include-directories src/frontend,src/backend -p "Review integration between frontend and backend:
 - API contract consistency
 - Type safety across boundaries
 - Error handling on both sides

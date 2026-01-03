@@ -59,7 +59,7 @@ Run Gemini in read-only mode:
 **Text-only query:**
 
 ```bash
-gemini -p "Answer this question about the codebase: [QUESTION]
+gemini --sandbox -p "Answer this question about the codebase: [QUESTION]
 
 Provide:
 1. Direct answer to the question
@@ -74,7 +74,7 @@ Do NOT make any changes - this is read-only analysis."
 **With directory context:**
 
 ```bash
-gemini --include-directories src,lib -p "Answer this question about the codebase: [QUESTION]
+gemini --sandbox --include-directories src,lib -p "Answer this question about the codebase: [QUESTION]
 
 Include relevant code from src/ and lib/ directories.
 Provide file paths and line numbers.
@@ -84,7 +84,7 @@ Do NOT make any changes."
 **Multimodal query (with images, PDFs):**
 
 ```bash
-gemini --include-files diagram.png -p "Analyze this architecture diagram and explain:
+gemini --sandbox --include-files diagram.png -p "Analyze this architecture diagram and explain:
 - What components are shown
 - How they interact
 - Which files in the codebase implement these components
@@ -109,31 +109,31 @@ Format the response with:
 ### Understanding Flow
 
 ```bash
-gemini -p "Explain how user authentication works in this app. Include all files involved, the complete flow, and security measures."
+gemini --sandbox -p "Explain how user authentication works in this app. Include all files involved, the complete flow, and security measures."
 ```
 
 ### Finding Implementation
 
 ```bash
-gemini --include-directories src -p "Where is email validation implemented? Show all locations with file paths and line numbers."
+gemini --sandbox --include-directories src -p "Where is email validation implemented? Show all locations with file paths and line numbers."
 ```
 
 ### Architecture Questions
 
 ```bash
-gemini -p "What's the overall architecture of this application? Describe patterns used, component organization, and data flow."
+gemini --sandbox -p "What's the overall architecture of this application? Describe patterns used, component organization, and data flow."
 ```
 
 ### Debugging
 
 ```bash
-gemini -p "What could cause 'Cannot read property of undefined' in UserProfile component? Analyze potential causes with specific line references."
+gemini --sandbox -p "What could cause 'Cannot read property of undefined' in UserProfile component? Analyze potential causes with specific line references."
 ```
 
 ### Visual Analysis
 
 ```bash
-gemini --include-files architecture-diagram.pdf -p "Analyze this architecture diagram:
+gemini --sandbox --include-files architecture-diagram.pdf -p "Analyze this architecture diagram:
 - Identify all components and their responsibilities
 - Explain data flow between components
 - Compare with current implementation in src/
@@ -143,7 +143,7 @@ gemini --include-files architecture-diagram.pdf -p "Analyze this architecture di
 ### Compare Design with Implementation
 
 ```bash
-gemini --include-files mockup.png --include-directories src/components -p "Compare the mockup with the actual implementation in src/components/UserProfile:
+gemini --sandbox --include-files mockup.png --include-directories src/components -p "Compare the mockup with the actual implementation in src/components/UserProfile:
 - Visual fidelity
 - Missing features
 - Implementation differences
@@ -200,16 +200,16 @@ Analyze visual documentation:
 
 ```bash
 # Architecture diagrams
-gemini --include-files arch.png -p "Explain the architecture shown in this diagram"
+gemini --sandbox --include-files arch.png -p "Explain the architecture shown in this diagram"
 
 # PDF documentation
-gemini --include-files spec.pdf -p "Summarize the API specification and show which parts are implemented"
+gemini --sandbox --include-files spec.pdf -p "Summarize the API specification and show which parts are implemented"
 
 # Screenshots
-gemini --include-files screenshot.png -p "What error is shown in this screenshot and what might cause it?"
+gemini --sandbox --include-files screenshot.png -p "What error is shown in this screenshot and what might cause it?"
 
 # Sketches/wireframes
-gemini --include-files sketch.jpg -p "What components would be needed to implement this sketch?"
+gemini --sandbox --include-files sketch.jpg -p "What components would be needed to implement this sketch?"
 ```
 
 ### Google Search Grounding
@@ -217,7 +217,7 @@ gemini --include-files sketch.jpg -p "What components would be needed to impleme
 For current information:
 
 ```bash
-gemini -p "How does this authentication implementation compare to current best practices? Use Google Search to find latest OWASP recommendations."
+gemini --sandbox -p "How does this authentication implementation compare to current best practices? Use Google Search to find latest OWASP recommendations."
 ```
 
 ### Large Context Window
@@ -225,7 +225,7 @@ gemini -p "How does this authentication implementation compare to current best p
 Analyze entire projects:
 
 ```bash
-gemini --include-directories src,lib,tests -p "Analyze the complete architecture of this application with all source, library, and test code."
+gemini --sandbox --include-directories src,lib,tests -p "Analyze the complete architecture of this application with all source, library, and test code."
 ```
 
 ### Conversation Checkpointing
@@ -234,10 +234,10 @@ Multi-part analysis (context preserved automatically):
 
 ```bash
 # First question
-gemini -p "Explain the database layer architecture"
+gemini --sandbox -p "Explain the database layer architecture"
 
 # Follow-up (context preserved)
-gemini -p "Now explain how the API layer interacts with the database we just discussed"
+gemini --sandbox -p "Now explain how the API layer interacts with the database we just discussed"
 ```
 
 ## Best Practices
@@ -299,7 +299,7 @@ Then follow the prompts to sign in with Google account or configure API key from
 
 ```bash
 # Narrow the scope
-gemini --include-directories src/auth -p "Question about authentication only"
+gemini --sandbox --include-directories src/auth -p "Question about authentication only"
 
 # Or break into multiple questions
 ```
@@ -324,19 +324,19 @@ gemini --include-directories src/auth -p "Question about authentication only"
 ### Multi-File Analysis
 
 ```bash
-gemini --include-files src/auth/*.ts,config/*.json -p "Analyze the complete authentication system including all auth files and configuration"
+gemini --sandbox --include-files src/auth/*.ts,config/*.json -p "Analyze the complete authentication system including all auth files and configuration"
 ```
 
 ### Compare Multiple Artifacts
 
 ```bash
-gemini --include-files design-v1.pdf,design-v2.pdf -p "Compare these two design versions and explain the differences"
+gemini --sandbox --include-files design-v1.pdf,design-v2.pdf -p "Compare these two design versions and explain the differences"
 ```
 
 ### Context-Aware Analysis
 
 ```bash
-gemini --include-directories src,docs -p "Explain the feature documented in docs/ and show its implementation in src/"
+gemini --sandbox --include-directories src,docs -p "Explain the feature documented in docs/ and show its implementation in src/"
 ```
 
 ## Limitations

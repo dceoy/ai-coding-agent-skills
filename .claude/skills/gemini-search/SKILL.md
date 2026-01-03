@@ -60,7 +60,7 @@ npm list --depth=0
 **Gemini has built-in Google Search grounding** - just ask:
 
 ```bash
-gemini -p "Research and provide comprehensive information about: [QUERY]
+gemini --sandbox -p "Research and provide comprehensive information about: [QUERY]
 
 Include:
 1. Direct answer to the question
@@ -83,7 +83,7 @@ Use Google Search to find the most current and authoritative sources."
 **With multimodal research:**
 
 ```bash
-gemini --include-files api-spec.pdf -p "Extract information from this API specification and use Google Search to:
+gemini --sandbox --include-files api-spec.pdf -p "Extract information from this API specification and use Google Search to:
 - Find official documentation for similar APIs
 - Compare with current best practices
 - Identify any outdated patterns
@@ -148,7 +148,7 @@ Last verified: [Current date]
 ### Documentation Lookup
 
 ```bash
-gemini -p "Find official documentation for React Server Components in 2026:
+gemini --sandbox -p "Find official documentation for React Server Components in 2026:
 - Installation and setup
 - Core concepts and API
 - Common use cases and examples
@@ -161,7 +161,7 @@ Use Google Search to find current official documentation."
 ### Library Comparison
 
 ```bash
-gemini -p "Compare Prisma vs Drizzle vs Kysely for TypeScript database ORMs in 2026:
+gemini --sandbox -p "Compare Prisma vs Drizzle vs Kysely for TypeScript database ORMs in 2026:
 - Feature comparison
 - Performance benchmarks
 - Community adoption
@@ -175,7 +175,7 @@ Use Google Search to find recent comparisons and official documentation."
 ### Error Resolution
 
 ```bash
-gemini -p "Research solutions for error: 'ECONNREFUSED' in Node.js:
+gemini --sandbox -p "Research solutions for error: 'ECONNREFUSED' in Node.js:
 - Root causes
 - Common solutions
 - Prevention strategies
@@ -187,7 +187,7 @@ Use Google Search to find Stack Overflow discussions and official Node.js docs."
 ### Best Practices
 
 ```bash
-gemini -p "Find current security best practices for JWT authentication in 2026:
+gemini --sandbox -p "Find current security best practices for JWT authentication in 2026:
 - Latest OWASP recommendations
 - Token storage best practices
 - Refresh token patterns
@@ -200,7 +200,7 @@ Use Google Search to find official security standards and OWASP Top 10 2026."
 ### Getting Started
 
 ```bash
-gemini -p "Find getting started guide for Bun runtime in 2026:
+gemini --sandbox -p "Find getting started guide for Bun runtime in 2026:
 - Installation and setup
 - Project structure
 - Core concepts
@@ -214,7 +214,7 @@ Use Google Search to find official Bun documentation."
 ### Standards and Compliance
 
 ```bash
-gemini -p "Find current WCAG 2.2 accessibility requirements for web applications:
+gemini --sandbox -p "Find current WCAG 2.2 accessibility requirements for web applications:
 - Latest specification details
 - Implementation checklist
 - Testing tools and techniques
@@ -227,7 +227,7 @@ Use Google Search to find W3C official documentation."
 ### Multimodal Research
 
 ```bash
-gemini --include-files architecture-diagram.png -p "Analyze this architecture diagram and use Google Search to:
+gemini --sandbox --include-files architecture-diagram.png -p "Analyze this architecture diagram and use Google Search to:
 - Find official documentation for the patterns shown
 - Compare with current best practices for this architecture
 - Find similar reference architectures
@@ -236,7 +236,7 @@ gemini --include-files architecture-diagram.png -p "Analyze this architecture di
 ```
 
 ```bash
-gemini --include-files api-spec.pdf -p "Extract API information from this PDF and use Google Search to:
+gemini --sandbox --include-files api-spec.pdf -p "Extract API information from this PDF and use Google Search to:
 - Find current best practices for this API pattern
 - Compare with modern API design standards
 - Find security recommendations
@@ -255,7 +255,7 @@ gemini --include-files api-spec.pdf -p "Extract API information from this PDF an
 - Cross-referenced from multiple sources
 
 ```bash
-gemini -p "What's the latest version of Next.js in 2026 and what are the new features? Use Google Search."
+gemini --sandbox -p "What's the latest version of Next.js in 2026 and what are the new features? Use Google Search."
 ```
 
 ### Multimodal Research
@@ -263,7 +263,7 @@ gemini -p "What's the latest version of Next.js in 2026 and what are the new fea
 **Analyze documentation alongside web search:**
 
 ```bash
-gemini --include-files internal-docs.pdf,diagram.png -p "Compare our internal documentation with current industry best practices:
+gemini --sandbox --include-files internal-docs.pdf,diagram.png -p "Compare our internal documentation with current industry best practices:
 - Use Google Search to find current standards
 - Compare our approach with industry patterns
 - Identify gaps or outdated practices
@@ -275,7 +275,7 @@ gemini --include-files internal-docs.pdf,diagram.png -p "Compare our internal do
 **Comprehensive research:**
 
 ```bash
-gemini --include-directories docs --include-files spec.pdf -p "Analyze our complete documentation and use Google Search to:
+gemini --sandbox --include-directories docs --include-files spec.pdf -p "Analyze our complete documentation and use Google Search to:
 - Find current best practices for our tech stack
 - Compare our patterns with industry standards
 - Identify outdated approaches
@@ -288,13 +288,13 @@ gemini --include-directories docs --include-files spec.pdf -p "Analyze our compl
 
 ```bash
 # Phase 1: Overview
-gemini -p "Use Google Search: What is the current state of React state management in 2026?"
+gemini --sandbox -p "Use Google Search: What is the current state of React state management in 2026?"
 
 # Phase 2: Deep dive (context preserved)
-gemini -p "Now search for: Detailed comparison of Zustand vs Jotai vs Valtio"
+gemini --sandbox -p "Now search for: Detailed comparison of Zustand vs Jotai vs Valtio"
 
 # Phase 3: Implementation (context preserved)
-gemini -p "Find: Best practices for implementing Zustand in large applications"
+gemini --sandbox -p "Find: Best practices for implementing Zustand in large applications"
 ```
 
 ## Best Practices
@@ -399,8 +399,8 @@ Then sign in with Google account or configure API key from aistudio.google.com/a
 
 ```bash
 # Break into focused searches
-gemini -p "First, search for: [PART_1]"
-gemini -p "Now search for: [PART_2]"  # context preserved
+gemini --sandbox -p "First, search for: [PART_1]"
+gemini --sandbox -p "Now search for: [PART_2]"  # context preserved
 ```
 
 ## Integration with Codebase
@@ -441,7 +441,7 @@ npm install [package]@latest --dry-run
 ### Technology Evaluation
 
 ```bash
-gemini -p "Use Google Search to evaluate GraphQL vs REST vs tRPC for TypeScript API in 2026:
+gemini --sandbox -p "Use Google Search to evaluate GraphQL vs REST vs tRPC for TypeScript API in 2026:
 - Current adoption trends
 - Performance comparisons
 - Developer experience
@@ -452,7 +452,7 @@ gemini -p "Use Google Search to evaluate GraphQL vs REST vs tRPC for TypeScript 
 ### Migration Planning
 
 ```bash
-gemini -p "Use Google Search to find migration guide from Webpack to Vite in 2026:
+gemini --sandbox -p "Use Google Search to find migration guide from Webpack to Vite in 2026:
 - Breaking changes
 - Migration steps
 - Common issues and solutions
@@ -463,7 +463,7 @@ gemini -p "Use Google Search to find migration guide from Webpack to Vite in 202
 ### Security Research
 
 ```bash
-gemini -p "Use Google Search to find security vulnerabilities in React@18.3:
+gemini --sandbox -p "Use Google Search to find security vulnerabilities in React@18.3:
 - Known CVEs
 - Security advisories
 - Recommended patches
@@ -474,7 +474,7 @@ gemini -p "Use Google Search to find security vulnerabilities in React@18.3:
 ### Learning
 
 ```bash
-gemini -p "Use Google Search to find beginner-friendly Rust tutorial for 2026:
+gemini --sandbox -p "Use Google Search to find beginner-friendly Rust tutorial for 2026:
 - Official learning resources
 - Interactive tutorials
 - Project-based learning
@@ -485,7 +485,7 @@ gemini -p "Use Google Search to find beginner-friendly Rust tutorial for 2026:
 ### Troubleshooting
 
 ```bash
-gemini -p "Use Google Search for solutions to 'Module not found' error in Vite:
+gemini --sandbox -p "Use Google Search for solutions to 'Module not found' error in Vite:
 - Common causes
 - Solutions from Stack Overflow
 - Official issue tracker discussions
@@ -495,7 +495,7 @@ gemini -p "Use Google Search for solutions to 'Module not found' error in Vite:
 ### Multimodal + Search
 
 ```bash
-gemini --include-files error-screenshot.png -p "Analyze this error screenshot and use Google Search to:
+gemini --sandbox --include-files error-screenshot.png -p "Analyze this error screenshot and use Google Search to:
 - Identify the error
 - Find common causes
 - Search for solutions
@@ -509,19 +509,19 @@ gemini --include-files error-screenshot.png -p "Analyze this error screenshot an
 
 ```bash
 # Query 1: Current state
-gemini -p "Use Google Search: What is the current recommended approach for SSR in React 2026?"
+gemini --sandbox -p "Use Google Search: What is the current recommended approach for SSR in React 2026?"
 
 # Query 2: Specific implementation (context preserved)
-gemini -p "Now search for: Implementation examples for React Server Components"
+gemini --sandbox -p "Now search for: Implementation examples for React Server Components"
 
 # Query 3: Gotchas (context preserved)
-gemini -p "Search for: Common problems with React Server Components and solutions"
+gemini --sandbox -p "Search for: Common problems with React Server Components and solutions"
 ```
 
 ### Version-Specific Research
 
 ```bash
-gemini -p "Use Google Search to find information specifically for TypeScript 5.6:
+gemini --sandbox -p "Use Google Search to find information specifically for TypeScript 5.6:
 - New features in this version
 - Breaking changes from 5.5
 - Migration guide
@@ -532,7 +532,7 @@ Ensure results are version-specific."
 ### Comparison Research
 
 ```bash
-gemini -p "Use Google Search for detailed comparison of Astro vs Next.js vs Remix in 2026:
+gemini --sandbox -p "Use Google Search for detailed comparison of Astro vs Next.js vs Remix in 2026:
 - Build performance benchmarks
 - Developer experience
 - Ecosystem and plugin support
@@ -545,7 +545,7 @@ Include recent benchmarks and official documentation."
 ### Standards Research
 
 ```bash
-gemini -p "Use Google Search to find current OWASP Top 10 2026:
+gemini --sandbox -p "Use Google Search to find current OWASP Top 10 2026:
 - Complete list with descriptions
 - Implementation guidelines for each
 - Testing methodologies
@@ -557,7 +557,7 @@ gemini -p "Use Google Search to find current OWASP Top 10 2026:
 ### Multimodal Standards Research
 
 ```bash
-gemini --include-files current-implementation.pdf -p "Analyze our current security implementation from this PDF and use Google Search to:
+gemini --sandbox --include-files current-implementation.pdf -p "Analyze our current security implementation from this PDF and use Google Search to:
 - Compare with current OWASP Top 10 2026
 - Find gaps in our implementation
 - Search for best practices we're missing
