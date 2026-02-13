@@ -60,6 +60,22 @@ All skills are located in `skills/` and symlinked into runtime-specific director
 - `gemini-review` - Perform code reviews (read-only)
 - `gemini-search` - Search the web for current information (read-only)
 
+### Git Workflows
+
+- `clean-gone-branches` - Clean up local branches marked as [gone] and their worktrees
+- `commit` - Create a git commit with an appropriate message
+- `commit-push-pr` - Commit, push, and open a pull request
+
+### Code Quality
+
+- `code-review` - Comprehensive multi-agent code review for pull requests
+- `code-simplifier` - Simplify and refine code for clarity and maintainability
+
+### Skill Management
+
+- `claude-agent-converter` - Convert Claude Code agents to portable skills
+- `claude-command-converter` - Convert Claude Code commands to portable skills
+
 ## Agents
 
 Agents are located in `.claude/agents/` and provide unified interfaces for each CLI tool.
