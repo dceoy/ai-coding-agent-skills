@@ -119,6 +119,9 @@ Shared `skills/` directory (symlinked into `.claude/skills`, `.codex/skills`, `.
 - **OpenAI Codex CLI**: `codex-ask`, `codex-exec`, `codex-review`, `codex-search`
 - **GitHub Copilot CLI**: `copilot-ask`, `copilot-exec`, `copilot-review`, `copilot-search`
 - **Gemini CLI**: `gemini-ask`, `gemini-exec`, `gemini-review`, `gemini-search`
+- **Git Workflows**: `clean-gone-branches`, `commit`, `commit-push-pr`
+- **Code Quality**: `code-review`, `code-simplifier`
+- **Skill Management**: `claude-agent-converter`, `claude-command-converter`
 
 ## Validation
 
