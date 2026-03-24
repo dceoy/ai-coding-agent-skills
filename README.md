@@ -48,10 +48,7 @@ All skills are located in `skills/` and symlinked into runtime-specific director
 
 ### GitHub Copilot CLI Integration
 
-- `copilot-ask` - Ask questions about code (read-only)
-- `copilot-exec` - Execute development tasks with code modifications
-- `copilot-review` - Perform code reviews (read-only)
-- `copilot-search` - Search the web for current information (read-only)
+- `copilot-cli` - Unified GitHub Copilot CLI skill for ask, exec, review, and search workflows
 
 ### Gemini CLI Integration
 
@@ -95,7 +92,7 @@ See [AGENTS.md](./AGENTS.md) for detailed agent documentation.
 ├── skills/                  # Shared skill directories (source of truth)
 │   ├── claude-*/            # Claude Code integration skills
 │   ├── codex-*/             # Codex CLI integration skills
-│   ├── copilot-*/           # Copilot CLI integration skills
+│   ├── copilot-cli/         # Unified Copilot CLI skill
 │   └── gemini-*/            # Gemini CLI integration skills
 ├── .claude/
 │   ├── agents/              # Agent definitions (codex.md, copilot.md, gemini.md)
@@ -119,9 +116,9 @@ Install and authenticate the required CLI tools before running skills:
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
 
-- **GitHub Copilot CLI** - For `copilot-*` skills
+- **GitHub Copilot CLI** - For the `copilot-cli` skill
   - Install: <https://docs.github.com/en/copilot/github-copilot-in-the-cli>
-  - Auth: `gh auth login` (requires GitHub Copilot subscription)
+  - Auth: start `copilot` and run `/login` (requires GitHub Copilot subscription)
 
 - **OpenAI Codex CLI** - For `codex-*` skills
   - Install: <https://github.com/openai/codex>
@@ -154,7 +151,7 @@ Install and authenticate the required CLI tools before running skills:
 
 - Re-run the tool's auth command:
   - Claude Code: Follow onboarding flow
-  - Copilot CLI: `gh auth login`
+  - Copilot CLI: `copilot` then `/login`
   - Codex CLI: `codex` (follow auth flow) or configure `~/.codex/config.toml`
   - Gemini CLI: `gemini` (follow auth flow)
 - Verify active subscription (Copilot, ChatGPT) or API key

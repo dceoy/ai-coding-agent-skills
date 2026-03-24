@@ -583,7 +583,7 @@ gemini --sandbox -p "Analyze our current security implementation from current-im
 - ✅ Conversation checkpointing
 - ✅ Superior for visual documentation analysis
 
-**vs copilot-search:**
+**vs copilot-cli (search mode):**
 
 - ✅ Built-in Google Search grounding
 - ✅ Multimodal capabilities

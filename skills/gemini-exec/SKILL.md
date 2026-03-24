@@ -509,7 +509,7 @@ gemini -m gemini-2.5-pro -p "Complex task"
 - ✅ Conversation checkpointing
 - ✅ Better for design-to-code workflows
 
-**vs copilot-exec:**
+**vs copilot-cli (exec mode):**
 
 - ✅ Multimodal code generation
 - ✅ Google Search integration

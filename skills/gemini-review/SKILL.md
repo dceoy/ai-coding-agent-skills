@@ -537,7 +537,7 @@ gemini --sandbox --include-directories src/frontend,src/backend -p "Review integ
 - ✅ Conversation checkpointing
 - ✅ Better for design compliance checks
 
-**vs copilot-review:**
+**vs copilot-cli (review mode):**
 
 - ✅ Multimodal capabilities
 - ✅ Google Search integration
