@@ -22,7 +22,7 @@ Each `SKILL.md` uses YAML frontmatter:
 ---
 name: <skill-name>
 description: <one-line description used for skill triggering>
-allowed-tools: Bash, Read, Write, ...   # tools the skill may use
+allowed-tools: Bash, Read, Write, ... # tools the skill may use
 ---
 ```
 
@@ -48,7 +48,7 @@ skills: <skill-name>
 
 ## Commit & Pull Request Guidelines
 
-- Format Markdown files using `npx -y prettier --write .` before committing.
+- Format Markdown files using `npx -y prettier -w './**/*.md'` before committing.
 - Keep PRs focused and include: concise summary, affected workflow paths, linked issue/context, and regenerated `README.md` when workflow inventory changes.
 - Branch names use appropriate prefixes on creation (e.g., `feature/...`, `bugfix/...`, `refactor/...`, `docs/...`, `chore/...`).
 - When instructed to create a PR, create it as a draft with appropriate labels by default.
