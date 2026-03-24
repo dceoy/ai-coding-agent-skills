@@ -79,6 +79,6 @@ curl https://api.anthropic.com/v1/messages \
 
 ## Related Skills
 
-- `codex-search` for OpenAI Codex CLI web search
+- `codex-cli` for OpenAI Codex CLI research and broader Codex workflows
 - `claude-ask` for read-only codebase understanding
 - `claude-exec` for code modifications
