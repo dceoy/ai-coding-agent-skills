@@ -6,9 +6,9 @@ Agent skills for AI coders
 
 Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations:
 
-- **Claude Code** — Agents in `.claude/agents/`; skills via `.claude/skills -> ../skills`
-- **GitHub Copilot CLI** — Skills via `.github/skills -> ../skills`
-- **OpenAI Codex CLI** — Unified `codex-cli` skill in `skills/codex-cli/`, referenced via `.codex/skills -> ../skills` and `.claude/agents/codex.md`
+- **Claude Code** — Unified `claude-code` skill in `skills/claude-code/`, plus agents in `.claude/agents/`; skills via `.claude/skills -> ../skills`
+- **GitHub Copilot CLI** — Unified `copilot-cli` skill in `skills/copilot-cli/`, used by `.claude/agents/copilot.md`
+- **OpenAI Codex CLI** — Unified `codex-cli` skill in `skills/codex-cli/`, used by `.claude/agents/codex.md`
 - **Gemini CLI** — Unified `gemini-cli` skill in `skills/gemini-cli/`, used by `.claude/agents/gemini.md`
 
 Each skill directory contains a `SKILL.md` that documents prerequisites and invocation.
@@ -22,23 +22,20 @@ Each skill directory contains a `SKILL.md` that documents prerequisites and invo
    ```
 
 2. Pick a runtime and explore the skills in `skills/` and the relevant runtime integration:
-   - **Claude Code:** `.claude/agents/` (agent definitions), `.claude/skills -> ../skills`
-   - **Codex CLI:** `skills/codex-cli/` (unified skill), `.claude/agents/codex.md` (agent definition), `.codex/skills -> ../skills`
-   - **GitHub Copilot CLI:** `.github/skills -> ../skills`
+   - **Claude Code:** `skills/claude-code/` (unified skill), `.claude/agents/` (agent definitions), `.claude/skills -> ../skills`
+   - **Codex CLI:** `skills/codex-cli/` (unified skill), `.claude/agents/codex.md` (agent definition)
+   - **GitHub Copilot CLI:** `skills/copilot-cli/` (unified skill), `.claude/agents/copilot.md` (agent definition)
    - **Gemini CLI:** `skills/gemini-cli/` (unified skill), `.claude/agents/gemini.md` (agent definition)
 
 3. Open a skill directory and read the `SKILL.md` to learn how to invoke it.
 
 ## Skills
 
-All skills are located in `skills/` and symlinked into runtime-specific directories.
+All skills are located in `skills/` and surfaced through shared discovery or runtime-specific symlinks.
 
 ### Claude Code Integration
 
-- `claude-ask` - Ask questions about code (read-only)
-- `claude-exec` - Execute development tasks with code modifications
-- `claude-review` - Perform code reviews (read-only)
-- `claude-search` - Search the web for current information (read-only)
+- `claude-code` - Unified Claude Code skill for ask, exec, review, and search workflows
 
 ### OpenAI Codex CLI Integration
 
@@ -85,17 +82,16 @@ See [AGENTS.md](./AGENTS.md) for detailed agent documentation.
 ```
 .
 ├── skills/                  # Shared skill directories (source of truth)
-│   ├── claude-*/            # Claude Code integration skills
+│   ├── claude-code/         # Unified Claude Code skill
 │   ├── codex-cli/           # Unified Codex CLI skill
 │   ├── copilot-cli/         # Unified Copilot CLI skill
 │   └── gemini-cli/          # Unified Gemini CLI skill
+├── .agents/
+│   └── skills -> ../skills
 ├── .claude/
 │   ├── agents/              # Agent definitions (codex.md, copilot.md, gemini.md)
 │   └── skills -> ../skills
-├── .codex/
-│   └── skills -> ../skills
 ├── .github/
-│   ├── skills -> ../skills
 │   └── workflows/           # CI workflows (ci.yml)
 ├── AGENTS.md                # Agent repository guidelines
 ├── CLAUDE.md -> AGENTS.md   # Symlink for Claude Code
@@ -107,11 +103,11 @@ See [AGENTS.md](./AGENTS.md) for detailed agent documentation.
 
 Install and authenticate the required CLI tools before running skills:
 
-- **Claude Code** - For `claude-*` skills and `.claude/` agents
+- **Claude Code** - For the `claude-code` skill and `.claude/` agents
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
 
-- **GitHub Copilot CLI** - For the `copilot-cli` skill
+- **GitHub Copilot CLI** - For the `copilot-cli` skill and `.claude/agents/copilot.md`
   - Install: <https://docs.github.com/en/copilot/github-copilot-in-the-cli>
   - Auth: start `copilot` and run `/login` (requires GitHub Copilot subscription)
 
@@ -153,7 +149,7 @@ Install and authenticate the required CLI tools before running skills:
 
 **Symlink issues**
 
-- Skill directories are shared from `skills/` via symlinks (`.claude/skills`, `.codex/skills`, `.github/skills`)
+- Skill directories are shared from `skills/` via `.agents/skills` and `.claude/skills`
 - If broken, recreate the symlink or ensure `skills/` exists
 - On Windows, ensure symlink support is enabled
 
