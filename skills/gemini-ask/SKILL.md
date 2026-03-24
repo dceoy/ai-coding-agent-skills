@@ -356,7 +356,7 @@ gemini --sandbox --include-directories src,docs -p "Explain the feature document
 - ✅ 1M token context window
 - ✅ Conversation checkpointing
 
-**vs copilot-ask:**
+**vs copilot-cli (ask mode):**
 
 - ✅ Multimodal understanding
 - ✅ Google Search integration
