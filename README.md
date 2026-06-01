@@ -7,9 +7,7 @@ Agent skills for AI coders
 Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations:
 
 - **Claude Code** — Unified `claude-code` skill in `skills/claude-code/`, plus agents in `.claude/agents/`; skills via `.claude/skills -> ../skills`
-- **GitHub Copilot CLI** — Unified `copilot-cli` skill in `skills/copilot-cli/`, used by `.claude/agents/copilot.md`
 - **OpenAI Codex CLI** — Unified `codex-cli` skill in `skills/codex-cli/`, used by `.claude/agents/codex.md`
-- **Gemini CLI** — Unified `gemini-cli` skill in `skills/gemini-cli/`, used by `.claude/agents/gemini.md`
 
 Each skill directory contains a `SKILL.md` that documents prerequisites and invocation.
 
@@ -24,8 +22,6 @@ Each skill directory contains a `SKILL.md` that documents prerequisites and invo
 2. Pick a runtime and explore the skills in `skills/` and the relevant runtime integration:
    - **Claude Code:** `skills/claude-code/` (unified skill), `.claude/agents/` (agent definitions), `.claude/skills -> ../skills`
    - **Codex CLI:** `skills/codex-cli/` (unified skill), `.claude/agents/codex.md` (agent definition)
-   - **GitHub Copilot CLI:** `skills/copilot-cli/` (unified skill), `.claude/agents/copilot.md` (agent definition)
-   - **Gemini CLI:** `skills/gemini-cli/` (unified skill), `.claude/agents/gemini.md` (agent definition)
 
 3. Open a skill directory and read the `SKILL.md` to learn how to invoke it.
 
@@ -40,14 +36,6 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 ### OpenAI Codex CLI Integration
 
 - `codex-cli` - Unified OpenAI Codex CLI skill for ask, exec, review, and search workflows
-
-### GitHub Copilot CLI Integration
-
-- `copilot-cli` - Unified GitHub Copilot CLI skill for ask, exec, review, and search workflows
-
-### Gemini CLI Integration
-
-- `gemini-cli` - Unified Gemini CLI skill for ask, exec, review, and Google Search-grounded workflows
 
 ### Git Workflows
 
@@ -69,11 +57,9 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 Agents are located in `.claude/agents/` and provide unified interfaces for each CLI tool.
 
-| Agent        | Description                                                 |
-| ------------ | ----------------------------------------------------------- |
-| `codex.md`   | Unified Codex CLI agent (ask, exec, review, search modes)   |
-| `copilot.md` | Unified Copilot CLI agent (ask, exec, review, search modes) |
-| `gemini.md`  | Unified Gemini CLI agent (ask, exec, review, search modes)  |
+| Agent      | Description                                               |
+| ---------- | --------------------------------------------------------- |
+| `codex.md` | Unified Codex CLI agent (ask, exec, review, search modes) |
 
 See [AGENTS.md](./AGENTS.md) for detailed agent documentation.
 
@@ -83,13 +69,11 @@ See [AGENTS.md](./AGENTS.md) for detailed agent documentation.
 .
 ├── skills/                  # Shared skill directories (source of truth)
 │   ├── claude-code/         # Unified Claude Code skill
-│   ├── codex-cli/           # Unified Codex CLI skill
-│   ├── copilot-cli/         # Unified Copilot CLI skill
-│   └── gemini-cli/          # Unified Gemini CLI skill
+│   └── codex-cli/           # Unified Codex CLI skill
 ├── .agents/
 │   └── skills -> ../skills
 ├── .claude/
-│   ├── agents/              # Agent definitions (codex.md, copilot.md, gemini.md)
+│   ├── agents/              # Agent definitions (codex.md)
 │   └── skills -> ../skills
 ├── .github/
 │   └── workflows/           # CI workflows (ci.yml)
@@ -107,17 +91,9 @@ Install and authenticate the required CLI tools before running skills:
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
 
-- **GitHub Copilot CLI** - For the `copilot-cli` skill and `.claude/agents/copilot.md`
-  - Install: <https://docs.github.com/en/copilot/github-copilot-in-the-cli>
-  - Auth: start `copilot` and run `/login` (requires GitHub Copilot subscription)
-
 - **OpenAI Codex CLI** - For the `codex-cli` skill and `.claude/agents/codex.md`
   - Install: <https://github.com/openai/codex>
   - Auth: ChatGPT subscription or API key in `~/.codex/config.toml`
-
-- **Gemini CLI** - For the `gemini-cli` skill and `.claude/agents/gemini.md`
-  - Install: <https://github.com/google-gemini/gemini-cli>
-  - Auth: Google account or API key
 
 ## Usage notes
 
@@ -142,10 +118,8 @@ Install and authenticate the required CLI tools before running skills:
 
 - Re-run the tool's auth command:
   - Claude Code: Follow onboarding flow
-  - Copilot CLI: `copilot` then `/login`
   - Codex CLI: `codex` (follow auth flow) or configure `~/.codex/config.toml`
-  - Gemini CLI: `gemini` (follow auth flow)
-- Verify active subscription (Copilot, ChatGPT) or API key
+- Verify active subscription (ChatGPT) or API key
 
 **Symlink issues**
 
