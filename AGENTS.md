@@ -2,14 +2,14 @@
 
 ## Repository Purpose
 
-This is a single-source skill library shared across AI coding runtimes (Claude Code, GitHub Copilot CLI, OpenAI Codex CLI, Gemini CLI). The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
+This is a single-source skill library shared across AI coding runtimes (Claude Code, OpenAI Codex CLI). The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
 
 ## Architecture
 
 ```
 skills/                        # Source of truth for all skills
 ├── <skill-name>/SKILL.md      # Each skill is a directory with a SKILL.md
-.claude/agents/                # Claude Code subagent definitions (codex, copilot, gemini)
+.claude/agents/                # Claude Code subagent definitions (codex)
 .claude/skills -> ../skills    # Symlink into shared skills
 .agents/skills                 # Runtime-agnostic agent discovery
 ```
