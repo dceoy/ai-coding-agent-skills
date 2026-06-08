@@ -1,6 +1,6 @@
 ---
 name: code-simplifier
-description: Simplifies and refines code for clarity, consistency, and maintainability while preserving all functionality. Focuses on recently modified code unless instructed otherwise.
+description: Simplifies and refines code for clarity, consistency, and maintainability while preserving all functionality. Use proactively after code changes and focus on recently modified code unless instructed otherwise.
 ---
 
 # Code Simplifier
@@ -18,7 +18,7 @@ Simplify and refine code for clarity, consistency, and maintainability while pre
 ## Inputs
 
 - Scope of code to simplify (recently modified files, specific files, or broader codebase).
-- Project coding standards (from CLAUDE.md/AGENTS.md if available).
+- Project coding standards from CLAUDE.md, AGENTS.md, or similar files if available.
 
 If scope is unclear, default to recently modified code using `git diff` or `git status`.
 
@@ -30,7 +30,7 @@ If scope is unclear, default to recently modified code using `git diff` or `git 
 
 2. **Read project standards**:
    - Check CLAUDE.md, AGENTS.md, or similar for coding conventions.
-   - Note language-specific patterns (ES modules, function syntax, type annotations).
+   - Note language-specific patterns such as module style, import ordering, function syntax, type annotations, component patterns, error handling, and naming conventions.
 
 3. **Analyze for simplification opportunities**:
    - Unnecessary complexity and deep nesting.
@@ -46,11 +46,13 @@ If scope is unclear, default to recently modified code using `git diff` or `git 
    - **Apply Project Standards**: Follow established coding conventions.
    - **Enhance Clarity**: Simplify structure, improve naming, consolidate logic.
    - **Maintain Balance**: Avoid over-simplification that reduces maintainability.
+   - **Respect Scope**: Refine only recently modified or explicitly requested code.
 
 5. **Verify changes**:
    - Ensure all original features, outputs, and behaviors remain intact.
    - Confirm refined code is simpler and more maintainable.
    - Run tests if available to validate functionality is preserved.
+   - If tests are expensive or unavailable, use focused static checks or explain what could not be verified.
 
 6. **Document significant changes**:
    - Note only changes that affect understanding.
@@ -72,6 +74,7 @@ If scope is unclear, default to recently modified code using `git diff` or `git 
 - Remove unnecessary comments describing obvious code.
 - Avoid nested ternary operators - prefer switch or if/else for multiple conditions.
 - Choose clarity over brevity - explicit code is often better than compact code.
+- Keep helpful abstractions that express domain concepts or reduce duplicated logic.
 
 ### Maintain Balance
 
@@ -83,6 +86,7 @@ Avoid over-simplification that could:
 - Remove helpful abstractions that improve organization.
 - Prioritize "fewer lines" over readability.
 - Make the code harder to debug or extend.
+- Drift into unrelated style rewrites outside the requested scope.
 
 ## Outputs
 
@@ -95,3 +99,4 @@ Avoid over-simplification that could:
 - **Functionality-preserving**: All original behavior must remain unchanged.
 - **Scope-limited**: Focus on recently modified code unless explicitly directed otherwise.
 - **Balance-aware**: Prefer readable, explicit code over overly compact solutions.
+- **Autonomous but bounded**: Improve code when it is already in scope, but do not start broad refactors without direction.

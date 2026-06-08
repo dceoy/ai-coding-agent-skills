@@ -1,6 +1,6 @@
 ---
 name: commit-push-pr
-description: Commit staged and unstaged changes, push the branch to origin, and open a pull request using the GitHub CLI.
+description: Commit staged and unstaged changes, push the branch to origin, and open a pull request using the GitHub CLI. Use when the user asks to commit, push, and create a PR in one workflow.
 ---
 
 # Commit, Push, and PR Skill
@@ -22,6 +22,8 @@ This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI
 
 If there are no changes to commit, report that and stop.
 
+Do not include unrelated user changes unless the user explicitly asked to include them.
+
 ## Workflow
 
 1. **Gather context** by running these commands in parallel:
@@ -32,9 +34,9 @@ If there are no changes to commit, report that and stop.
    git branch --show-current
    ```
 
-2. **Create a new branch** if currently on `main` (or the repository's default branch). Use an appropriate branch name based on the changes.
+2. **Create a new branch** if currently on `main` (or the repository's default branch). Use an appropriate prefixed branch name based on the changes, following repository guidance such as `feature/...`, `bugfix/...`, `refactor/...`, `docs/...`, or `chore/...`.
 
-3. **Stage and commit** all relevant changes with a concise, descriptive commit message summarizing the changes.
+3. **Stage and commit** all relevant changes with a concise, descriptive commit message summarizing the changes. Prefer explicit paths over `git add .` when unrelated changes are present.
 
 4. **Push the branch** to origin:
 
@@ -48,9 +50,9 @@ If there are no changes to commit, report that and stop.
    gh pr create --title "<title>" --body "<description>"
    ```
 
-   Include a clear title and summary of changes in the PR body.
+   Include a clear title and summary of changes in the PR body. If repository guidelines request draft PRs or labels, apply them by default.
 
-All steps should be executed as efficiently as possible, combining independent operations.
+All steps should be executed efficiently once scope is clear. Do not perform unrelated cleanup or broad refactors while preparing the PR.
 
 ## Outputs
 
