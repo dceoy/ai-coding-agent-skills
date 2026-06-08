@@ -17,9 +17,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 JS_EXTS = {
     ".js",
@@ -35,9 +38,15 @@ JS_EXTS = {
 }
 PY_EXTS = {".py", ".pyi", ".ipynb"}
 DOC_EXTS = {".md", ".mdx", ".txt", ".rst", ".json", ".yaml", ".yml"}
-SECRET_CONFIG_EXTS = frozenset(
-    {".json", ".yaml", ".yml", ".toml", ".env", ".ini", ".conf"}
-)
+SECRET_CONFIG_EXTS = frozenset({
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".env",
+    ".ini",
+    ".conf",
+})
 SECRET_EXAMPLE_PARTS = ("/examples/", "/example/", "/templates/", "/template/")
 SECRET_EXAMPLE_MARKERS = (".example.", ".template.", ".sample.", "-example.")
 WORKFLOW_PART = ".github/workflows/"
@@ -100,9 +109,17 @@ RULES: tuple[Rule, ...] = (
         "eval executes arbitrary code; use structured parsers or safe expression "
         "evaluators.",
         regex=r"(?<![A-Za-z0-9_.])eval\(",
-        extensions=frozenset(
-            {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".py"}
-        ),
+        extensions=frozenset({
+            ".js",
+            ".jsx",
+            ".ts",
+            ".tsx",
+            ".mjs",
+            ".cjs",
+            ".mts",
+            ".cts",
+            ".py",
+        }),
     ),
     Rule(
         "react_dangerously_set_html",
@@ -218,6 +235,16 @@ RULES: tuple[Rule, ...] = (
 
 
 def run_git(args: list[str], cwd: Path) -> str:
+    """Run a git command and return stdout on success.
+
+    Args:
+        args: Git subcommand arguments (without the ``git`` executable).
+        cwd: Working directory for the command.
+
+    Returns:
+        Standard output from git, or an empty string if git is unavailable
+        or the command fails.
+    """
     git = shutil.which("git")
     if git is None:
         return ""
@@ -237,6 +264,14 @@ def run_git(args: list[str], cwd: Path) -> str:
 
 
 def git_root(repo: Path) -> Path:
+    """Resolve the git repository root for a path.
+
+    Args:
+        repo: Path inside or at the repository root.
+
+    Returns:
+        Resolved repository root, or ``repo`` when git is unavailable.
+    """
     root = run_git(["rev-parse", "--show-toplevel"], repo).strip()
     if not root:
         return repo.resolve()
@@ -244,6 +279,14 @@ def git_root(repo: Path) -> Path:
 
 
 def custom_pattern_paths(repo: Path) -> list[Path]:
+    """Collect custom security-pattern files from user and repo config dirs.
+
+    Args:
+        repo: Repository used to locate project-local pattern files.
+
+    Returns:
+        Existing custom pattern file paths in discovery order.
+    """
     roots = [Path.home() / ".claude", git_root(repo) / ".claude"]
     paths = []
     for root in roots:
@@ -256,6 +299,14 @@ def custom_pattern_paths(repo: Path) -> list[Path]:
 
 
 def load_custom_rules(repo: Path) -> list[Rule]:
+    """Load validated custom rules from discovered pattern files.
+
+    Args:
+        repo: Repository used to locate project-local pattern files.
+
+    Returns:
+        Parsed custom rules, capped at ``CUSTOM_PATTERN_LIMIT``.
+    """
     rules: list[Rule] = []
     for path in custom_pattern_paths(repo):
         data = load_custom_pattern_file(path)
@@ -273,18 +324,30 @@ def load_custom_rules(repo: Path) -> list[Rule]:
     return rules
 
 
-def load_custom_pattern_file(path: Path) -> object | None:
+def _parse_json_text(raw: str) -> object | None:
+    """Parse JSON pattern text.
+
+    Args:
+        raw: JSON document text.
+
+    Returns:
+        Parsed JSON value, or None when parsing fails.
+    """
     try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError:
+        return json.loads(raw)
+    except ValueError:
         return None
-    if not raw.strip():
-        return None
-    if path.suffix == ".json":
-        try:
-            return json.loads(raw)
-        except ValueError:
-            return None
+
+
+def _parse_yaml_text(raw: str) -> object | None:
+    """Parse YAML pattern text.
+
+    Args:
+        raw: YAML document text.
+
+    Returns:
+        Parsed YAML value, or None when PyYAML is unavailable or parsing fails.
+    """
     try:
         yaml_module = importlib.import_module("yaml")
     except ImportError:
@@ -295,8 +358,35 @@ def load_custom_pattern_file(path: Path) -> object | None:
         return None
 
 
+def load_custom_pattern_file(path: Path) -> object | None:
+    """Load and parse a custom security-patterns file.
+
+    Args:
+        path: Path to a JSON or YAML pattern definition file.
+
+    Returns:
+        Parsed pattern data, or None if the file is missing, empty, or invalid.
+    """
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not raw.strip():
+        return None
+    if path.suffix == ".json":
+        return _parse_json_text(raw)
+    return _parse_yaml_text(raw)
+
+
 def has_redos_structure(regex: str) -> bool:
-    """Heuristic catastrophic-backtracking check aligned with upstream plugin."""
+    """Heuristic catastrophic-backtracking check aligned with upstream plugin.
+
+    Args:
+        regex: Regular expression pattern to inspect.
+
+    Returns:
+        True when the pattern has ReDoS-like structure.
+    """
     if any(pattern.search(regex) for pattern in _REDOS_SHAPES):
         return True
     for match in _ALT_UNDER_REP.finditer(regex):
@@ -311,6 +401,14 @@ def has_redos_structure(regex: str) -> bool:
 
 
 def validate_custom_regex(regex: str) -> bool:
+    """Validate a user-supplied regex before loading it as a scan rule.
+
+    Args:
+        regex: Regular expression pattern to validate.
+
+    Returns:
+        True when the pattern compiles and passes ReDoS heuristics.
+    """
     if has_redos_structure(regex):
         return False
     try:
@@ -321,6 +419,14 @@ def validate_custom_regex(regex: str) -> bool:
 
 
 def parse_glob_list(raw: object) -> tuple[str, ...] | None:
+    """Normalize a glob list from custom pattern metadata.
+
+    Args:
+        raw: Raw ``paths`` or ``exclude_paths`` value from a pattern entry.
+
+    Returns:
+        Normalized glob tuple, an empty tuple when absent, or None when invalid.
+    """
     if raw is None:
         return ()
     if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
@@ -331,7 +437,16 @@ def parse_glob_list(raw: object) -> tuple[str, ...] | None:
 def glob_path_matches(
     path: str, include: tuple[str, ...], exclude: tuple[str, ...]
 ) -> bool:
-    """Match a path against include/exclude globs. ``**`` matches any depth."""
+    """Match a path against include/exclude globs. ``**`` matches any depth.
+
+    Args:
+        path: File path to test.
+        include: Glob patterns that must match when non-empty.
+        exclude: Glob patterns that reject a match when any hit.
+
+    Returns:
+        True when the path passes include/exclude filtering.
+    """
     normalized = path.replace("\\", "/")
     base = Path(normalized).name
 
@@ -347,6 +462,15 @@ def glob_path_matches(
 
 
 def custom_rule_from_entry(entry: object, path: Path) -> Rule | None:
+    """Convert one custom pattern entry into a validated scan rule.
+
+    Args:
+        entry: Raw pattern object from a custom patterns file.
+        path: Source file used for rule provenance metadata.
+
+    Returns:
+        Parsed rule, or None when the entry is invalid or unsafe.
+    """
     if not isinstance(entry, dict):
         return None
     rule_name = str(entry.get("rule_name") or entry.get("ruleName") or "").strip()
@@ -379,6 +503,14 @@ def custom_rule_from_entry(entry: object, path: Path) -> Rule | None:
 
 
 def parse_extensions(raw: object) -> frozenset[str] | None:
+    """Normalize extension filters from custom pattern metadata.
+
+    Args:
+        raw: Raw ``extensions`` value from a pattern entry.
+
+    Returns:
+        Normalized extension set, None when unrestricted, or None when invalid.
+    """
     if raw is None:
         return None
     if isinstance(raw, str):
@@ -399,6 +531,15 @@ def parse_extensions(raw: object) -> frozenset[str] | None:
 
 
 def changed_paths(repo: Path, include_untracked: bool) -> list[Path]:
+    """Collect changed file paths from the git working tree.
+
+    Args:
+        repo: Repository to inspect.
+        include_untracked: Whether to include untracked files.
+
+    Returns:
+        Sorted unique changed file paths relative to the repository root.
+    """
     root = git_root(repo)
     paths = set()
     for command in (["diff", "--name-only"], ["diff", "--cached", "--name-only"]):
@@ -419,6 +560,14 @@ def changed_paths(repo: Path, include_untracked: bool) -> list[Path]:
 
 
 def iter_files(paths: Iterable[Path]) -> Iterable[Path]:
+    """Yield files from explicit paths, expanding directories recursively.
+
+    Args:
+        paths: Files or directories selected for scanning.
+
+    Yields:
+        Resolved file paths, skipping ``.git`` directories.
+    """
     for raw in paths:
         path = raw.resolve()
         if path.is_file():
@@ -430,6 +579,14 @@ def iter_files(paths: Iterable[Path]) -> Iterable[Path]:
 
 
 def secret_scan_applies(path: Path) -> bool:
+    """Decide whether the secret-exposure rule should scan a file.
+
+    Args:
+        path: Candidate file path.
+
+    Returns:
+        True when secret scanning should run for the file.
+    """
     normalized = path.as_posix().lower()
     suffix = path.suffix.lower()
     if suffix in SECRET_CONFIG_EXTS:
@@ -443,6 +600,15 @@ def secret_scan_applies(path: Path) -> bool:
 
 
 def rule_applies(rule: Rule, path: Path) -> bool:
+    """Decide whether a rule should be evaluated for a file.
+
+    Args:
+        rule: Candidate security pattern rule.
+        path: File path under scan.
+
+    Returns:
+        True when the rule applies to the file.
+    """
     normalized = path.as_posix()
     if (rule.path_globs or rule.exclude_path_globs) and not glob_path_matches(
         normalized, rule.path_globs, rule.exclude_path_globs
@@ -460,6 +626,15 @@ def rule_applies(rule: Rule, path: Path) -> bool:
 
 
 def line_matches(rule: Rule, line: str) -> bool:
+    """Test one source line against a rule's matchers.
+
+    Args:
+        rule: Security pattern rule to evaluate.
+        line: Single source line.
+
+    Returns:
+        True when the line matches the rule.
+    """
     if rule.substrings and any(item in line for item in rule.substrings):
         return True
     if rule.regex and re.search(rule.regex, line):
@@ -468,6 +643,15 @@ def line_matches(rule: Rule, line: str) -> bool:
 
 
 def scan_file(path: Path, rules: Iterable[Rule]) -> list[dict[str, object]]:
+    """Scan one file against the provided rules.
+
+    Args:
+        path: File to scan.
+        rules: Security pattern rules to evaluate.
+
+    Returns:
+        Match records for the file, or a single error record on read failure.
+    """
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
@@ -579,22 +763,20 @@ def _self_check_path_and_secret_rules(
         load_custom_rules(root)
 
         (claude_dir / "security-patterns.json").write_text(
-            json.dumps(
-                {
-                    "patterns": [
-                        {
-                            "rule_name": "bad",
-                            "reminder": "invalid sibling regex",
-                            "regex": "(?P<unclosed",
-                        },
-                        {
-                            "rule_name": "good",
-                            "reminder": "valid sibling rule",
-                            "substrings": ["valid-marker"],
-                        },
-                    ]
-                }
-            ),
+            json.dumps({
+                "patterns": [
+                    {
+                        "rule_name": "bad",
+                        "reminder": "invalid sibling regex",
+                        "regex": "(?P<unclosed",
+                    },
+                    {
+                        "rule_name": "good",
+                        "reminder": "valid sibling rule",
+                        "substrings": ["valid-marker"],
+                    },
+                ]
+            }),
             encoding="utf-8",
         )
         loaded = load_custom_rules(root)
@@ -603,7 +785,11 @@ def _self_check_path_and_secret_rules(
 
 
 def run_self_checks() -> int:
-    """Run minimal built-in checks for custom rule validation and secret scanning."""
+    """Run minimal built-in checks for custom rule validation and secret scanning.
+
+    Returns:
+        Process exit code: 0 on success, 1 when any self-check fails.
+    """
     failures: list[str] = []
     path_rule = _self_check_custom_regex_rules(failures)
     _self_check_path_and_secret_rules(failures, path_rule)
@@ -616,6 +802,17 @@ def run_self_checks() -> int:
 
 
 def format_match(path: Path, line_no: int, line: str, rule: Rule) -> dict[str, object]:
+    """Build one JSON-serializable match record.
+
+    Args:
+        path: Matched file path.
+        line_no: One-based line number for the match.
+        line: Source line content.
+        rule: Rule that produced the match.
+
+    Returns:
+        Match payload for JSON output.
+    """
     excerpt = line.strip()
     if rule.category == "secret_exposure" and excerpt:
         excerpt = "[redacted possible secret line]"
@@ -631,6 +828,15 @@ def format_match(path: Path, line_no: int, line: str, rule: Rule) -> dict[str, o
 
 
 def main(argv: list[str]) -> int:
+    """Parse CLI arguments and run the security pattern scan.
+
+    Args:
+        argv: Command-line arguments excluding the program name.
+
+    Returns:
+        Process exit code: 0 when no matches, 1 when matches exist, 2 on usage
+        errors.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Scan files for security-review pattern leads. Findings require "
