@@ -9,12 +9,14 @@ attacker control, reachability, and impact before reporting a finding.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import importlib
 import json
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,7 +35,17 @@ JS_EXTS = {
 }
 PY_EXTS = {".py", ".pyi", ".ipynb"}
 DOC_EXTS = {".md", ".mdx", ".txt", ".rst", ".json", ".yaml", ".yml"}
+SECRET_CONFIG_EXTS = frozenset(
+    {".json", ".yaml", ".yml", ".toml", ".env", ".ini", ".conf"}
+)
+SECRET_EXAMPLE_PARTS = ("/examples/", "/example/", "/templates/", "/template/")
+SECRET_EXAMPLE_MARKERS = (".example.", ".template.", ".sample.", "-example.")
 WORKFLOW_PART = ".github/workflows/"
+_REDOS_SHAPES = (
+    re.compile(r"\([^()]*[+*][^()]*\)[+*?]"),
+    re.compile(r"\(\.\*[^()]*\)[+*]"),
+)
+_ALT_UNDER_REP = re.compile(r"\(([^()]*)\|([^()|]*)(?:\|[^()]*)*\)[+*]")
 CUSTOM_PATTERN_STEMS = (
     "security-patterns",
     "security-patterns.local",
@@ -53,6 +65,8 @@ class Rule:
     substrings: tuple[str, ...] = ()
     extensions: frozenset[str] | None = None
     path_contains: str | None = None
+    path_globs: tuple[str, ...] = ()
+    exclude_path_globs: tuple[str, ...] = ()
     source: str = "built-in"
 
 
@@ -193,8 +207,10 @@ RULES: tuple[Rule, ...] = (
         "Possible hardcoded secret or private key. Do not copy the value; verify "
         "and rotate if real.",
         regex=(
-            r"(?i)(?:api[_-]?key|secret|token|password|passwd|private[_-]?key)"
-            r"\s*[:=]\s*['\"][^'\"\n]{12,}|"
+            r"(?i)(?:[\"']?(?:api[_-]?key|secret|token|password|passwd|private[_-]?key)"
+            r"[\"']?\s*[:=]\s*"
+            r"(?:['\"][^'\"\n]{12,}|[^\s#;\"']{12,}))"
+            r"|"
             r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |)PRIVATE KEY-----"
         ),
     ),
@@ -245,7 +261,10 @@ def load_custom_rules(repo: Path) -> list[Rule]:
         data = load_custom_pattern_file(path)
         if not isinstance(data, dict):
             continue
-        for entry in data.get("patterns", []):
+        patterns = data.get("patterns", [])
+        if not isinstance(patterns, list):
+            continue
+        for entry in patterns:
             rule = custom_rule_from_entry(entry, path)
             if rule is not None:
                 rules.append(rule)
@@ -276,6 +295,57 @@ def load_custom_pattern_file(path: Path) -> object | None:
         return None
 
 
+def has_redos_structure(regex: str) -> bool:
+    """Heuristic catastrophic-backtracking check aligned with upstream plugin."""
+    if any(pattern.search(regex) for pattern in _REDOS_SHAPES):
+        return True
+    for match in _ALT_UNDER_REP.finditer(regex):
+        branches = [
+            branch for branch in match.group(0).strip("()*+").split("|") if branch
+        ]
+        for index, left in enumerate(branches):
+            for right in branches[index + 1 :]:
+                if left.startswith(right) or right.startswith(left):
+                    return True
+    return False
+
+
+def validate_custom_regex(regex: str) -> bool:
+    if has_redos_structure(regex):
+        return False
+    try:
+        re.compile(regex)
+    except re.error:
+        return False
+    return True
+
+
+def parse_glob_list(raw: object) -> tuple[str, ...] | None:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+        return None
+    return tuple(item.strip() for item in raw if item.strip())
+
+
+def glob_path_matches(
+    path: str, include: tuple[str, ...], exclude: tuple[str, ...]
+) -> bool:
+    """Match a path against include/exclude globs. ``**`` matches any depth."""
+    normalized = path.replace("\\", "/")
+    base = Path(normalized).name
+
+    def hits(globs: tuple[str, ...]) -> bool:
+        return any(
+            fnmatch.fnmatch(normalized, glob) or fnmatch.fnmatch(base, glob)
+            for glob in globs
+        )
+
+    if include and not hits(include):
+        return False
+    return not (exclude and hits(exclude))
+
+
 def custom_rule_from_entry(entry: object, path: Path) -> Rule | None:
     if not isinstance(entry, dict):
         return None
@@ -283,9 +353,17 @@ def custom_rule_from_entry(entry: object, path: Path) -> Rule | None:
     reminder = str(entry.get("reminder") or entry.get("summary") or "").strip()
     regex = str(entry.get("regex") or "").strip()
     raw_substrings = entry.get("substrings") or ()
+    if not isinstance(raw_substrings, list):
+        raw_substrings = ()
     substrings = tuple(item for item in raw_substrings if isinstance(item, str))
     extensions = parse_extensions(entry.get("extensions"))
+    path_globs = parse_glob_list(entry.get("paths"))
+    exclude_path_globs = parse_glob_list(entry.get("exclude_paths"))
+    if path_globs is None or exclude_path_globs is None:
+        return None
     if not rule_name or not reminder or (not regex and not substrings):
+        return None
+    if regex and not validate_custom_regex(regex):
         return None
     return Rule(
         rule_id=f"user:{rule_name}",
@@ -294,6 +372,8 @@ def custom_rule_from_entry(entry: object, path: Path) -> Rule | None:
         regex=regex or None,
         substrings=substrings,
         extensions=extensions,
+        path_globs=path_globs,
+        exclude_path_globs=exclude_path_globs,
         source=path.as_posix(),
     )
 
@@ -349,10 +429,29 @@ def iter_files(paths: Iterable[Path]) -> Iterable[Path]:
                     yield child
 
 
+def secret_scan_applies(path: Path) -> bool:
+    normalized = path.as_posix().lower()
+    suffix = path.suffix.lower()
+    if suffix in SECRET_CONFIG_EXTS:
+        return True
+    if any(part in normalized for part in SECRET_EXAMPLE_PARTS):
+        return True
+    lowered_name = path.name.lower()
+    if any(marker in lowered_name for marker in SECRET_EXAMPLE_MARKERS):
+        return True
+    return path.suffix not in DOC_EXTS
+
+
 def rule_applies(rule: Rule, path: Path) -> bool:
     normalized = path.as_posix()
+    if (rule.path_globs or rule.exclude_path_globs) and not glob_path_matches(
+        normalized, rule.path_globs, rule.exclude_path_globs
+    ):
+        return False
     if rule.path_contains and rule.path_contains not in normalized:
         return False
+    if rule.rule_id == "possible_secret":
+        return secret_scan_applies(path)
     if rule.extensions is not None and path.suffix not in rule.extensions:
         return False
     return not (
@@ -386,6 +485,134 @@ def scan_file(path: Path, rules: Iterable[Rule]) -> list[dict[str, object]]:
             if rule.path_contains and rule_applies(rule, path):
                 results.append(format_match(path, 1, "", rule))
     return results
+
+
+_SELF_CHECK_SOURCE = Path(".claude/security-patterns.json")
+
+
+def _self_check_custom_regex_rules(failures: list[str]) -> Rule | None:
+    invalid = custom_rule_from_entry(
+        {
+            "rule_name": "bad_regex",
+            "reminder": "invalid regex should be skipped",
+            "regex": r"(?P<unclosed",
+        },
+        _SELF_CHECK_SOURCE,
+    )
+    if invalid is not None:
+        failures.append("invalid custom regex was not skipped")
+
+    redos = custom_rule_from_entry(
+        {
+            "rule_name": "redos_regex",
+            "reminder": "ReDoS-like regex should be skipped",
+            "regex": r"(a+)*",
+        },
+        _SELF_CHECK_SOURCE,
+    )
+    if redos is not None:
+        failures.append("ReDoS-like custom regex was not skipped")
+
+    path_rule = custom_rule_from_entry(
+        {
+            "rule_name": "scoped_rule",
+            "reminder": "only src files",
+            "substrings": ["needle"],
+            "paths": ["**/src/**"],
+            "exclude_paths": ["**/tests/**"],
+        },
+        _SELF_CHECK_SOURCE,
+    )
+    if path_rule is None:
+        failures.append("valid path-filtered custom rule was rejected")
+    elif path_rule.path_globs != ("**/src/**",):
+        failures.append("custom rule paths were not parsed")
+    elif path_rule.exclude_path_globs != ("**/tests/**",):
+        failures.append("custom rule exclude_paths were not parsed")
+    return path_rule
+
+
+def _self_check_path_and_secret_rules(
+    failures: list[str], path_rule: Rule | None
+) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        included = root / "src" / "app.py"
+        excluded = root / "tests" / "app.py"
+        other = root / "lib" / "app.py"
+        included.parent.mkdir(parents=True)
+        excluded.parent.mkdir(parents=True)
+        other.parent.mkdir(parents=True)
+        for file_path in (included, excluded, other):
+            file_path.write_text("needle\n", encoding="utf-8")
+
+        if path_rule is None:
+            failures.append("path filter checks skipped because path_rule was missing")
+            return
+        if not rule_applies(path_rule, included):
+            failures.append("paths filter did not include matching file")
+        if rule_applies(path_rule, excluded):
+            failures.append("exclude_paths filter did not exclude matching file")
+        if rule_applies(path_rule, other):
+            failures.append("paths filter matched file outside include globs")
+
+        config = root / "config.json"
+        config.write_text(
+            '{\n  "api_key": "supersecretvalue123"\n}\n',
+            encoding="utf-8",
+        )
+        secret_hits = [
+            match
+            for match in scan_file(config, RULES)
+            if match.get("rule_id") == "possible_secret"
+        ]
+        if not secret_hits:
+            failures.append("possible_secret did not detect JSON config secret")
+        elif secret_hits[0].get("excerpt") != "[redacted possible secret line]":
+            failures.append("possible_secret excerpt was not redacted")
+
+        claude_dir = root / ".claude"
+        claude_dir.mkdir()
+        (claude_dir / "security-patterns.json").write_text(
+            "{not valid json", encoding="utf-8"
+        )
+        load_custom_rules(root)
+
+        (claude_dir / "security-patterns.json").write_text(
+            json.dumps(
+                {
+                    "patterns": [
+                        {
+                            "rule_name": "bad",
+                            "reminder": "invalid sibling regex",
+                            "regex": "(?P<unclosed",
+                        },
+                        {
+                            "rule_name": "good",
+                            "reminder": "valid sibling rule",
+                            "substrings": ["valid-marker"],
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        loaded = load_custom_rules(root)
+        if not any(rule.rule_id == "user:good" for rule in loaded):
+            failures.append("valid custom rule skipped due to sibling invalid regex")
+
+
+def run_self_checks() -> int:
+    """Run minimal built-in checks for custom rule validation and secret scanning."""
+    failures: list[str] = []
+    path_rule = _self_check_custom_regex_rules(failures)
+    _self_check_path_and_secret_rules(failures, path_rule)
+
+    if failures:
+        print(json.dumps({"self_check_failures": failures}, indent=2), file=sys.stderr)
+        return 1
+    print(json.dumps({"self_check": "ok"}, indent=2))
+    return 0
 
 
 def format_match(path: Path, line_no: int, line: str, rule: Rule) -> dict[str, object]:
@@ -438,7 +665,15 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--pretty", action="store_true", help="pretty-print JSON output"
     )
+    parser.add_argument(
+        "--self-check",
+        action="store_true",
+        help="run built-in validation checks and exit",
+    )
     args = parser.parse_args(argv)
+
+    if args.self_check:
+        return run_self_checks()
 
     repo = Path(args.repo).resolve()
     rules = (*RULES, *load_custom_rules(repo))
