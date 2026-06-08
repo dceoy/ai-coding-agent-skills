@@ -9,6 +9,7 @@ attacker control, reachability, and impact before reporting a finding.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import re
 import shutil
@@ -17,11 +18,6 @@ import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-
-try:
-    import yaml
-except ImportError:  # pragma: no cover - optional dependency
-    yaml = None
 
 JS_EXTS = {
     ".js",
@@ -270,11 +266,13 @@ def load_custom_pattern_file(path: Path) -> object | None:
             return json.loads(raw)
         except ValueError:
             return None
-    if yaml is None:
+    try:
+        yaml_module = importlib.import_module("yaml")
+    except ImportError:
         return None
     try:
-        return yaml.safe_load(raw)
-    except yaml.YAMLError:
+        return yaml_module.safe_load(raw)
+    except yaml_module.YAMLError:
         return None
 
 
