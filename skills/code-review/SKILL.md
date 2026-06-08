@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Perform comprehensive code review on a pull request, checking for bugs, AGENTS.md/CLAUDE.md compliance, and historical context issues.
+description: Perform comprehensive code review on a pull request, checking for bugs, AGENTS.md/CLAUDE.md compliance, and historical context issues. Use when the user asks to review a PR or current changes.
 ---
 
 # Code Review Skill
@@ -20,14 +20,15 @@ When posting the PR comment, replace `<agent-name>` in the output template with 
 
 ## Inputs
 
-- Pull request URL or number (required).
+- Pull request URL or number when reviewing a PR.
+- Current branch or local diff when the user asks to review local changes.
 - Repository context with AGENTS.md/CLAUDE.md files.
 
-If the pull request is not specified, ask for it before proceeding.
+If a PR is not specified and local changes are present, review the local diff. If neither a PR nor local changes are available, ask for the target before proceeding.
 
 ## Workflow
 
-1. **Eligibility Check** (fast agent): Verify the PR is eligible for review:
+1. **Eligibility Check** (fast agent): For PR reviews, verify the PR is eligible for review:
    - Not closed
    - Not a draft
    - Not automated or trivially simple
@@ -36,11 +37,12 @@ If the pull request is not specified, ask for it before proceeding.
 2. **Gather AGENTS.md/CLAUDE.md Files** (fast agent): Collect paths to relevant guideline files:
    - Root AGENTS.md or CLAUDE.md (if exists)
    - AGENTS.md/CLAUDE.md files in directories modified by the PR
+   - Equivalent files for local changes when not reviewing a PR
 
-3. **Summarize Changes** (fast agent): View the PR and return a summary of the change.
+3. **Summarize Changes** (fast agent): View the PR or local diff and return a summary of the change.
 
 4. **Parallel Code Review** (5 default agents): Each agent reviews independently and returns issues with reasons:
-   - **Agent 1**: Audit changes for AGENTS.md/CLAUDE.md compliance
+   - **Agent 1**: Audit changes for AGENTS.md/CLAUDE.md compliance. These files guide agents as they write code, so apply only instructions relevant to review.
    - **Agent 2**: Shallow scan for obvious bugs (focus on large issues, avoid nitpicks)
    - **Agent 3**: Review git blame and history for context-aware bug detection
    - **Agent 4**: Check previous PRs touching these files for relevant comments
@@ -55,9 +57,11 @@ If the pull request is not specified, ask for it before proceeding.
 
 6. **Filter Issues**: Keep only issues with score >= 80.
 
-7. **Re-check Eligibility** (fast agent): Confirm PR is still eligible for review.
+7. **Re-check Eligibility** (fast agent): For PR reviews, confirm the PR is still eligible for review.
 
-8. **Post Comment**: Use `gh pr comment` to post results to the PR.
+8. **Post or Report Results**:
+   - For PR reviews requested as comments, use `gh pr comment` to post results to the PR.
+   - For local reviews or when the user did not ask to post, return the findings in the final response.
 
 ## False Positive Guidelines
 
@@ -71,6 +75,7 @@ Exclude these from reported issues:
 - AGENTS.md/CLAUDE.md issues explicitly silenced in code
 - Intentional functionality changes related to the broader change
 - Real issues on lines not modified by the PR
+- For local review, real issues outside the reviewed diff
 
 ## Output Format
 
@@ -124,3 +129,4 @@ When linking to code:
 ## Outputs
 
 - Comment posted to the pull request with review results.
+- For local reviews, review findings returned in the response.

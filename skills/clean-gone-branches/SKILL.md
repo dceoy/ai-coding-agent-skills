@@ -21,6 +21,8 @@ This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI
 
 - None required. The skill operates on the current git repository.
 
+Before deleting anything, inspect the branch list and worktree list so the user can understand what will be removed.
+
 ## Workflow
 
 1. **List branches** to identify any with `[gone]` status:
@@ -37,13 +39,13 @@ This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI
    git worktree list
    ```
 
-3. **Remove worktrees and delete `[gone]` branches**:
+3. **Remove worktrees and delete `[gone]` branches**. Strip leading `+`, `*`, or spaces from `git branch -v` output before extracting branch names:
 
    ```bash
    git branch -v | grep '\[gone\]' | sed 's/^[+* ]//' | awk '{print $1}' | while read branch; do
      echo "Processing branch: $branch"
      worktree=$(git worktree list | grep "\\[$branch\\]" | awk '{print $1}')
-     if [ ! -z "$worktree" ] && [ "$worktree" != "$(git rev-parse --show-toplevel)" ]; then
+     if [ -n "$worktree" ] && [ "$worktree" != "$(git rev-parse --show-toplevel)" ]; then
        echo "  Removing worktree: $worktree"
        git worktree remove --force "$worktree"
      fi
@@ -53,6 +55,12 @@ This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI
    ```
 
 4. **Report results**: List which worktrees and branches were removed. If no branches are marked as `[gone]`, report that no cleanup was needed.
+
+## Safety Notes
+
+- Do not delete the current branch.
+- Do not remove the repository's main worktree.
+- Only delete branches shown by `git branch -v` as `[gone]`; do not infer stale branches by name.
 
 ## Outputs
 
