@@ -14,9 +14,14 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - optional dependency
+    yaml = None
 
 JS_EXTS = {
     ".js",
@@ -33,6 +38,12 @@ JS_EXTS = {
 PY_EXTS = {".py", ".pyi", ".ipynb"}
 DOC_EXTS = {".md", ".mdx", ".txt", ".rst", ".json", ".yaml", ".yml"}
 WORKFLOW_PART = ".github/workflows/"
+CUSTOM_PATTERN_STEMS = (
+    "security-patterns",
+    "security-patterns.local",
+)
+CUSTOM_PATTERN_EXTS = (".json", ".yaml", ".yml")
+CUSTOM_PATTERN_LIMIT = 50
 
 
 @dataclass(frozen=True)
@@ -46,6 +57,7 @@ class Rule:
     substrings: tuple[str, ...] = ()
     extensions: frozenset[str] | None = None
     path_contains: str | None = None
+    source: str = "built-in"
 
 
 RULES: tuple[Rule, ...] = (
@@ -219,6 +231,95 @@ def git_root(repo: Path) -> Path:
     return Path(root).resolve()
 
 
+def custom_pattern_paths(repo: Path) -> list[Path]:
+    roots = [Path.home() / ".claude", git_root(repo) / ".claude"]
+    paths = []
+    for root in roots:
+        for stem in CUSTOM_PATTERN_STEMS:
+            for ext in CUSTOM_PATTERN_EXTS:
+                candidate = root / f"{stem}{ext}"
+                if candidate.is_file():
+                    paths.append(candidate)
+    return paths
+
+
+def load_custom_rules(repo: Path) -> list[Rule]:
+    rules: list[Rule] = []
+    for path in custom_pattern_paths(repo):
+        data = load_custom_pattern_file(path)
+        if not isinstance(data, dict):
+            continue
+        for entry in data.get("patterns", []):
+            rule = custom_rule_from_entry(entry, path)
+            if rule is not None:
+                rules.append(rule)
+            if len(rules) >= CUSTOM_PATTERN_LIMIT:
+                return rules
+    return rules
+
+
+def load_custom_pattern_file(path: Path) -> object | None:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not raw.strip():
+        return None
+    if path.suffix == ".json":
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return None
+    if yaml is None:
+        return None
+    try:
+        return yaml.safe_load(raw)
+    except yaml.YAMLError:
+        return None
+
+
+def custom_rule_from_entry(entry: object, path: Path) -> Rule | None:
+    if not isinstance(entry, dict):
+        return None
+    rule_name = str(entry.get("rule_name") or entry.get("ruleName") or "").strip()
+    reminder = str(entry.get("reminder") or entry.get("summary") or "").strip()
+    regex = str(entry.get("regex") or "").strip()
+    raw_substrings = entry.get("substrings") or ()
+    substrings = tuple(item for item in raw_substrings if isinstance(item, str))
+    extensions = parse_extensions(entry.get("extensions"))
+    if not rule_name or not reminder or (not regex and not substrings):
+        return None
+    return Rule(
+        rule_id=f"user:{rule_name}",
+        category=str(entry.get("category") or "custom"),
+        summary=reminder[:1024],
+        regex=regex or None,
+        substrings=substrings,
+        extensions=extensions,
+        source=path.as_posix(),
+    )
+
+
+def parse_extensions(raw: object) -> frozenset[str] | None:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        values: Sequence[object] = [raw]
+    elif isinstance(raw, list):
+        values = raw
+    else:
+        return None
+    extensions = []
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        ext = value.strip()
+        if not ext:
+            continue
+        extensions.append(ext if ext.startswith(".") else f".{ext}")
+    return frozenset(extensions) if extensions else None
+
+
 def changed_paths(repo: Path, include_untracked: bool) -> list[Path]:
     root = git_root(repo)
     paths = set()
@@ -269,14 +370,14 @@ def line_matches(rule: Rule, line: str) -> bool:
     return bool(rule.path_contains and not rule.regex and not rule.substrings)
 
 
-def scan_file(path: Path) -> list[dict[str, object]]:
+def scan_file(path: Path, rules: Iterable[Rule]) -> list[dict[str, object]]:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         return [{"path": path.as_posix(), "error": str(exc)}]
 
     results: list[dict[str, object]] = []
-    for rule in RULES:
+    for rule in rules:
         if not rule_applies(rule, path):
             continue
         for line_no, line in enumerate(text.splitlines(), start=1):
@@ -300,6 +401,7 @@ def format_match(path: Path, line_no: int, line: str, rule: Rule) -> dict[str, o
         "category": rule.category,
         "summary": rule.summary,
         "excerpt": excerpt[:240],
+        "source": rule.source,
     }
 
 
@@ -341,6 +443,7 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     repo = Path(args.repo).resolve()
+    rules = (*RULES, *load_custom_rules(repo))
     selected = [Path(path) for path in args.paths]
     if args.changed:
         selected.extend(changed_paths(repo, args.include_untracked))
@@ -356,13 +459,14 @@ def main(argv: list[str]) -> int:
 
     matches: list[dict[str, object]] = []
     for path in iter_files(selected):
-        matches.extend(scan_file(path))
+        matches.extend(scan_file(path, rules))
 
     output = {
         "matches": matches,
         "summary": {
             "files_selected": len(selected),
             "matches": len(matches),
+            "rules_loaded": len(rules),
             "note": (
                 "Pattern matches are leads. Confirm source, sink, reachability, "
                 "and impact before reporting."

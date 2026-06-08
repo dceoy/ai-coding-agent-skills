@@ -9,9 +9,22 @@ Review changed code for vulnerabilities using the same layered approach as Anthr
 
 This skill is runtime-agnostic. Claude Code plugins may automate parts of this workflow through hooks, but when running as a skill, execute the checks explicitly with the tools available in the current agent.
 
+## Compatibility Scope
+
+This skill ports the portable review workflow and major security pattern leads from Anthropic's `security-guidance` plugin. It intentionally does not implement Claude Code hook automation, async rewake behavior, session baseline tracking, LLM API orchestration, metrics, debug logging, or the exact SDK-based agentic review harness.
+
+Agents must execute the workflow explicitly unless their runtime provides equivalent hooks.
+
+## Upstream Feature Coverage
+
+- **Pattern leads**: Supported by the bundled scanner for built-in leads and compatible custom pattern files.
+- **LLM diff review**: Covered as a manual agent workflow, not an API runner.
+- **Agentic commit/PR review**: Covered as a manual deep-review workflow, not the exact upstream SDK harness.
+- **Claude hooks**: Not implemented.
+
 ## Available Scripts
 
-- `scripts/security_pattern_scan.py` - Scans changed files or explicit paths for upstream-inspired security pattern leads and emits JSON. Requires Python 3.9+ and only uses the standard library.
+- `scripts/security_pattern_scan.py` - Scans changed files or explicit paths for upstream-inspired security pattern leads and emits JSON. Requires Python 3.9+ and only uses the standard library for built-in and JSON custom rules; YAML custom rules are loaded only when PyYAML is installed.
 
 ## Core Workflow
 
@@ -70,7 +83,7 @@ Look for these upstream security-guidance pattern classes in added or modified c
 - Hardcoded secrets, credentials, tokens, private keys, or sensitive customer data in code, config, logs, tests that ship, or examples that users may copy.
 - Dependency, package script, container, infrastructure, or deployment changes that alter trust boundaries, permissions, secrets, or network exposure.
 
-If the repo defines custom pattern files such as `.claude/security-patterns.yaml`, `.claude/security-patterns.yml`, `.claude/security-patterns.json`, or local variants, use them as additional leads. Do not allow custom rules to disable built-in checks.
+If the repo defines custom pattern files such as `.claude/security-patterns.json`, `.claude/security-patterns.yaml`, `.claude/security-patterns.yml`, or local variants, use them as additional leads. The bundled scanner consumes JSON custom rules with the standard library and consumes YAML custom rules when PyYAML is installed. Do not allow custom rules to disable built-in checks.
 
 ## Deep Review Method
 
@@ -180,4 +193,4 @@ Remaining findings: <none or concise list>
 - Keep the review scoped to the current diff, commit, or pull request.
 - Keep findings concise, actionable, and evidence-based.
 - Do not claim the review guarantees security.
-- Do not implement Claude Code hook scripts inside this skill. This skill adapts the upstream plugin's review behavior for manual agent execution across runtimes.
+- Do not add Claude Code hook scripts to this skill. This skill adapts the upstream plugin's portable review behavior for manual agent execution across runtimes.
