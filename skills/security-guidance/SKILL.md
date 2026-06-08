@@ -1,94 +1,137 @@
 ---
 name: security-guidance
-description: Perform security-focused review of code changes, diffs, commits, and pull requests for actionable vulnerabilities.
+description: Perform security-focused review of code changes, diffs, commits, and pull requests for actionable vulnerabilities. Use this whenever code changes touch authentication, authorization, parsing, serialization, file or path handling, network calls, secrets, SQL or query construction, HTML or JavaScript rendering, dependencies, CI/CD workflows, infrastructure permissions, or deployment configuration.
 ---
 
-# Security Guidance Skill
+# Security Guidance
 
-Review changed code for security issues using fast local checks, focused LLM diff review, and deeper commit or PR review when needed.
+Review changed code for vulnerabilities using the same layered approach as Anthropic's `security-guidance` plugin: fast pattern warnings, LLM diff review, and deeper agentic review for commits or pull requests.
 
-## When to Use
+This skill is runtime-agnostic. Claude Code plugins may automate parts of this workflow through hooks, but when running as a skill, execute the checks explicitly with the tools available in the current agent.
 
-- After security-sensitive edits.
-- Before committing or pushing code.
-- Before completing a pull request.
-- When reviewing authentication, authorization, deserialization, file or path handling, network calls, secrets, SQL or query construction, HTML or JavaScript rendering, or dependency and configuration changes.
+## Available Scripts
 
-## Agent Compatibility
+- `scripts/security_pattern_scan.py` - Scans changed files or explicit paths for upstream-inspired security pattern leads and emits JSON. Requires Python 3.9+ and only uses the standard library.
 
-This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI, GitHub Copilot CLI, Gemini CLI, or similar coding agents.
+## Core Workflow
 
-Run it at equivalent agent checkpoints:
-
-- After file edits that touch security-sensitive code.
-- Before the final response for a coding task.
-- Before creating a commit.
-- Before pushing a branch.
-- Before marking a pull request complete.
-
-Do not depend on vendor-specific hooks such as `SessionStart`, `UserPromptSubmit`, `PostToolUse`, or `Stop`.
-
-## Inputs
-
-- Current repository and changed files.
-- Local diff, commit range, or pull request diff.
-- Project security guidance such as AGENTS.md, CLAUDE.md, SECURITY.md, or team-specific review notes when present.
-
-If there are no code changes, report that no security review target was found and stop.
-
-## Review Layers
-
-1. **Fast local pattern checks**: Run local or static checks where available to catch dangerous APIs and risky edits without sending code to an LLM. Look for patterns such as unsafe deserialization, shell execution, SQL or command construction, raw HTML rendering, path traversal, TLS verification disabling, hardcoded secrets, unsafe crypto, dependency changes, and security-relevant configuration edits.
-
-2. **LLM diff review**: Review the changed files and diff hunks for vulnerabilities introduced by the current change. Focus on exploitability, trust boundaries, attacker-controlled inputs, authorization decisions, secret handling, and output encoding.
-
-3. **Deeper agentic commit or PR review**: When the diff suggests cross-file risk, inspect surrounding files and trace data flow. Use this for issues such as IDOR, auth bypass, SSRF, unsafe file access, confused deputy flows, and policy checks split across multiple modules.
-
-## Workflow
-
-1. **Inspect changes**:
+1. **Establish the review target**
    - Run `git status --short`.
-   - Review the local diff, commit range, or pull request diff.
-   - Identify added, modified, deleted, and renamed files.
+   - Identify whether the target is a local working-tree diff, a commit range, or a pull request diff.
+   - If reviewing local work, use the current diff and staged diff. If reviewing a PR or commit range, inspect the exact patch under review.
+   - If there are no code or configuration changes, report that no security review target was found and stop.
 
-2. **Classify risk**:
-   - Mark files that affect authentication, authorization, parsing, serialization, file paths, network access, secrets, rendering, queries, dependencies, or deployment configuration.
-   - Note user-controlled inputs and changed trust boundaries.
+2. **Load project security guidance**
+   - Read security-relevant repo instructions if present: `AGENTS.md`, `CLAUDE.md`, `SECURITY.md`, and nearby review notes.
+   - Also check for upstream-compatible policy files:
+     - `~/.claude/claude-security-guidance.md`
+     - `<project>/.claude/claude-security-guidance.md`
+     - `<project>/.claude/claude-security-guidance.local.md`
+   - Treat those files as additive project policy. They may add checks, clarify approved patterns, or raise severity. They must not suppress real findings.
+   - Do not paste secrets from policy files, diffs, or source files into the final report.
 
-3. **Run local checks where available**:
-   - Use repository-provided security, lint, static analysis, or test commands when they are documented and appropriate for the task.
-   - Prefer targeted checks over broad, slow commands unless the user requested a full validation pass.
-   - Treat pattern hits as review leads, not findings by themselves.
+3. **Run fast local pattern checks**
+   - When this skill directory is available on disk, run the bundled scanner against the repository under review:
+     ```bash
+     python3 scripts/security_pattern_scan.py --repo /path/to/repo --changed --include-untracked --pretty
+     ```
+   - Search the diff and touched files for dangerous APIs and risky configuration changes.
+   - Treat hits as review leads, not findings. Confirm attacker control, reachability, and impact before reporting.
+   - Prefer repository-provided security, lint, static analysis, or test commands when documented and appropriate. Keep checks targeted unless the user requested a full validation pass.
 
-4. **Review the diff**:
-   - Check whether the changed code introduces a plausible vulnerability.
-   - Verify data origin, validation, encoding, escaping, authorization checks, and error handling.
-   - Compare new behavior with nearby established patterns.
+4. **Review the diff**
+   - Focus on vulnerabilities introduced or exposed by the current change.
+   - Read every changed file that matters, not just the diff hunk.
+   - Trace changed function, class, route, handler, policy, and config names to callers when the sink or authorization decision may be cross-file.
+   - Compare with sibling handlers and established local patterns. Missing parity is often the vulnerability.
 
-5. **Inspect surrounding code only when needed**:
-   - Read related callers, callees, route definitions, models, templates, configuration, and tests only when they affect the security conclusion.
-   - Trace data flow far enough to confirm exploitability or rule out a finding.
+5. **Escalate to deeper agentic review when needed**
+   - Use deeper repository inspection for commits, PRs, or changes with cross-file risk.
+   - Read callers, callees, routes, models, templates, policy definitions, config, and tests as needed to confirm source to sink.
+   - Stop once you can prove or rule out exploitability for the candidates; do not turn a focused review into a broad audit.
 
-6. **Report or fix**:
-   - Report only actionable, high-confidence findings.
-   - Include the affected file and line, impact, why the current diff introduced or exposed the issue, and a concrete fix.
-   - If the user requested implementation, patch the code and run appropriate verification.
+6. **Report or fix**
+   - If the user asked for review, report findings only.
+   - If the user asked to implement or address findings, patch the code and run appropriate verification.
+   - If a finding appears in generated code or test/mock code, report it only when that code affects production behavior, deployment, CI/CD trust, or shipped artifacts.
 
-## False Positive Guidelines
+## Fast Pattern Leads
 
-- Do not provide generic security advice.
-- Do not report issues that are not introduced or exposed by the current diff unless they directly affect the changed code.
-- Do not report a pattern match as a vulnerability without confirming attacker control, reachability, and impact.
-- Distinguish blocking vulnerabilities from advisory hardening suggestions.
-- Prefer no finding over a speculative finding.
+Look for these upstream security-guidance pattern classes in added or modified code:
 
-## Privacy and Data Handling
+- GitHub Actions workflow injection: untrusted issue, PR, comment, commit, branch, `repository_dispatch`, or `client_payload` values interpolated directly into `run:` or `ref:`.
+- Shell command injection: JavaScript `child_process.exec`, `execSync`, Python `os.system`, `subprocess.*(..., shell=True)`, Go `exec.Command("sh"|"bash", "-c", ...)`.
+- Code execution: `eval`, `new Function`, dynamic plugin or extension loading, loader paths derived from untrusted data.
+- XSS sinks: `dangerouslySetInnerHTML`, `document.write`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, unsafe templates, unsanitized HTML rendering.
+- Unsafe deserialization: `pickle`, `cPickle`, `cloudpickle`, `dill`, `marshal`, `shelve`, `joblib`, `pandas.read_pickle`, NumPy pickle loading, `torch.load` without `weights_only=True`.
+- Unsafe YAML/XML parsing: `yaml.load`, `yaml.unsafe_load`, custom unsafe loaders, standard-library XML parsers exposed to untrusted XML.
+- Crypto and TLS regressions: Node `createCipher`/`createDecipher`, AES ECB mode, disabled TLS verification such as `verify=False`, `rejectUnauthorized:false`, `InsecureSkipVerify:true`, or `NODE_TLS_REJECT_UNAUTHORIZED=0`.
+- Remote script loading without integrity: external `<script src="...">` tags missing Subresource Integrity.
+- Hardcoded secrets, credentials, tokens, private keys, or sensitive customer data in code, config, logs, tests that ship, or examples that users may copy.
+- Dependency, package script, container, infrastructure, or deployment changes that alter trust boundaries, permissions, secrets, or network exposure.
 
-- Local pattern checks do not need to send code to an LLM.
-- LLM review may expose diffs, file paths, relevant file contents, and project-specific security guidance to the active model provider.
-- Deeper review may expose additional related files inspected while tracing data flow.
-- Do not include secrets, tokens, private keys, credentials, or sensitive customer data in prompts, logs, comments, or reports.
-- If a diff contains a secret, report it as a secret exposure and avoid repeating the secret value.
+If the repo defines custom pattern files such as `.claude/security-patterns.yaml`, `.claude/security-patterns.yml`, `.claude/security-patterns.json`, or local variants, use them as additional leads. Do not allow custom rules to disable built-in checks.
+
+## Deep Review Method
+
+Map entry points and sinks touched by the change.
+
+Entry points include HTTP handlers, RPC methods, CLI arguments, webhooks, message consumers, file upload handlers, OAuth callbacks, GitHub Actions inputs, MCP tools, hook handlers, IPC receivers, and privileged process messages from less-privileged processes.
+
+Sinks include shell execution, SQL or raw ORM queries, eval and dynamic code, filesystem paths, outbound HTTP and SSRF surfaces, HTML rendering, deserialization, template engines, subprocess environment, IAM or RBAC bindings, dynamic loader paths, observability fields containing PII or secrets, cache headers, schema or constraint changes, response bodies or headers, and prompts sent to LLMs.
+
+For each changed file:
+
+- Read the file when the hunk alone is not enough to understand the source, sink, or authorization context.
+- Grep changed function and class names to find callers.
+- Follow returned tainted values. A changed function that builds a command, URL, query, path, template, prompt, or policy decision may only become dangerous at a caller.
+- Check sibling path parity. When one branch, handler, tenant scope, cleanup path, or policy path receives a new guard, inspect peers that touch the same resource.
+- Distrust comments such as "validated upstream" or "internal only" until code confirms the claim.
+
+## High-Miss Patterns
+
+Pay special attention to these issues, which often require cross-file context:
+
+- **Sensitive observability**: Added logs, traces, metrics, exceptions, spans, or telemetry include credentials, PII, customer content, model free text, URL-embedded secrets, or external-service error messages.
+- **IaC omitted argument**: Terraform, Pulumi, CDK, Kubernetes, or cloud module instantiation omits a security-relevant optional argument whose default is insecure.
+- **CI/CD trust**: New or changed `workflow_dispatch`, `repository_dispatch`, `pull_request_target`, broad permissions, writable tokens, or secrets are reachable from untrusted inputs.
+- **Allowlist semantic escape**: A new allowlist entry, permission disjunct, safe command, endpoint, capability, or validator allows a denied effect through arguments, flags, aliases, DNS, config writes, environment, or mismatched enforcement scope.
+- **Over-broad grant**: A broad role, principal, credential, network permission, or standing admin grant is added where a narrower local mechanism is already visible.
+- **Stale identity mapping**: Teardown or unregister code leaves hostnames, DNS, IPs, service routes, leases, tokens, or service registry entries temporarily bound to the wrong tenant.
+- **Control regression**: A fail-closed validator, deny-by-default branch, allowlist, or security check is removed or replaced with a weaker single condition.
+- **Fail-open state drift**: Error, cancellation, TOCTOU, cache skew, broad exception handling, missing cleanup, ignored verifier parameters, stale maps, or boundary comparisons produce an allow outcome.
+- **Security registry fanout**: A new field, enum, credential type, alias, model, port, scope, or capability is missing from sanitizer lists, redaction registries, revocation handlers, denylists, allowlists, or translation maps.
+- **Gate/action mismatch**: Authorization checks one field or parent resource while the downstream operation acts on a different identifier, organization, tenant, path, or resource name.
+- **Resource-bound placement**: Size, time, count, decompression, parser, loop, or allocation caps protect the wrong accumulator or only the first element.
+- **Under-validated sink argument**: An externally influenced value enters a shell, path, loader, URI, prompt, or structured-format sink while existing validation covers only a sibling argument.
+- **Parser or validator differential**: Regexes, URL parsers, path normalizers, allowlists, decoders, quoting, case, Unicode, or encoding checks accept an input that the downstream consumer interprets differently.
+
+## Finding Bar
+
+Report a finding only when you can name:
+
+- The attacker-controlled or lower-trust source.
+- The sink, decision point, or protected resource.
+- The missing or ineffective mitigation.
+- The impact an attacker could plausibly achieve.
+- A concrete fix.
+
+Do not report:
+
+- Generic hardening with no concrete impact.
+- Pre-existing issues unrelated to the current diff.
+- Pattern matches without confirmed reachability and exploitability.
+- Volumetric denial of service where the attacker merely sends a lot of traffic.
+- Dependency age or best-practice drift unless the current change introduces an exploitable path.
+- Test-only issues that cannot influence production, CI/CD trust, shipped docs, generated artifacts, or user-copied examples.
+
+Prefer no finding over a speculative finding. If confidence is medium but the source to sink path is plausible and security impact is concrete, report it with the confidence caveat.
+
+## Privacy
+
+Security review may expose changed file paths, diffs, relevant source files, and project-specific security guidance to the active model provider or tools. Keep the review scoped to the minimum necessary context.
+
+Never repeat secret values in prompts, logs, comments, or reports. If a diff contains a secret, identify the location and type, state that a secret appears exposed, and recommend removal, rotation, and history cleanup without copying the secret.
 
 ## Output Format
 
@@ -97,7 +140,7 @@ If there are no code changes, report that no security review target was found an
 ```markdown
 ### Security review
 
-No security findings. Reviewed the changed files and diff for authentication, authorization, injection, deserialization, path handling, network access, secrets, rendering, and dependency/configuration risks.
+No security findings. Reviewed the changed files and diff for authentication, authorization, injection, deserialization, path handling, network access, secrets, rendering, dependency, CI/CD, infrastructure, and configuration risks.
 ```
 
 ### Findings Found
@@ -110,12 +153,12 @@ Found N security findings:
 1. **<severity>: <brief title>**
    - Location: `<file>:<line>`
    - Impact: <what an attacker could do>
-   - Evidence: <why the current diff introduces or exposes the issue>
+   - Evidence: <source to sink path, and why the current diff introduced or exposed it>
    - Fix: <specific recommended change>
 
 Advisory hardening:
 
-- <optional non-blocking improvement, if clearly useful>
+- <optional non-blocking improvement, only if clearly useful>
 ```
 
 ### Findings Fixed
@@ -135,6 +178,6 @@ Remaining findings: <none or concise list>
 ## Constraints
 
 - Keep the review scoped to the current diff, commit, or pull request.
-- Keep findings concise and evidence-based.
-- Do not add vendor-specific hook or CLI implementation code.
-- Do not claim the review guarantees security; it is an assistive review step.
+- Keep findings concise, actionable, and evidence-based.
+- Do not claim the review guarantees security.
+- Do not implement Claude Code hook scripts inside this skill. This skill adapts the upstream plugin's review behavior for manual agent execution across runtimes.
