@@ -8,6 +8,8 @@ on:
       - opened
       - synchronize
       - reopened
+permissions:
+  contents: read
 jobs:
   dependabot-auto-merge:
     if: >

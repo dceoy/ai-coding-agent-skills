@@ -2,7 +2,7 @@
 
 ## Repository Purpose
 
-This is a single-source skill library shared across AI coding runtimes (Claude Code, OpenAI Codex CLI). The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
+This is a single-source skill library shared across AI coding runtimes (Claude Code, Codex CLI). The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
 
 ## Architecture
 

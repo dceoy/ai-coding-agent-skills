@@ -15,7 +15,7 @@ Provide thorough, multi-agent code review for pull requests with high-confidence
 
 ## Agent Compatibility
 
-This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI, GitHub Copilot CLI, or Gemini CLI.
+This skill is tool-agnostic and can be executed by Claude Code, Codex CLI, or Cursor CLI.
 When posting the PR comment, replace `<agent-name>` in the output template with the active agent name.
 
 ## Inputs
