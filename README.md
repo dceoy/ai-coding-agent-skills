@@ -7,7 +7,7 @@ Agent skills for AI coders
 Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations:
 
 - **Claude Code** — Unified `claude-code` skill in `skills/claude-code/`, plus agents in `.claude/agents/`; skills via `.claude/skills -> ../skills`
-- **OpenAI Codex CLI** — Unified `codex-cli` skill in `skills/codex-cli/`, used by `.claude/agents/codex.md`
+- **Codex CLI** — Unified `codex-cli` skill in `skills/codex-cli/`, used by `.claude/agents/codex.md`
 
 Each skill directory contains a `SKILL.md` that documents prerequisites and invocation.
 
@@ -33,9 +33,9 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 - `claude-code` - Unified Claude Code skill for ask, exec, review, and search workflows
 
-### OpenAI Codex CLI Integration
+### Codex CLI Integration
 
-- `codex-cli` - Unified OpenAI Codex CLI skill for ask, exec, review, and search workflows
+- `codex-cli` - Unified Codex CLI skill for ask, exec, review, and search workflows
 
 ### Git Workflows
 
@@ -93,7 +93,7 @@ Install and authenticate the required CLI tools before running skills:
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
 
-- **OpenAI Codex CLI** - For the `codex-cli` skill and `.claude/agents/codex.md`
+- **Codex CLI** - For the `codex-cli` skill and `.claude/agents/codex.md`
   - Install: <https://github.com/openai/codex>
   - Auth: ChatGPT subscription or API key in `~/.codex/config.toml`
 

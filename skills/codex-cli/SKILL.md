@@ -1,12 +1,12 @@
 ---
 name: codex-cli
-description: Use OpenAI Codex CLI whenever the user wants Codex-powered help with a repository, including understanding code, generating or modifying code, reviewing changes, or researching current documentation and best practices. This unified skill covers ask, exec, review, and search modes, so use it even when the request spans multiple phases such as research -> implementation -> review. Requires Codex CLI installed; native web research uses `codex --search`, with `WebFetch` or `WebSearch` as verification or fallback when helpful.
+description: Use Codex CLI whenever the user wants Codex-powered help with a repository, including understanding code, generating or modifying code, reviewing changes, or researching current documentation and best practices. This unified skill covers ask, exec, review, and search modes, so use it even when the request spans multiple phases such as research -> implementation -> review. Requires Codex CLI installed; native web research uses `codex --search`, with `WebFetch` or `WebSearch` as verification or fallback when helpful.
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob, WebFetch, WebSearch
 ---
 
 # Codex CLI Skill
 
-Use OpenAI Codex CLI as a unified interface for Codex-assisted analysis, execution, review, and research. Start by selecting the right mode, gather the right context, then run Codex with a prompt that matches the user's goal.
+Use Codex CLI as a unified interface for Codex-assisted analysis, execution, review, and research. Start by selecting the right mode, gather the right context, then run Codex with a prompt that matches the user's goal.
 
 ## Mode Selection
 
@@ -361,4 +361,4 @@ Codex CLI is especially helpful when the task benefits from:
 
 ---
 
-**Remember**: Use OpenAI Codex CLI as the primary engine for Codex-assisted work. Pick the correct mode first, gather context before prompting, and always verify the result before handing it back.
+**Remember**: Use Codex CLI as the primary engine for Codex-assisted work. Pick the correct mode first, gather context before prompting, and always verify the result before handing it back.

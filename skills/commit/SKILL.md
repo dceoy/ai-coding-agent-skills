@@ -14,7 +14,7 @@ Stage and commit current changes with a concise, well-formed commit message base
 
 ## Agent Compatibility
 
-This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI, or Cursor CLI.
+This skill is tool-agnostic and can be executed by Claude Code, Codex CLI, or Cursor CLI.
 
 ## Inputs
 
