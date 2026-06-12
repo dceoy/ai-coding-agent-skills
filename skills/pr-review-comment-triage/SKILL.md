@@ -17,7 +17,7 @@ Do not use this skill for a first-pass code review with no existing feedback; us
 
 ## Agent Compatibility
 
-This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI, GitHub Copilot CLI, Gemini CLI, or any agent with repository and pull request access.
+This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI, Cursor CLI, or any agent with repository and pull request access.
 
 Use the active platform tooling for pull request operations. For GitHub, prefer `gh pr view`, `gh pr checkout`, `gh pr diff`, and `gh api graphql` when available. If the current environment has read-only platform credentials, perform the code changes and provide the exact replies or resolution actions for a maintainer to apply manually.
 

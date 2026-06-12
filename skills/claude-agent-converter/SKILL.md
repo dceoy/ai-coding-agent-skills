@@ -12,7 +12,7 @@ Convert Claude Code subagents to standard Agent Skills format for portability ac
 - Migrating existing `.claude/agents/*.md` subagent files to `skills/*/SKILL.md` format.
 - Extracting reusable workflows from subagent definitions.
 - Creating portable skills from Claude Code-specific agents.
-- Standardizing agent definitions for use with Claude Code, Codex CLI, GitHub Copilot, and other runtimes.
+- Standardizing agent definitions for use with Claude Code, Codex CLI, Cursor CLI, and other runtimes.
 
 ## Inputs
 

@@ -14,7 +14,7 @@ Stage and commit current changes with a concise, well-formed commit message base
 
 ## Agent Compatibility
 
-This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI, GitHub Copilot CLI, or Gemini CLI.
+This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI, or Cursor CLI.
 
 ## Inputs
 

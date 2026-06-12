@@ -15,7 +15,7 @@ Remove stale local branches that have been deleted from the remote repository, a
 
 ## Agent Compatibility
 
-This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI, GitHub Copilot CLI, or Gemini CLI.
+This skill is tool-agnostic and can be executed by Claude Code, OpenAI Codex CLI, or Cursor CLI.
 
 ## Inputs
 
