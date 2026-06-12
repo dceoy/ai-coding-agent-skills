@@ -5,7 +5,7 @@ description: Triage and resolve review comments on a pull request. Use when the 
 
 # PR Review Comment Triage
 
-Triage pull request review comments, implement the accepted fixes, reply to reviewers when appropriate, and resolve review threads once the underlying concern is handled.
+Triage pull request review comments, implement the accepted fixes when allowed, and reply to or resolve review threads when appropriate and allowed.
 
 ## When to Use
 
@@ -24,16 +24,27 @@ Use the active platform tooling for pull request operations. For GitHub, prefer 
 ## Inputs
 
 - Pull request URL or number, or a current branch that has an associated pull request.
-- Repository checkout with permission to inspect the PR diff and edit the branch.
+- Repository checkout or platform API access with permission to inspect the PR diff, plus branch edit access when fixes are allowed.
 - Optional reviewer priorities from the user, such as "only address blocking comments" or "do not reply on GitHub".
+- Optional operating mode flags: `dry_run`, `no_push`, and `no_reply`.
 
 If no PR or review comments are identifiable, ask for the target PR or the copied comments before proceeding.
+
+## Operating Modes
+
+Use normal mode unless the user or environment specifies one of these flags:
+
+- `dry_run`: inspect review feedback and report the triage only. Do not edit files, run write-mode formatters, commit, push, post GitHub replies, or resolve review threads.
+- `no_push`: local edits and verification are allowed, but do not push commits or otherwise update the remote branch. Report the local diff or local commits that still need to be pushed.
+- `no_reply`: do not post GitHub replies, submit reviews, or resolve review threads. Provide suggested replies and resolution actions in the final report instead.
+
+When a mode disables an action, skip that destructive or externally visible action even if it appears later in the normal workflow.
 
 ## Workflow
 
 1. **Establish the PR target**
    - Determine the PR number, URL, base branch, head branch, repository owner/name, and current local branch.
-   - If the local branch is not the PR head branch, check out or fetch the PR head branch before editing.
+   - If the local branch is not the PR head branch, check out or fetch the PR head branch before editing unless `dry_run` only needs remote inspection.
    - Inspect repository instructions such as `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, and nearby package guidance relevant to changed files.
    - Capture the current working tree state and do not overwrite unrelated user changes.
 
@@ -46,14 +57,24 @@ If no PR or review comments are identifiable, ask for the target PR or the copie
      - All comments in the thread with author, timestamp, and body
    - Also inspect the PR diff and the current file contents around each commented line, since comment line numbers can drift after new commits.
 
-   Example GitHub GraphQL query shape:
+   Example GitHub GraphQL query shape for paginating review threads:
 
    ```bash
-   gh api graphql -f owner='<owner>' -f repo='<repo>' -F number='<pr-number>' -f query='
-   query($owner: String!, $repo: String!, $number: Int!) {
+   THREAD_CURSOR=null
+   gh api graphql \
+     -f owner='<owner>' \
+     -f repo='<repo>' \
+     -F number='<pr-number>' \
+     -F threadCursor="$THREAD_CURSOR" \
+     -f query='
+   query($owner: String!, $repo: String!, $number: Int!, $threadCursor: String) {
      repository(owner: $owner, name: $repo) {
        pullRequest(number: $number) {
-         reviewThreads(first: 100) {
+         reviewThreads(first: 100, after: $threadCursor) {
+           pageInfo {
+             hasNextPage
+             endCursor
+           }
            nodes {
              id
              isResolved
@@ -62,6 +83,10 @@ If no PR or review comments are identifiable, ask for the target PR or the copie
              line
              originalLine
              comments(first: 20) {
+               pageInfo {
+                 hasNextPage
+                 endCursor
+               }
                nodes {
                  author { login }
                  body
@@ -76,7 +101,35 @@ If no PR or review comments are identifiable, ask for the target PR or the copie
    }'
    ```
 
-   If more than 100 threads or 20 comments per thread exist, paginate until all relevant unresolved feedback has been collected.
+   Repeat the query with `THREAD_CURSOR` set to `reviewThreads.pageInfo.endCursor` while `reviewThreads.pageInfo.hasNextPage` is true. For any thread whose `comments.pageInfo.hasNextPage` is true, paginate that thread's comments separately:
+
+   ```bash
+   COMMENT_CURSOR=null
+   gh api graphql \
+     -f threadId='<thread-id>' \
+     -F commentCursor="$COMMENT_CURSOR" \
+     -f query='
+   query($threadId: ID!, $commentCursor: String) {
+     node(id: $threadId) {
+       ... on PullRequestReviewThread {
+         comments(first: 100, after: $commentCursor) {
+           pageInfo {
+             hasNextPage
+             endCursor
+           }
+           nodes {
+             author { login }
+             body
+             createdAt
+             url
+           }
+         }
+       }
+     }
+   }'
+   ```
+
+   Repeat the comment query with `COMMENT_CURSOR` set to `comments.pageInfo.endCursor` until every thread's comments are collected. Do not silently inspect only the first page of review threads or comments.
 
 3. **Classify every comment**
    - Create a tracking list with one item per thread or standalone comment.
@@ -95,25 +148,29 @@ If no PR or review comments are identifiable, ask for the target PR or the copie
    - Identify tests, linters, formatters, snapshots, generated files, and documentation that should change with the fixes.
    - If comments conflict, follow repository policy first, then maintainer comments, then reviewer suggestions. Explain the conflict in the thread or final summary.
    - If a comment is ambiguous but a small safe fix clearly satisfies it, implement the fix. Otherwise ask for clarification instead of guessing.
+   - If `dry_run` is enabled, stop after producing the triage, proposed fixes, verification plan, and suggested replies. Do not edit files.
 
-5. **Implement accepted fixes**
+5. **Implement accepted fixes when allowed**
    - Make the smallest coherent code changes needed to resolve the accepted comments.
    - Preserve unrelated user changes and avoid broad refactors.
    - Update or add tests for behavioral changes and reviewer-requested coverage.
    - Keep a mapping from each changed file or commit back to the comments it resolves.
+   - Skip this step in `dry_run`.
 
 6. **Verify**
    - Run targeted tests for changed behavior.
    - Run repository-required formatting, linting, typechecking, or local QA commands when practical.
    - If a check cannot run, record the command attempted, the failure, and the residual risk.
    - Re-read the updated diff and each addressed comment to confirm the fix actually resolves the concern.
+   - In `dry_run`, verify by inspecting the current code and report the commands that should be run if fixes are later implemented.
 
-7. **Commit and push**
-   - Commit the changes with a message that summarizes the review feedback addressed.
-   - Push the PR head branch.
+7. **Commit and push when allowed**
+   - In normal mode, commit the changes with a message that summarizes the review feedback addressed, then push the PR head branch.
+   - In `dry_run`, do not commit or push.
+   - In `no_push`, do not push. Leave changes uncommitted or committed locally according to the user's request and report the exact local state.
    - If multiple independent fixes are large enough to warrant separate commits, keep each commit focused and explain the grouping.
 
-8. **Reply and resolve threads**
+8. **Reply and resolve threads when allowed**
    - For each thread, leave a concise reply before resolving when:
      - A code change was made.
      - No code change was made but an explanation is needed.
@@ -121,6 +178,8 @@ If no PR or review comments are identifiable, ask for the target PR or the copie
    - Include what changed and, when useful, the commit SHA or verification command.
    - Resolve a review thread only after the fix is pushed or the answer clearly closes the discussion.
    - Do not resolve threads that need reviewer clarification or product decisions.
+   - In `dry_run` or `no_reply`, do not post replies or resolve threads; provide suggested replies and resolution actions in the final report.
+   - In `no_push`, do not resolve threads for code changes that are only local. Provide suggested replies until the fixes are pushed.
 
    Example GitHub GraphQL mutations:
 
@@ -142,7 +201,8 @@ If no PR or review comments are identifiable, ask for the target PR or the copie
 
 9. **Report results**
    - Summarize each comment disposition: fixed, answered, resolved as outdated, left open, or not fixed.
-   - List commits pushed and verification commands run.
+   - List commits pushed, local commits, or local diffs according to the active mode.
+   - List verification commands run, or the verification plan for `dry_run`.
    - Call out unresolved threads, requested clarification, skipped checks, and any follow-up needed from reviewers.
 
 ## Reply Guidelines
@@ -160,6 +220,7 @@ If no PR or review comments are identifiable, ask for the target PR or the copie
 ```markdown
 Addressed PR review feedback.
 
+- Mode: <normal / dry_run / no_push / no_reply>
 - Fixed: <N> thread(s)
 - Answered without code change: <N> thread(s)
 - Resolved as outdated/already addressed: <N> thread(s)
@@ -168,11 +229,13 @@ Addressed PR review feedback.
 Commits:
 
 - <sha> <subject>
+- <none; dry_run/no_push/no local commit>
 
 Verification:
 
 - `<command>` - passed
 - `<command>` - failed/skipped: <reason>
+- Planned only: `<command>` - <dry_run reason>
 
 Follow-up:
 
