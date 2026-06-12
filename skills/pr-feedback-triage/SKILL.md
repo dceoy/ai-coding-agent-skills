@@ -32,6 +32,14 @@ If no PR or review comments are identifiable, ask for the target PR or the copie
 
 When a mode disables an action, skip that destructive or externally visible action even if normal workflow text would otherwise allow it.
 
+## Resolution Policy
+
+In normal mode, `Resolve conversation` is the default action for any review thread that has been fully handled. A thread is handled when the requested change is implemented and verified, the current code already satisfies the comment, or the comment is outdated and no longer applies.
+
+Keep a thread open only when it still needs reviewer, maintainer, or product input, the fix is local-only and not pushed, verification is missing for a material change, or the user explicitly requested `dry_run`, `no_push`, or `no_reply` behavior that prevents resolution.
+
+When resolving a thread, add a concise reply first only if it provides useful context, such as what changed, why no code change was needed, or why the original comment is now outdated. Do not add noisy replies for self-evident fixes unless project norms require them.
+
 ## Flow
 
 ```mermaid
@@ -52,7 +60,7 @@ flowchart TD
   J -->|dry_run| K[Report only]
   J -->|no_push| L[Report local diff or commits]
   J -->|no_reply| M[Report suggested replies/actions]
-  J -->|normal| N[Commit/push if changed, reply/resolve if appropriate]
+  J -->|normal| N[Commit/push if changed, then reply/resolve handled threads]
   K --> O[Final summary]
   L --> O
   M --> O
@@ -79,6 +87,7 @@ flowchart TD
    - In `dry_run`, stop at triage, proposed fixes, suggested replies, and verification plan.
    - In `no_push`, local edits are allowed, but do not push or resolve threads for local-only fixes.
    - In `no_reply`, do not post replies or resolve threads; report suggested replies/actions instead.
+   - In normal mode, resolve every handled thread by default after the fix or explanation is available on the PR.
 
 4. **Verify before claiming completion**
    - For fixes, run appropriate checks or explain why they could not run.
@@ -86,13 +95,14 @@ flowchart TD
    - Do not mark a thread resolved if it still needs reviewer, maintainer, or product input.
 
 5. **Finish**
-   - Normal mode: commit/push changes when appropriate, then reply and resolve only threads that are actually handled.
+   - Normal mode: commit/push changes when appropriate, then reply where useful and resolve all handled threads by default.
    - Safe modes: report the local state and the exact replies/resolution actions a human could take.
 
 ## Final Summary Checklist
 
 - Mode used: `normal`, `dry_run`, `no_push`, or `no_reply`
 - Counts by disposition: fixed, answered, clarified/left open, already addressed, outdated, won't fix
+- Threads resolved, intentionally left open, or resolution actions skipped by mode
 - Verification run or planned
 - Commits pushed, local diff/commits, or "none"
 - Remaining open items and who needs to respond
