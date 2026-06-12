@@ -1,9 +1,9 @@
 ---
-name: pr-review-comment-triage
+name: pr-feedback-triage
 description: Triage pull request review comments into fixes, replies, clarification requests, or open follow-ups while respecting safe execution modes.
 ---
 
-# PR Review Comment Triage
+# PR Feedback Triage
 
 Triage pull request review feedback, decide what action each thread needs, make focused fixes when allowed, and report or resolve only what is actually handled.
 
