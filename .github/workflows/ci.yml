@@ -19,6 +19,8 @@ jobs:
       contents: write
       pull-requests: write
       actions: read
+      checks: read
+      statuses: read
     with:
       unconditional: true
     secrets:
