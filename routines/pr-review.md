@@ -1,6 +1,13 @@
 Run an autonomous pull request review equivalent to Anthropic's pr-review-toolkit.
 
-This routine is review-only. Do not modify code, push commits, merge branches, approve PRs, or request changes unless explicitly instructed elsewhere. Prefer high-signal GitHub review comments over exhaustive commentary.
+This routine is review-only. Do not modify code, push commits, merge branches, approve PRs, or request changes unless explicitly instructed elsewhere. The only allowed local repository change before review is configuring Git identity for the session.
+
+Before starting any review work, configure Git identity:
+
+```bash
+git config user.name "claude"
+git config user.email "noreply@anthropic.com"
+```
 
 Objective:
 Review the pull request diff using six review lenses:
@@ -16,21 +23,34 @@ Success criteria:
 
 - Review only the PR diff and directly related context.
 - Surface actionable findings with exact file and line references.
-- Post inline GitHub review comments only for high-confidence, actionable issues.
-- Post one concise summary comment covering Critical Issues, Important Issues, Suggestions, Strengths, and Recommended Action.
+- Use GitHub inline review comments for high-confidence, actionable issues whenever the issue maps to a changed line in the PR diff.
+- Post one concise summary review comment covering Critical Issues, Important Issues, Suggestions, Strengths, and Recommended Action.
 - Avoid false positives, speculative concerns, broad rewrites, and style nitpicks unless they violate explicit project guidance.
 - If no serious issues are found, say so clearly and summarize what was checked.
 
 Workflow:
 
-1. Identify the PR and scope
+1. Initialize review environment
+
+- Run:
+
+  - `git config user.name "claude"`
+  - `git config user.email "noreply@anthropic.com"`
+
+- Confirm the repository is clean enough for review:
+
+  - `git status --short`
+
+- Do not edit source files.
+
+2. Identify the PR and scope
 
 - Use GitHub event context if available.
 - Otherwise infer the current branch's PR with:
 
   - `gh pr view --json number,title,body,url,baseRefName,headRefName,author,isDraft`
 
-- Retrieve PR metadata, changed files, and diff:
+- Retrieve PR metadata, changed files, review threads, and diff:
 
   - `gh pr view <PR> --json number,title,body,url,baseRefName,headRefName,files,commits,reviews,reviewThreads`
   - `gh pr diff <PR>`
@@ -38,7 +58,7 @@ Workflow:
 - Review only changed files and directly related code needed to understand the diff.
 - Read project guidance files if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, test docs, style docs, and relevant CI configuration.
 
-2. Determine applicable review lenses
+3. Determine applicable review lenses
 
 - Always run General Code Review.
 - Run Test Coverage Review when production behavior changed, tests changed, or new logic was introduced.
@@ -47,7 +67,7 @@ Workflow:
 - Run Type Design Review when the diff introduces or changes classes, structs, interfaces, type aliases, schemas, enums, data models, validators, value objects, public APIs, or domain entities.
 - Run Simplification Review after the correctness-oriented reviews, only for recently changed code and only where clarity can improve without behavior changes.
 
-3. General Code Review
+4. General Code Review
    Check:
 
 - Explicit project rules in CLAUDE.md/AGENTS.md and local conventions.
@@ -62,9 +82,9 @@ Confidence scoring:
 - 51-79: valid but lower-impact issue; include only in summary if useful
 - Below 80: do not post as a finding
 
-Only create inline comments for confidence >=80.
+Create inline comments for confidence >=80 when the issue maps to a changed PR diff line.
 
-4. Test Coverage Review
+5. Test Coverage Review
    Focus on behavioral coverage, not line coverage.
    Check:
 
@@ -82,9 +102,9 @@ Rate each proposed test gap from 1-10:
 - 5-6: meaningful edge case or maintainability improvement
 - 1-4: optional/nice-to-have
 
-Inline-comment only 8-10 gaps. Put 5-7 gaps in the summary. Ignore 1-4 unless the project explicitly requires them.
+Create inline comments for 8-10 gaps when the missing test can be tied to a changed line. Put 5-7 gaps in the summary. Ignore 1-4 unless the project explicitly requires them.
 
-5. Error Handling and Silent Failure Review
+6. Error Handling and Silent Failure Review
    Check every changed error path:
 
 - Empty or broad catch blocks.
@@ -104,9 +124,9 @@ For each issue include:
 - User/operator impact
 - Concrete remediation
 
-Inline-comment CRITICAL and HIGH findings only.
+Create inline comments for CRITICAL and HIGH findings when the issue maps to the PR diff.
 
-6. Comment and Documentation Accuracy Review
+7. Comment and Documentation Accuracy Review
    For changed comments, docstrings, and docs:
 
 - Verify factual accuracy against implementation.
@@ -116,9 +136,9 @@ Inline-comment CRITICAL and HIGH findings only.
 - Prefer comments explaining “why” over comments explaining obvious “what”.
 - Suggest precise rewrites where needed.
 
-Inline-comment factually wrong or materially misleading comments. Summarize lower-priority documentation improvements.
+Create inline comments for factually wrong or materially misleading comments. Summarize lower-priority documentation improvements.
 
-7. Type Design and Invariant Review
+8. Type Design and Invariant Review
    For each changed or new type/schema/model:
 
 - Identify invariants.
@@ -134,9 +154,9 @@ Inline-comment factually wrong or materially misleading comments. Summarize lowe
 - Prefer compile-time guarantees where feasible.
 - Avoid over-engineered recommendations that do not fit the repository style.
 
-Inline-comment only concrete type-design issues that can cause bugs, invalid states, or API misuse. Include ratings in the summary when useful.
+Create inline comments only for concrete type-design issues that can cause bugs, invalid states, or API misuse. Include ratings in the summary when useful.
 
-8. Simplification Review
+9. Simplification Review
    Only suggest simplification where it preserves behavior exactly.
    Check:
 
@@ -148,103 +168,58 @@ Inline-comment only concrete type-design issues that can cause bugs, invalid sta
 
 Do not recommend changes that are merely shorter. Prefer clarity over brevity. Do not propose speculative rewrites.
 
-9. GitHub review comment policy
+10. Inline comment policy
+    Inline comments are the preferred delivery format for concrete review findings.
 
-Use GitHub inline review comments aggressively for concrete, diff-bound findings.
+Before posting inline comments:
 
-Default behavior:
+- Confirm the file and line are part of the PR diff and can accept GitHub review comments.
+- Prefer commenting on the most specific changed line that introduced or exposes the issue.
+- Ensure each comment is actionable and includes a concrete fix direction.
+- Do not duplicate existing unresolved review comments.
+- Do not post multiple comments for the same root cause; consolidate related issues.
+- Do not force an inline comment when line mapping is uncertain. Put that issue in the summary instead.
+- Keep comments concise, technical, and neutral.
+- Use GitHub review comments rather than ordinary issue comments when possible.
 
-- If a finding points to a specific changed line, post it as an inline review comment on that line.
-- Use the final PR summary comment only for:
+Posting strategy:
 
-  - overall assessment,
-  - findings that cannot be mapped safely to a changed line,
-  - cross-file or architectural observations,
-  - low-priority suggestions,
-  - strengths and recommended action.
+- Collect all inline comments first.
+- Submit them as a single GitHub PR review with event `COMMENT`.
+- Include the summary as the review body.
+- Use `APPROVE` or `REQUEST_CHANGES` only when explicitly instructed.
 
-- Do not bury actionable line-specific issues only in the summary when they can be posted inline.
+Use `gh api` for precise inline review comments when needed. Use `gh pr review` only when it can preserve inline comments correctly. Do not fall back to summary-only review unless there are no suitable inline findings.
 
-Inline comment criteria:
-Post an inline comment when all of the following are true:
-
-- The issue is actionable.
-- The relevant file and line are part of the PR diff.
-- The recommendation can be explained concisely.
-- The confidence level is high enough:
-
-  - General/code correctness: confidence >= 80
-  - Test coverage gap: severity >= 8/10
-  - Error handling issue: CRITICAL or HIGH
-  - Comment/documentation issue: factually wrong or materially misleading
-  - Type design issue: can cause invalid state, API misuse, or runtime bugs
-  - Simplification issue: clearly improves maintainability without behavior change
-
-Do not post inline comments for:
-
-- speculative concerns,
-- subjective style preferences,
-- broad architectural ideas without a specific changed line,
-- duplicate findings already covered by unresolved review comments,
-- low-confidence line mapping,
-- minor suggestions that would create review noise.
-
-Inline comment format:
-Use concise, technical, fix-oriented comments.
-
-Recommended structure:
-
-- Start with the concrete issue.
-- Explain the impact in one sentence.
-- Suggest a specific remediation.
-
-Example:
-
-This fallback silently converts a failed parse into an empty result, which can mask malformed input and make production diagnosis difficult. Consider returning an explicit error or logging the parse failure with enough context before falling back.
-
-Posting mechanics:
-
-- Prefer creating a single GitHub PR review containing multiple inline comments plus one summary body.
-- Use `gh pr review` or `gh api` as appropriate.
-- Ensure each inline comment targets a valid diff position.
-- If using the GitHub Reviews API, resolve the correct `path`, `line` or `position`, and `side` from the PR diff before submitting comments.
-- Submit the review as `COMMENT` by default.
-- Do not use `APPROVE` or `REQUEST_CHANGES` unless explicitly instructed.
-- If inline comment creation fails because the line is not commentable, move that finding to the final summary instead of forcing an invalid comment.
-
-Before submitting:
-
-- Check existing unresolved review threads and avoid duplicate comments.
-- Consolidate multiple comments on the same root cause.
-- Keep inline comments limited to high-signal findings.
-- Preserve a professional, neutral tone.
-- Do not include large code rewrites unless the fix is short and directly useful.
-
-10. Final PR review summary
-
-Always post one final PR review summary after inline comments.
-
-The summary must not repeat every inline comment verbatim. Instead, aggregate the review outcome and reference the most important themes.
-
-Use this structure:
+11. Final summary format
+    Post or return a summary in this structure:
 
 # PR Review Summary
 
 ## Critical Issues
 
-- Summarize any critical issues. Reference inline comments when applicable.
+- [lens] Description — `path:line`
+
+  - Impact:
+  - Recommendation:
 
 ## Important Issues
 
-- Summarize important issues. Reference inline comments when applicable.
+- [lens] Description — `path:line`
+
+  - Impact:
+  - Recommendation:
 
 ## Suggestions
 
-- Include non-blocking improvements, especially items not suitable for inline comments.
+- [lens] Description — `path:line`
+
+  - Rationale:
+  - Recommendation:
 
 ## Strengths
 
-- Note well-designed, well-tested, well-scoped, or maintainable parts of the PR.
+- Note well-designed, well-tested, or well-scoped parts of the PR.
 
 ## Recommended Action
 
@@ -261,12 +236,12 @@ No high-confidence blocking issues found.
 
 ## Checked
 
-- General code quality and project guideline compliance
+- General code quality and project guidelines
 - Test coverage
-- Error handling and silent failure risks
-- Comment and documentation accuracy
-- Type design and invariant quality
-- Simplification and maintainability opportunities
+- Error handling and silent failures
+- Comments/documentation accuracy
+- Type design
+- Simplification opportunities
 
 ## Notes
 
