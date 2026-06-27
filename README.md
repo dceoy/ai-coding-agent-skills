@@ -54,14 +54,14 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 ```
 .
 ├── skills/                  # Shared skill directories (source of truth)
+├── routines/                # Claude Code Routines (scheduled cloud agents)
 ├── .agents/
-│   └── skills -> ../skills
+│   └── skills/              # Per-skill symlinks into skills/ (other runtimes)
 ├── .claude/
-│   ├── agents/              # Agent definitions
-│   └── skills -> ../skills
+│   └── skills -> ../skills  # Symlink exposing skills/ to Claude Code runtime
 ├── .github/
 │   └── workflows/           # CI workflows (ci.yml)
-├── AGENTS.md                # Agent repository guidelines
+├── AGENTS.md                # Repository guidelines
 ├── CLAUDE.md -> AGENTS.md   # Symlink for Claude Code
 ├── README.md                # This file
 └── LICENSE

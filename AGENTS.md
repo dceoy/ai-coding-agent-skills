@@ -9,9 +9,8 @@ This is a single-source skill library shared across AI coding runtimes. The `ski
 ```
 skills/                        # Source of truth for all skills
 ├── <skill-name>/SKILL.md      # Each skill is a directory with a SKILL.md
-.claude/agents/                # Claude Code agent definitions
 .claude/skills -> ../skills    # Symlink: exposes skills/ to Claude Code runtime
-.agents/skills/                # Standalone skill definitions for other runtimes
+.agents/skills/                # Per-skill symlinks into skills/ (other runtimes)
 routines/                      # Claude Code Routines (scheduled cloud agents)
 tests/                         # Python tests for QA validation
 pyproject.toml                 # Local QA tooling: ruff, pyright, pytest
@@ -26,20 +25,6 @@ Each `SKILL.md` uses YAML frontmatter:
 name: <skill-name>
 description: <one-line description used for skill triggering>
 allowed-tools: Bash, Read, Write, ... # tools the skill may use
----
-```
-
-### Agent definitions (`.claude/agents/*.md`)
-
-Agent files use frontmatter including `skills:` to restrict which skills the agent may invoke:
-
-```yaml
----
-name: <agent-name>
-description: <trigger description>
-tools: Read, Write, Edit, Grep, Glob, Bash, LSP, WebFetch, WebSearch
-model: inherit
-skills: <skill-name>
 ---
 ```
 
