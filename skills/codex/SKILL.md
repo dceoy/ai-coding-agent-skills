@@ -183,8 +183,16 @@ cancel.
 
 **Standalone context — prefer native review if available:**
 
+Working tree (staged/unstaged/untracked changes):
+
 ```bash
-codex review [--base <ref>]
+codex review --uncommitted
+```
+
+Branch diff (against a base ref):
+
+```bash
+codex review --base <ref>
 ```
 
 **Standalone context — fallback if `codex review` is unavailable:**
