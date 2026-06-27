@@ -1,6 +1,7 @@
 ---
 name: commit
 description: Create a single git commit from current staged and unstaged changes with an appropriate message. Use when the user asks to commit current work.
+allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git diff:*), Bash(git branch:*), Bash(git log:*)
 ---
 
 # Commit Skill

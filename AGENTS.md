@@ -9,9 +9,12 @@ This is a single-source skill library shared across AI coding runtimes (Claude C
 ```
 skills/                        # Source of truth for all skills
 ├── <skill-name>/SKILL.md      # Each skill is a directory with a SKILL.md
-.claude/agents/                # Claude Code subagent definitions (codex)
-.claude/skills -> ../skills    # Symlink into shared skills
-.agents/skills                 # Runtime-agnostic agent discovery
+.claude/agents/                # Claude Code agent definitions (e.g. codex.md)
+.claude/skills -> ../skills    # Symlink: exposes skills/ to Claude Code runtime
+.agents/skills/                # Standalone skill definitions for other runtimes
+routines/                      # Claude Code Routines (scheduled cloud agents)
+tests/                         # Python tests for QA validation
+pyproject.toml                 # Local QA tooling: ruff, pyright, pytest
 ```
 
 ### SKILL.md Frontmatter
@@ -45,6 +48,23 @@ skills: <skill-name>
 1. Create or edit `skills/<skill-name>/SKILL.md` — this is the only file needed per skill.
 2. Runtime symlinks pick up the change automatically; no additional wiring required.
 3. Keep `description` in the frontmatter precise — it controls when the skill auto-triggers in Claude Code.
+
+## Routines
+
+The `routines/` directory contains instruction files for [Claude Code Routines](https://code.claude.com/docs/en/routines) — scheduled cloud agents that run autonomously on a cron schedule. Unlike skills (which are invoked interactively), routines run unattended and are self-contained.
+
+Each routine is a plain Markdown file with no frontmatter. The file body is the instruction set the agent executes on each scheduled run.
+
+## Local QA
+
+Before committing, run the following checks:
+
+| Check             | Command                          |
+| ----------------- | -------------------------------- |
+| Format Markdown   | `npx -y prettier -w './**/*.md'` |
+| Lint Python       | `uv run ruff check`              |
+| Type-check Python | `uv run pyright`                 |
+| Run tests         | `uv run pytest`                  |
 
 ## Commit & Pull Request Guidelines
 
