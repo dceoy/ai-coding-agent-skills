@@ -4,10 +4,7 @@ Agent skills for AI coders
 
 ## Overview
 
-Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations:
-
-- **Claude Code** — Unified `claude-code` skill in `skills/claude-code/`, plus agents in `.claude/agents/`; skills via `.claude/skills -> ../skills`
-- **Codex CLI** — Unified `codex-cli` skill in `skills/codex-cli/`, used by `.claude/agents/codex.md`
+Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations via `.claude/skills -> ../skills` and `.agents/skills -> ../skills`.
 
 Each skill directory contains a `SKILL.md` that documents prerequisites and invocation.
 
@@ -20,22 +17,14 @@ Each skill directory contains a `SKILL.md` that documents prerequisites and invo
    ```
 
 2. Pick a runtime and explore the skills in `skills/` and the relevant runtime integration:
-   - **Claude Code:** `skills/claude-code/` (unified skill), `.claude/agents/` (agent definitions), `.claude/skills -> ../skills`
-   - **Codex CLI:** `skills/codex-cli/` (unified skill), `.claude/agents/codex.md` (agent definition)
+   - **Claude Code:** `.claude/agents/` (agent definitions), `.claude/skills -> ../skills`
+   - **Codex CLI / other runtimes:** `.agents/skills -> ../skills`
 
 3. Open a skill directory and read the `SKILL.md` to learn how to invoke it.
 
 ## Skills
 
 All skills are located in `skills/` and surfaced through shared discovery or runtime-specific symlinks.
-
-### Claude Code Integration
-
-- `claude-code` - Unified Claude Code skill for ask, exec, review, and search workflows
-
-### Codex CLI Integration
-
-- `codex-cli` - Unified Codex CLI skill for ask, exec, review, and search workflows
 
 ### Git Workflows
 
@@ -56,27 +45,15 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `claude-agent-converter` - Convert Claude Code agents to portable skills
 - `claude-command-converter` - Convert Claude Code commands to portable skills
 
-## Agents
-
-Agents are located in `.claude/agents/` and provide unified interfaces for each CLI tool.
-
-| Agent      | Description                                               |
-| ---------- | --------------------------------------------------------- |
-| `codex.md` | Unified Codex CLI agent (ask, exec, review, search modes) |
-
-See [AGENTS.md](./AGENTS.md) for detailed agent documentation.
-
 ## Structure
 
 ```
 .
 ├── skills/                  # Shared skill directories (source of truth)
-│   ├── claude-code/         # Unified Claude Code skill
-│   └── codex-cli/           # Unified Codex CLI skill
 ├── .agents/
 │   └── skills -> ../skills
 ├── .claude/
-│   ├── agents/              # Agent definitions (codex.md)
+│   ├── agents/              # Agent definitions
 │   └── skills -> ../skills
 ├── .github/
 │   └── workflows/           # CI workflows (ci.yml)
@@ -90,13 +67,9 @@ See [AGENTS.md](./AGENTS.md) for detailed agent documentation.
 
 Install and authenticate the required CLI tools before running skills:
 
-- **Claude Code** - For the `claude-code` skill and `.claude/` agents
+- **Claude Code** - For `.claude/` agents and skills
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
-
-- **Codex CLI** - For the `codex-cli` skill and `.claude/agents/codex.md`
-  - Install: <https://github.com/openai/codex>
-  - Auth: ChatGPT subscription or API key in `~/.codex/config.toml`
 
 ## Usage notes
 
@@ -121,8 +94,7 @@ Install and authenticate the required CLI tools before running skills:
 
 - Re-run the tool's auth command:
   - Claude Code: Follow onboarding flow
-  - Codex CLI: `codex` (follow auth flow) or configure `~/.codex/config.toml`
-- Verify active subscription (ChatGPT) or API key
+- Verify active subscription or API key
 
 **Symlink issues**
 

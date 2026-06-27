@@ -2,14 +2,14 @@
 
 ## Repository Purpose
 
-This is a single-source skill library shared across AI coding runtimes (Claude Code, Codex CLI). The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
+This is a single-source skill library shared across AI coding runtimes. The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
 
 ## Architecture
 
 ```
 skills/                        # Source of truth for all skills
 ├── <skill-name>/SKILL.md      # Each skill is a directory with a SKILL.md
-.claude/agents/                # Claude Code agent definitions (e.g. codex.md)
+.claude/agents/                # Claude Code agent definitions
 .claude/skills -> ../skills    # Symlink: exposes skills/ to Claude Code runtime
 .agents/skills/                # Standalone skill definitions for other runtimes
 routines/                      # Claude Code Routines (scheduled cloud agents)
