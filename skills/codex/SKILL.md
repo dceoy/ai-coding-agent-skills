@@ -318,10 +318,10 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" task [--background] [--
 
 **Plugin context — background execution:**
 
-When `--background` is requested and the runtime supports background Bash execution, run with
-`run_in_background: true`. If the runtime does not support background execution, explain the limitation
-and ask the user whether to run foreground or cancel — do not silently drop `--background` and run
-foreground.
+When `--background` is requested, run `codex-companion.mjs task --background ...` in the **foreground**
+(do not add `run_in_background: true`). The companion enqueues a detached managed job and prints the job
+ID and status guidance to stdout; backgrounding the Bash call would hide that output. Display the
+companion's stdout to the user so they can track the job with `status`/`result`/`cancel`.
 
 **Standalone context — write-capable task:**
 
