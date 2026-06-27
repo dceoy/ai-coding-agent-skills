@@ -29,27 +29,27 @@ If a PR is not specified and local changes are present, review the local diff. I
 
 ## Workflow
 
-1. **Eligibility Check** (Haiku agent): For PR reviews, verify the PR is eligible for review:
+1. **Eligibility Check** (fast agent): For PR reviews, verify the PR is eligible for review:
    - Not closed
    - Not a draft
    - Not automated or trivially simple
    - No prior code review from this tool
 
-2. **Gather AGENTS.md/CLAUDE.md Files** (Haiku agent): Collect paths to relevant guideline files (but not their contents):
+2. **Gather AGENTS.md/CLAUDE.md Files** (fast agent): Collect paths to relevant guideline files (but not their contents):
    - Root AGENTS.md or CLAUDE.md (if exists)
    - AGENTS.md/CLAUDE.md files in directories modified by the PR
    - Equivalent files for local changes when not reviewing a PR
 
-3. **Summarize Changes** (Haiku agent): View the PR or local diff and return a summary of the change.
+3. **Summarize Changes** (fast agent): View the PR or local diff and return a summary of the change.
 
-4. **Parallel Code Review** (5 Sonnet agents): Each agent reviews independently and returns issues with reasons:
+4. **Parallel Code Review** (5 default agents): Each agent reviews independently and returns issues with reasons:
    - **Agent 1**: Audit changes for AGENTS.md/CLAUDE.md compliance. These files guide agents as they write code, so apply only instructions relevant to review.
    - **Agent 2**: Shallow scan for obvious bugs — read only the changed lines, focus on large issues, avoid nitpicks and likely false positives.
    - **Agent 3**: Review git blame and history for context-aware bug detection.
    - **Agent 4**: Check previous PRs touching these files for relevant comments that may also apply to the current PR.
    - **Agent 5**: Read code comments in modified files and verify the changes comply with any guidance in those comments.
 
-5. **Score Issues** (Haiku agents, one per issue, parallel): For each issue found, score confidence (0-100). Give this rubric to the agent verbatim:
+5. **Score Issues** (fast agents, one per issue, parallel): For each issue found, score confidence (0-100). Give this rubric to the agent verbatim:
    - **0**: Not confident at all. This is a false positive that doesn't stand up to light scrutiny, or is a pre-existing issue.
    - **25**: Somewhat confident. This might be a real issue, but may also be a false positive. The agent wasn't able to verify that it's a real issue. If the issue is stylistic, it is one that was not explicitly called out in the relevant AGENTS.md/CLAUDE.md.
    - **50**: Moderately confident. The agent was able to verify this is a real issue, but it might be a nitpick or not happen very often in practice. Relative to the rest of the PR, it's not very important.
@@ -60,7 +60,7 @@ If a PR is not specified and local changes are present, review the local diff. I
 
 6. **Filter Issues**: Keep only issues with score >= 80. If none meet this threshold, do not post a comment.
 
-7. **Re-check Eligibility** (Haiku agent): For PR reviews, confirm the PR is still eligible for review.
+7. **Re-check Eligibility** (fast agent): For PR reviews, confirm the PR is still eligible for review.
 
 8. **Post or Report Results**:
    - For PR reviews, use `gh pr comment` to post results to the PR.
