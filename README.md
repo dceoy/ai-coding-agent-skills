@@ -4,7 +4,7 @@ Agent skills for AI coders
 
 ## Overview
 
-Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations via `.claude/skills -> ../skills` and `.agents/skills -> ../skills`.
+Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations via `.claude/skills -> ../skills` and per-skill symlinks under `.agents/skills/` (e.g. `.agents/skills/<skill> -> ../../skills/<skill>`).
 
 Each skill directory contains a `SKILL.md` that documents prerequisites and invocation.
 
