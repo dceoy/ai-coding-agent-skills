@@ -2,16 +2,15 @@
 
 ## Repository Purpose
 
-This is a single-source skill library shared across AI coding runtimes (Claude Code, Codex CLI). The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
+This is a single-source skill library shared across AI coding runtimes. The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
 
 ## Architecture
 
 ```
 skills/                        # Source of truth for all skills
 ├── <skill-name>/SKILL.md      # Each skill is a directory with a SKILL.md
-.claude/agents/                # Claude Code agent definitions (e.g. codex.md)
 .claude/skills -> ../skills    # Symlink: exposes skills/ to Claude Code runtime
-.agents/skills/                # Standalone skill definitions for other runtimes
+.agents/skills/                # Per-skill symlinks into skills/ (other runtimes)
 routines/                      # Claude Code Routines (scheduled cloud agents)
 tests/                         # Python tests for QA validation
 pyproject.toml                 # Local QA tooling: ruff, pyright, pytest
@@ -29,24 +28,11 @@ allowed-tools: Bash, Read, Write, ... # tools the skill may use
 ---
 ```
 
-### Agent definitions (`.claude/agents/*.md`)
-
-Agent files use frontmatter including `skills:` to restrict which skills the agent may invoke:
-
-```yaml
----
-name: <agent-name>
-description: <trigger description>
-tools: Read, Write, Edit, Grep, Glob, Bash, LSP, WebFetch, WebSearch
-model: inherit
-skills: <skill-name>
----
-```
-
 ## Adding or Modifying Skills
 
-1. Create or edit `skills/<skill-name>/SKILL.md` — this is the only file needed per skill.
-2. Runtime symlinks pick up the change automatically; no additional wiring required.
+1. Create or edit `skills/<skill-name>/SKILL.md` — this is the canonical skill definition.
+2. Claude Code picks up the skill automatically via `.claude/skills -> ../skills`. For non-Claude runtimes,
+   add a per-skill symlink: `ln -s ../../skills/<skill-name> .agents/skills/<skill-name>`.
 3. Keep `description` in the frontmatter precise — it controls when the skill auto-triggers in Claude Code.
 
 ## Routines
