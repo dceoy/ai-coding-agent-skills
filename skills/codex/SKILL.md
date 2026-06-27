@@ -167,14 +167,33 @@ Run a read-only Codex review of current changes.
 
 **Plugin context — foreground:**
 
+Parse user-supplied flags explicitly and build the argv — do not pass a `$ARGUMENTS` shell variable, as it
+may expand to empty or collapse multi-word flags into a single argv.
+
+Working tree (no `--base`):
+
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review "$ARGUMENTS"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review
+```
+
+Branch diff (with `--base`):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review --base <ref>
 ```
 
 **Plugin context — background** (use `run_in_background: true` if the runtime supports it):
 
+Working tree:
+
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review "$ARGUMENTS"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review
+```
+
+Branch diff:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review --base <ref>
 ```
 
 If the user explicitly requested `--background` but the runtime has no background execution primitive,
@@ -228,14 +247,38 @@ implementation is correct. It questions design choices, tradeoffs, hidden assump
 
 **Plugin context — foreground:**
 
+Parse user-supplied flags explicitly and build the argv — do not pass a `$ARGUMENTS` shell variable.
+
+Working tree (no `--base`, no focus text):
+
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review "$ARGUMENTS"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review
+```
+
+Branch diff:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review --base <ref>
+```
+
+With focus text (append after flags as separate argv words):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review [--base <ref>] <focus text words...>
 ```
 
 **Plugin context — background** (use `run_in_background: true` if the runtime supports it):
 
+Working tree:
+
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review "$ARGUMENTS"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review
+```
+
+Branch diff:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review --base <ref>
 ```
 
 If the user explicitly requested `--background` but the runtime has no background execution primitive,

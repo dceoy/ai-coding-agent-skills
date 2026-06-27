@@ -30,8 +30,9 @@ allowed-tools: Bash, Read, Write, ... # tools the skill may use
 
 ## Adding or Modifying Skills
 
-1. Create or edit `skills/<skill-name>/SKILL.md` — this is the only file needed per skill.
-2. Runtime symlinks pick up the change automatically; no additional wiring required.
+1. Create or edit `skills/<skill-name>/SKILL.md` — this is the canonical skill definition.
+2. Claude Code picks up the skill automatically via `.claude/skills -> ../skills`. For non-Claude runtimes,
+   add a per-skill symlink: `ln -s ../../skills/<skill-name> .agents/skills/<skill-name>`.
 3. Keep `description` in the frontmatter precise — it controls when the skill auto-triggers in Claude Code.
 
 ## Routines
