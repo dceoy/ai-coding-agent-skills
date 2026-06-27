@@ -17,8 +17,8 @@ Each skill directory contains a `SKILL.md` that documents prerequisites and invo
    ```
 
 2. Pick a runtime and explore the skills in `skills/` and the relevant runtime integration:
-   - **Claude Code:** `.claude/agents/` (agent definitions), `.claude/skills -> ../skills`
-   - **Codex CLI / other runtimes:** `.agents/skills -> ../skills`
+   - **Claude Code:** `.claude/skills -> ../skills` (symlink exposing all skills)
+   - **Codex CLI / other runtimes:** `.agents/skills/` (per-skill symlinks into `skills/`)
 
 3. Open a skill directory and read the `SKILL.md` to learn how to invoke it.
 
@@ -42,7 +42,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ### AI Tools
 
-- `codex` - Use OpenAI Codex from Claude Code for code reviews, adversarial reviews, and task delegation
+- `codex` - Use OpenAI Codex from AI coding agents for code reviews, adversarial reviews, and task delegation
 
 ### Skill Management
 
@@ -61,7 +61,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 │   └── skills -> ../skills  # Symlink exposing skills/ to Claude Code runtime
 ├── .github/
 │   └── workflows/           # CI workflows (ci.yml)
-├── AGENTS.md                # Repository guidelines
+├── AGENTS.md                # Repository guidelines (source of truth)
 ├── CLAUDE.md -> AGENTS.md   # Symlink for Claude Code
 ├── README.md                # This file
 └── LICENSE
@@ -74,6 +74,10 @@ Install and authenticate the required CLI tools before running skills:
 - **Claude Code** - For `.claude/` agents and skills
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
+- **Codex CLI / Codex plugin** - For the `codex` skill
+  - Full Claude Code integration: install `openai/codex-plugin-cc` and run `/codex:setup`
+  - Standalone / generic agent usage: install `@openai/codex` and run `codex login`
+  - Plugin-managed operations (status/result/cancel/transfer) require the Claude Code plugin context
 
 ## Usage notes
 
@@ -98,6 +102,8 @@ Install and authenticate the required CLI tools before running skills:
 
 - Re-run the tool's auth command:
   - Claude Code: Follow onboarding flow
+  - Codex CLI: run `codex login`
+  - Codex Claude Code plugin: run `/codex:setup`
 - Verify active subscription or API key
 
 **Symlink issues**

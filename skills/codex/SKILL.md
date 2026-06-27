@@ -1,12 +1,13 @@
 ---
 name: codex
-description: Use OpenAI Codex from Claude Code to review code or delegate coding tasks. Use when the user wants a Codex code review, adversarial review, task delegation, session transfer, or job management (status, result, cancel).
-allowed-tools: AskUserQuestion, Bash(codex:*), Bash(node:*), Bash(which:*), Bash(npm:*), Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git branch:*), Read, Grep, Glob
+description: Use OpenAI Codex from AI coding agents to review code, run adversarial reviews, delegate coding tasks, and manage background jobs or sessions where supported. Use when the user wants a Codex code review, adversarial review, task delegation, session transfer, or job management (status, result, cancel).
+allowed-tools: AskUserQuestion, Bash(codex:*), Bash(node:*), Bash(which:*), Bash(npm:*), Bash(git:*), Read, Grep, Glob
 ---
 
 # Codex Skill
 
-Use OpenAI Codex from Claude Code to run code reviews, adversarial reviews, and delegate investigation or implementation tasks to Codex.
+Use OpenAI Codex from AI coding agents to run code reviews, adversarial reviews, and delegate
+investigation or implementation tasks to Codex.
 
 Source: [openai/codex-plugin-cc](https://github.com/openai/codex-plugin-cc)
 
@@ -16,15 +17,64 @@ Source: [openai/codex-plugin-cc](https://github.com/openai/codex-plugin-cc)
 - **Adversarial review**: Challenge implementation choices, design tradeoffs, and hidden assumptions.
 - **Rescue / delegate**: Hand off a bug investigation, fix, or implementation task to Codex.
 - **Setup**: Check whether Codex is installed and authenticated; manage the stop-gate review.
-- **Job management**: Check status, retrieve results, or cancel a background Codex job.
-- **Transfer**: Continue the current Claude Code session inside a Codex thread.
+- **Job management**: Check status, retrieve results, or cancel a background Codex job (plugin context only).
+- **Transfer**: Continue the current session inside a Codex thread (plugin context only).
 
-## Agent Compatibility
+## Runtime Compatibility
 
-This skill runs in Claude Code. Full functionality requires the `openai/codex-plugin-cc` plugin installed
-via `/plugin install codex@openai-codex`. When the plugin is active, `CLAUDE_PLUGIN_ROOT` is set and all
-operations go through the companion script. Without the plugin, setup and basic review are available via
-the standalone `codex` CLI.
+This skill adapts its behavior based on the runtime context it detects.
+
+### Plugin context (Claude Code with `openai/codex-plugin-cc`)
+
+Detected by: `CLAUDE_PLUGIN_ROOT` environment variable is set.
+
+Uses `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs"` for all operations. Supports full
+functionality: code review, adversarial review, task delegation, background jobs, status, result, cancel,
+and session transfer.
+
+Install with:
+
+```
+/plugin marketplace add openai/codex-plugin-cc
+/plugin install codex@openai-codex
+/reload-plugins
+/codex:setup
+```
+
+### Standalone Codex CLI context
+
+Detected by: `CLAUDE_PLUGIN_ROOT` is not set and `codex --version` succeeds.
+
+Uses the `codex` CLI directly. Supports: setup check, review, adversarial review, and task delegation.
+Plugin-managed features (background job tracking, status/result/cancel, session transfer) are not
+available in this mode.
+
+Install with:
+
+```bash
+npm install -g @openai/codex
+codex login
+```
+
+### Unavailable context
+
+Neither plugin nor standalone `codex` CLI is present.
+
+Tell the user:
+
+```
+Codex CLI is not installed. Options:
+
+Install the full Codex plugin for Claude Code (recommended):
+  /plugin marketplace add openai/codex-plugin-cc
+  /plugin install codex@openai-codex
+  /reload-plugins
+  /codex:setup
+
+Or install the standalone Codex CLI only:
+  npm install -g @openai/codex
+  codex login
+```
 
 ## Inputs
 
@@ -33,44 +83,26 @@ the standalone `codex` CLI.
 
 ## Pre-flight: Availability Check
 
-Before running any operation, verify Codex is ready.
+Before running any operation, detect the runtime context:
 
-### Plugin context (preferred)
+1. If `CLAUDE_PLUGIN_ROOT` is set → **plugin context**.
 
-When `CLAUDE_PLUGIN_ROOT` is set, run:
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" setup --json
+   ```
 
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" setup --json
-```
+   If Codex is unavailable and npm is present, offer to install it. If installed but not authenticated,
+   tell the user to run `codex login`.
 
-If the result shows Codex is unavailable and npm is present, offer to install it. If Codex is installed
-but not authenticated, tell the user to run `!codex login`.
+2. Else, check for the standalone binary:
 
-### Standalone context
+   ```bash
+   which codex && codex --version
+   ```
 
-When `CLAUDE_PLUGIN_ROOT` is not set, check for the `codex` binary:
+   If found → **standalone context**.
 
-```bash
-codex --version
-```
-
-### If neither is available
-
-Tell the user how to get started:
-
-```
-Codex CLI is not installed. Options:
-
-Install the full codex plugin for Claude Code (recommended):
-  /plugin marketplace add openai/codex-plugin-cc
-  /plugin install codex@openai-codex
-  /reload-plugins
-  /codex:setup
-
-Or install the standalone Codex CLI only:
-  npm install -g @openai/codex
-  !codex login
-```
+3. If neither → **unavailable context**. Show install instructions and stop.
 
 ## Operation Dispatch
 
@@ -94,6 +126,16 @@ Present the output to the user. If installation was needed and completed, rerun 
 response. Only enable it when actively monitoring the session — it can create long-running Claude/Codex
 loops that drain usage limits.
 
+**Standalone context:**
+
+```bash
+which codex
+codex --version
+```
+
+Report the installed version. If unauthenticated, instruct the user to run `codex login`. Note that
+authentication cannot always be fully validated without the plugin; report uncertainty honestly.
+
 ---
 
 ## Review
@@ -106,7 +148,7 @@ Run a read-only Codex review of current changes.
 | -------------- | -------------------------------------------------------------------- |
 | `--base <ref>` | Review branch diff against a base branch instead of the working tree |
 | `--wait`       | Run in the foreground without asking                                 |
-| `--background` | Run in a background task without asking                              |
+| `--background` | Run as a background task (plugin context only)                       |
 
 **Execution mode** (when neither `--wait` nor `--background` is given):
 
@@ -115,11 +157,13 @@ Run a read-only Codex review of current changes.
    - Branch diff: `git diff --shortstat <base>...HEAD`
    - Untracked files and directories count as reviewable work even when `git diff --shortstat` is empty.
 2. If clearly tiny (roughly 1–2 files, no broader directory-sized change): recommend foreground.
-3. In every other case, including unclear size: recommend background.
-4. Use `AskUserQuestion` exactly once with two options, leading with the recommended choice (append
-   `(Recommended)` to its label):
+3. In every other case, including unclear size: recommend background (plugin context) or foreground
+   (standalone context).
+4. In plugin context, use `AskUserQuestion` exactly once with two options, leading with the recommended
+   choice (append `(Recommended)` to its label):
    - `Wait for results`
    - `Run in background`
+5. In standalone context where background execution is unavailable, skip the question and run foreground.
 
 **Plugin context — foreground:**
 
@@ -127,22 +171,40 @@ Run a read-only Codex review of current changes.
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review "$ARGUMENTS"
 ```
 
-**Plugin context — background** (`run_in_background: true`):
+**Plugin context — background** (use `run_in_background: true` if the runtime supports it):
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review "$ARGUMENTS"
 ```
 
-**Standalone context:**
+If the user explicitly requested `--background` but the runtime has no background execution primitive,
+explain that background mode is unavailable in this runtime and ask whether to proceed foreground or
+cancel.
+
+**Standalone context — prefer native review if available:**
 
 ```bash
 codex review [--base <ref>]
 ```
 
+**Standalone context — fallback if `codex review` is unavailable:**
+
+Collect git context, then invoke Codex in read-only mode:
+
+```bash
+git status --short --untracked-files=all
+git diff --stat
+git diff
+codex --sandbox=read-only exec "<review prompt incorporating the collected diff/status output>"
+```
+
+The fallback must be strictly read-only. Do not pass `--sandbox=workspace-write`.
+
 **Rules:**
 
 - Return output verbatim. Do not paraphrase, summarize, or add commentary.
-- This command is **read-only**. Do not fix issues, apply patches, or suggest you are about to make changes.
+- This operation is **read-only**. Do not fix issues, apply patches, or suggest you are about to make
+  changes.
 - After presenting findings, stop and explicitly ask the user which issues, if any, they want fixed.
 
 ---
@@ -162,11 +224,29 @@ implementation is correct. It questions design choices, tradeoffs, hidden assump
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review "$ARGUMENTS"
 ```
 
-**Plugin context — background** (`run_in_background: true`):
+**Plugin context — background** (use `run_in_background: true` if the runtime supports it):
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review "$ARGUMENTS"
 ```
+
+If the user explicitly requested `--background` but the runtime has no background execution primitive,
+explain that background mode is unavailable and ask whether to proceed foreground or cancel.
+
+**Standalone context:**
+
+Collect git context, then invoke Codex in read-only mode with an adversarial prompt:
+
+```bash
+git status --short --untracked-files=all
+git diff --stat
+git diff
+codex --sandbox=read-only exec "<adversarial review prompt incorporating the diff and targeting the areas below>"
+```
+
+The prompt must challenge: auth/permissions/trust boundaries, data loss/corruption/irreversible state,
+rollback safety/retries/idempotency, race conditions/stale state, empty-state/null/timeout behavior,
+version skew/schema drift/compatibility, and observability gaps. Do not modify files.
 
 **High-value attack surface areas to target when no focus text is given:**
 
@@ -194,15 +274,15 @@ Hand off a task — debugging, investigation, fix, or implementation — to Code
 
 | Flag               | Meaning                                                               |
 | ------------------ | --------------------------------------------------------------------- |
-| `--background`     | Run in a background task                                              |
+| `--background`     | Run as a background task (plugin context only)                        |
 | `--wait`           | Run in the foreground                                                 |
-| `--resume`         | Continue the latest Codex thread for this repo                        |
+| `--resume`         | Continue the latest Codex thread for this repo (plugin context only)  |
 | `--fresh`          | Start a new Codex thread                                              |
 | `--model <model>`  | Specify model; `spark` maps to `gpt-5.3-codex-spark`                  |
 | `--effort <level>` | Reasoning effort: `none \| minimal \| low \| medium \| high \| xhigh` |
 | Remaining text     | Task description forwarded to Codex                                   |
 
-**Thread continuity** (when neither `--resume` nor `--fresh` is given):
+**Thread continuity** (plugin context only, when neither `--resume` nor `--fresh` is given):
 
 Check for a resumable thread:
 
@@ -221,21 +301,55 @@ Append `(Recommended)` to the leading option.
 **Plugin context:**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" task [--resume-last] [--write] [--model <model>] [--effort <level>] "<task description>"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" task [--background] [--resume-last] [--write] [--model <model>] [--effort <level>] "<task description>"
 ```
 
 - Default to `--write` unless the user explicitly asks for read-only behavior (diagnosis, research, review
   without edits).
-- Map `--resume` → `--resume-last`; strip `--fresh` (no flag needed).
-- Strip `--background` and `--wait` before building the `task` command — those are Claude-side execution
-  controls, not Codex flags.
+- Map `--resume` → `--resume-last`; strip `--fresh` (no flag needed for the companion script).
+- Preserve `--background` when invoking the companion script — the companion supports `task --background`
+  and passes it through to the job runner.
 - Leave `--model` and `--effort` unset unless the user specified them.
 
-**Standalone context:**
+**Plugin context — background execution:**
+
+When `--background` is requested and the runtime supports background Bash execution, run with
+`run_in_background: true`. If the runtime does not support background execution, explain the limitation
+and ask the user whether to run foreground or cancel — do not silently drop `--background` and run
+foreground.
+
+**Standalone context — write-capable task:**
 
 ```bash
-codex "<task description>"
+codex --sandbox=workspace-write exec "<task description>"
 ```
+
+Check `codex --help` first to verify `--sandbox` and `exec` are supported. If unsupported flags are
+detected, omit them and document the limitation.
+
+**Standalone context — read-only task (diagnosis, research, review without edits):**
+
+```bash
+codex --sandbox=read-only exec "<task description>"
+```
+
+**Standalone context — background:**
+
+If `--background` is explicitly requested and the agent runtime has no background execution primitive,
+fail fast with a clear message:
+
+```
+Background mode is not supported in this runtime without the Codex Claude Code plugin.
+To use background jobs: install openai/codex-plugin-cc and use the plugin context.
+Alternatively, run this task in the foreground — proceed?
+```
+
+Do not silently drop `--background` and execute foreground.
+
+**Standalone context — `--resume`, `--fresh`, job management flags:**
+
+These flags are plugin-managed features. In standalone mode, ignore `--resume` / `--fresh` (no thread
+persistence) and note the limitation. Do not claim resume functionality works.
 
 **Rules:**
 
@@ -260,6 +374,12 @@ elapsed/duration, summary, and follow-up commands.
 
 With a job ID: present the full output verbatim.
 
+**Standalone context:**
+
+Status is a plugin-managed job operation. The standalone Codex CLI does not maintain this skill's managed
+job registry. Explain this clearly and suggest using the plugin context for job tracking. Do not invent
+job IDs or poll nonexistent state.
+
 ---
 
 ## Result
@@ -280,6 +400,11 @@ Present the full output verbatim, preserving:
 - Any error messages or parse errors
 - Follow-up commands such as `codex resume <session-id>`
 
+**Standalone context:**
+
+Result retrieval requires plugin-managed job state. Explain that this operation is unavailable without the
+Codex Claude Code plugin and suggest the user re-run the task or install the plugin.
+
 ---
 
 ## Cancel
@@ -294,14 +419,19 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" cancel [job-id]
 
 Present the cancellation confirmation to the user.
 
+**Standalone context:**
+
+Cancel requires plugin-managed job state. Explain that background job cancellation is unavailable in
+standalone mode. If a `codex exec` process is running in the foreground, the user can interrupt it with
+`Ctrl+C`.
+
 ---
 
 ## Transfer
 
-Create a persistent Codex thread from the current Claude Code session and print a `codex resume` command.
+Create a persistent Codex thread from the current session and print a `codex resume` command.
 
-Use when you started debugging or implementing in Claude Code and want to continue that same context
-inside Codex.
+Use when you started debugging or implementing and want to continue that same context inside Codex.
 
 **Plugin context:**
 
@@ -315,17 +445,25 @@ Present the output exactly as returned, preserving the Codex session ID and the
 The `SessionStart` hook supplies the current transcript path automatically; `--source` is available as a
 manual override. The source must be under `~/.claude/projects`.
 
+**Standalone / generic agent context:**
+
+Transfer is a Claude Code plugin-only operation. It depends on Claude session JSONL files under
+`~/.claude/projects`, which only exist in the Claude Code runtime.
+
+Safe fallback: tell the user to copy the relevant context summary into a new Codex task prompt, or
+install the `openai/codex-plugin-cc` plugin to use transfer.
+
 ---
 
 ## Outputs
 
-| Operation          | Output                                                             |
-| ------------------ | ------------------------------------------------------------------ |
-| Setup              | Installation/auth report; guidance to run `!codex login` if needed |
-| Review             | Codex output verbatim; no fixes applied                            |
-| Adversarial review | Codex output verbatim; no fixes applied                            |
-| Rescue             | Codex task output verbatim                                         |
-| Status             | Markdown table (no job ID) or full output (with job ID)            |
-| Result             | Full stored result verbatim                                        |
-| Cancel             | Cancellation confirmation                                          |
-| Transfer           | Session ID and `codex resume <session-id>` command                 |
+| Operation          | Output                                                               |
+| ------------------ | -------------------------------------------------------------------- |
+| Setup              | Installation/auth report; guidance to run `codex login` if needed    |
+| Review             | Codex output verbatim; no fixes applied                              |
+| Adversarial review | Codex output verbatim; no fixes applied                              |
+| Rescue             | Codex task output verbatim                                           |
+| Status             | Markdown table (no job ID) or full output (with job ID); plugin only |
+| Result             | Full stored result verbatim; plugin only                             |
+| Cancel             | Cancellation confirmation; plugin only                               |
+| Transfer           | Session ID and `codex resume <session-id>` command; plugin only      |
