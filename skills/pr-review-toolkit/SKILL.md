@@ -1,7 +1,7 @@
 ---
 name: review-pr
 description: Comprehensive PR review using specialized agents — code quality, test coverage, error handling, comment accuracy, type design, and code simplification. Use when the user asks to review a PR, perform a pre-merge check, or validate code changes before pushing.
-allowed-tools: Bash(git diff:*), Bash(gh pr view:*), Bash(gh pr list:*), Glob, Grep, Read, Task
+allowed-tools: Bash(git diff:*), Bash(gh pr view:*), Bash(gh pr list:*), Bash(gh pr diff:*), Glob, Grep, Read, Task
 ---
 
 # PR Review Toolkit
@@ -26,8 +26,9 @@ If no aspects are specified, default to running all applicable reviews sequentia
 
 ### 1. Determine Review Scope
 
-- Run `git diff --name-only` to identify changed files.
 - Check if a PR exists: `gh pr view`.
+- If a PR is found, derive file scope from the PR diff: `gh pr diff --name-only`, or `git diff <base>...HEAD --name-only` using the base ref from `gh pr view --json baseRefName`.
+- If no PR exists, fall back to local worktree changes: `git diff --name-only` (staged and unstaged).
 - Parse user-specified review aspects; default to `all`.
 
 ### 2. Identify Applicable Reviews
