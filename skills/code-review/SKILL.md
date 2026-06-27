@@ -1,7 +1,7 @@
 ---
 name: code-review
 description: Perform comprehensive code review on a pull request, checking for bugs, AGENTS.md/CLAUDE.md compliance, and historical context issues. Use when the user asks to review a PR or current changes.
-allowed-tools: Bash(gh issue view:*), Bash(gh search:*), Bash(gh issue list:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr list:*)
+allowed-tools: Bash(gh issue view:*), Bash(gh search:*), Bash(gh issue list:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr list:*), Bash(git diff:*), Bash(git log:*), Bash(git blame:*), Bash(git branch:*), Bash(git show:*), Read, Grep, Glob
 ---
 
 # Code Review Skill

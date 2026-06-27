@@ -1,6 +1,7 @@
 ---
 name: review-pr
 description: Comprehensive PR review using specialized agents — code quality, test coverage, error handling, comment accuracy, type design, and code simplification. Use when the user asks to review a PR, perform a pre-merge check, or validate code changes before pushing.
+allowed-tools: Bash(git diff:*), Bash(gh pr view:*), Bash(gh pr list:*), Glob, Grep, Read, Task
 ---
 
 # PR Review Toolkit
