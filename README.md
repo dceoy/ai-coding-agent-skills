@@ -40,6 +40,10 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `pr-review-toolkit` - Comprehensive PR review using specialized agents (code quality, tests, error handling, comments, types, simplification)
 - `security-guidance` - Security-focused review of code changes, diffs, commits, and pull requests
 
+### AI Tools
+
+- `codex` - Use OpenAI Codex from Claude Code for code reviews, adversarial reviews, and task delegation
+
 ### Skill Management
 
 - `claude-agent-converter` - Convert Claude Code agents to portable skills
