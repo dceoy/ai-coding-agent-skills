@@ -148,22 +148,11 @@ Run a read-only Codex review of current changes.
 | -------------- | -------------------------------------------------------------------- |
 | `--base <ref>` | Review branch diff against a base branch instead of the working tree |
 | `--wait`       | Run in the foreground without asking                                 |
-| `--background` | Run as a background task (plugin context only)                       |
 
-**Execution mode** (when neither `--wait` nor `--background` is given):
+**Execution mode:**
 
-1. Estimate review size:
-   - Working tree: `git status --short --untracked-files=all` + `git diff --shortstat` + `git diff --shortstat --cached`
-   - Branch diff: `git diff --shortstat <base>...HEAD`
-   - Untracked files and directories count as reviewable work even when `git diff --shortstat` is empty.
-2. If clearly tiny (roughly 1–2 files, no broader directory-sized change): recommend foreground.
-3. In every other case, including unclear size: recommend background (plugin context) or foreground
-   (standalone context).
-4. In plugin context, use `AskUserQuestion` exactly once with two options, leading with the recommended
-   choice (append `(Recommended)` to its label):
-   - `Wait for results`
-   - `Run in background`
-5. In standalone context where background execution is unavailable, skip the question and run foreground.
+Review always runs in the foreground. Background job management (status, result, cancel) is available for
+Rescue/task operations only — not for review or adversarial review.
 
 **Plugin context — foreground:**
 
@@ -181,24 +170,6 @@ Branch diff (with `--base`):
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review --base <ref>
 ```
-
-**Plugin context — background** (use `run_in_background: true` if the runtime supports it):
-
-Working tree:
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review
-```
-
-Branch diff:
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" review --base <ref>
-```
-
-If the user explicitly requested `--background` but the runtime has no background execution primitive,
-explain that background mode is unavailable in this runtime and ask whether to proceed foreground or
-cancel.
 
 **Standalone context — prefer native review if available:**
 
@@ -266,23 +237,6 @@ With focus text (append after flags as separate argv words):
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review [--base <ref>] <focus text words...>
 ```
-
-**Plugin context — background** (use `run_in_background: true` if the runtime supports it):
-
-Working tree:
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review
-```
-
-Branch diff:
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" adversarial-review --base <ref>
-```
-
-If the user explicitly requested `--background` but the runtime has no background execution primitive,
-explain that background mode is unavailable and ask whether to proceed foreground or cancel.
 
 **Standalone context:**
 
