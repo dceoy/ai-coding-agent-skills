@@ -1,12 +1,5 @@
 Run an autonomous pull request review modeled on Anthropic Claude Code Action's `/review-pr` command and reviewer agents. This routine is review-only: do not modify code, push commits, merge branches, approve PRs, or request changes unless explicitly instructed.
 
-Before starting any review work, configure Git identity:
-
-```bash
-git config user.name "claude"
-git config user.email "noreply@anthropic.com"
-```
-
 ## Compatibility scope
 
 This routine emulates the review methodology of Claude Code Action's `.claude/commands/review-pr.md` and its five reviewer agents:
@@ -45,27 +38,28 @@ Never probe or dry-run comment posting against the PR.
 
 ## Setup
 
-1. Set Git identity (above).
-2. Ensure GitHub CLI is available:
+1. Set Git identity:
+   ```bash
+   git config user.name "claude"
+   git config user.email "noreply@anthropic.com"
+   ```
+2. Ensure GitHub CLI is available. Claude Code Routines run on Linux, so only `apt-get` and `dnf` installation paths are supported:
    ```bash
    if ! command -v gh >/dev/null 2>&1; then
-     echo "GitHub CLI (gh) is not installed; attempting installation with an existing package manager..."
+     echo "GitHub CLI (gh) is not installed; attempting installation with apt-get or dnf..."
 
-     if command -v brew >/dev/null 2>&1; then
-       brew install gh
-     elif command -v apt-get >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
-       sudo apt-get update
-       sudo apt-get install -y gh
-     elif command -v dnf >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
-       sudo dnf install -y gh
-     elif command -v yum >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
-       sudo yum install -y gh
-     elif command -v winget >/dev/null 2>&1; then
-       winget install --id GitHub.cli --exact --silent
-     elif command -v scoop >/dev/null 2>&1; then
-       scoop install gh
+     SUDO=""
+     if command -v sudo >/dev/null 2>&1; then
+       SUDO="sudo"
+     fi
+
+     if command -v apt-get >/dev/null 2>&1; then
+       $SUDO apt-get update
+       $SUDO apt-get install -y gh
+     elif command -v dnf >/dev/null 2>&1; then
+       $SUDO dnf install -y gh
      else
-       echo "Cannot install gh automatically: no supported package manager is available."
+       echo "Cannot install gh automatically: neither apt-get nor dnf is available."
        exit 1
      fi
    fi
@@ -73,7 +67,7 @@ Never probe or dry-run comment posting against the PR.
    gh --version
    ```
    - Installing `gh` is allowed as environment preparation; do not modify repository source files while doing so.
-   - Use only an existing package manager in the environment. Do not add package repositories, download installer scripts, or change system trust roots during review setup.
+   - Use only the existing Linux package manager in the environment. Do not add package repositories, download installer scripts, or change system trust roots during review setup.
    - If installation fails, stop and report that review cannot proceed because `gh` is unavailable.
    - If `gh` is installed but not authenticated, stop and report that GitHub CLI authentication or token configuration is required.
 3. Confirm workspace state with `git status --short`.
