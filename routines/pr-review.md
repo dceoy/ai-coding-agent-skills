@@ -19,12 +19,12 @@ git config user.email "noreply@anthropic.com"
 4. Retrieve PR metadata and diff:
    - `gh pr view <PR> --json number,title,body,url,baseRefName,headRefName,headRefOid,files,commits,reviews,comments`
      (`comments` retrieves top-level issue comments only; it does **not** retrieve line-level review comments.)
-   - `gh pr diff <PR>`
+   - `gh pr diff <PR>`.
 5. Capture and pin the reviewed PR head SHA:
    ```bash
    HEAD_SHA=$(gh pr view <PR> --json headRefOid --jq .headRefOid)
    ```
-   Base all findings on that captured head SHA. Before posting, re-check the PR head SHA. If it changed, do not post stale inline comments; refresh the diff or report that the PR changed during review. When using inline-comment MCP tools or the GitHub Reviews API directly, include the captured `commit_id` so comments are anchored to the reviewed commit.
+   Base all findings on that captured head SHA. Before posting, re-check the PR head SHA. If it changed, do not post stale inline comments; refresh the diff or report that the PR changed during review. When posting inline review comments with `gh api`, include the captured `commit_id` so comments are anchored to the reviewed commit.
 6. Fetch existing line-level PR review comments for duplicate avoidance:
    ```bash
    gh api --paginate repos/<owner>/<repo>/pulls/<PR>/comments
@@ -253,21 +253,47 @@ Use **top-level comments** for:
 1. Re-check the PR head SHA and confirm it still matches the captured `HEAD_SHA`.
 2. If the head changed, stop before posting inline comments and refresh the diff or report that the PR changed during review.
 3. Collect all inline comments (CRITICAL and HIGH findings only).
-4. Prefer the official-compatible inline-comment flow when the Claude Code Action inline-comment MCP tool is available:
-   - Use `mcp__github_inline_comment__create_inline_comment` for inline comments.
-   - Include `path`, `line` or `startLine`/`line`, `side`, and the captured `commit_id`.
-   - Set `confirmed=true` only for final review comments that have passed arbitration.
-   - Do not make test/probe calls. If `confirmed` is omitted, official Claude Code Action may buffer and classify the comment after the session; avoid relying on that unless intentionally using the official buffered-classification behavior.
-   - Post the final summary as a top-level PR comment with `gh pr comment` when a separate summary is needed and the active MCP tooling cannot attach a formal review body.
-5. If the inline-comment MCP tool is not available, use fallback posting:
-   - Submit inline comments through the GitHub Reviews API as a single review with event `COMMENT`, including the captured `commit_id` and the summary as the review body.
-   - Treat this as compatibility fallback behavior, not exact official Claude Code Action MCP behavior.
-6. Use `gh api` for precise inline comments when needed.
-7. Use `gh pr review` only when it can preserve inline comments correctly.
-8. Use a top-level PR comment for the summary only when the active tooling cannot attach a review body to the same review as the inline comments or when using the official-compatible MCP flow.
-9. Do not fall back to summary-only review unless there are no suitable inline findings or the available tooling cannot safely anchor inline comments.
-10. Keep feedback concise; do not include every checked item in the final body.
-11. Redact sensitive values before posting any inline or top-level comment.
+4. Write the summary body to a temporary file, for example:
+   ```bash
+   SUMMARY_FILE=$(mktemp)
+   cat > "$SUMMARY_FILE" <<'EOF'
+   <final summary body>
+   EOF
+   ```
+5. When there are inline comments, submit them with `gh api` through the GitHub Reviews API as one review with event `COMMENT`:
+   ```bash
+   cat > review.json <<EOF
+   {
+     "commit_id": "$HEAD_SHA",
+     "event": "COMMENT",
+     "body": $(jq -Rs . < "$SUMMARY_FILE"),
+     "comments": [
+       {
+         "path": "path/to/file.ext",
+         "line": 123,
+         "side": "RIGHT",
+         "body": "Concise actionable review comment."
+       }
+     ]
+   }
+   EOF
+
+   gh api repos/<owner>/<repo>/pulls/<PR>/reviews \
+     --method POST \
+     --input review.json
+   ```
+   - For multi-line comments, use `start_line`, `start_side`, `line`, and `side` in each comment object.
+   - Use `side: "RIGHT"` for new-code comments and `side: "LEFT"` only when commenting on removed/old code.
+   - Include only comments that passed final arbitration.
+   - Do not make test/probe calls against the PR.
+6. When there are no safe inline comments, post only the summary with:
+   ```bash
+   gh pr comment <PR> --body-file "$SUMMARY_FILE"
+   ```
+7. Use `gh pr review --comment --body-file "$SUMMARY_FILE"` only for summary-only review output when no inline comments are needed and repository policy prefers formal review events over PR comments.
+8. Do not fall back to summary-only review if there are suitable inline findings and `gh api` can safely anchor them.
+9. Keep feedback concise; do not include every checked item in the final body.
+10. Redact sensitive values before posting any inline or top-level comment.
 
 ## Output format
 
