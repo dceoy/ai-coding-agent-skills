@@ -10,7 +10,9 @@ git config user.email "noreply@anthropic.com"
 ## Setup
 
 1. Set Git identity (above).
-2. Confirm clean workspace: `git status --short` — do not edit source files.
+2. Confirm workspace state with `git status --short`.
+   - Do not edit, reset, stash, clean, or otherwise modify source files.
+   - If unexpected local changes are present and they make the PR diff ambiguous, stop and report that the review cannot be completed safely because local changes may contaminate the diff.
 3. Identify the PR:
    - Use GitHub event context if available.
    - Otherwise: `gh pr view --json number,title,body,url,baseRefName,headRefName,author,isDraft`
