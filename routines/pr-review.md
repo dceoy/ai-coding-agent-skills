@@ -18,9 +18,15 @@ git config user.email "noreply@anthropic.com"
    - Otherwise: `gh pr view --json number,title,body,url,baseRefName,headRefName,author,isDraft`
 4. Retrieve PR metadata and diff:
    - `gh pr view <PR> --json number,title,body,url,baseRefName,headRefName,files,commits,reviews,comments`
+     (retrieves PR metadata, files, commits, review summaries, and top-level issue comments; does **not** retrieve line-level review comments)
    - `gh pr diff <PR>`
-5. Read project guidance if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, test docs, style docs, CI configuration.
-6. Review only changed files and directly related context needed to understand the diff.
+5. Fetch existing line-level PR review comments (required for deduplication in final arbitration):
+   ```bash
+   gh api --paginate repos/<owner>/<repo>/pulls/<PR>/comments
+   ```
+   Use the resolved owner, repo, and PR number from steps 3–4. These REST review comments are sufficient for duplicate avoidance. If resolved/unresolved thread state is also needed, fetch review threads via GraphQL instead — do not use `gh pr view --json reviewThreads` (it is not a valid field).
+6. Read project guidance if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, test docs, style docs, CI configuration.
+7. Review only changed files and directly related context needed to understand the diff.
 
 ## Reviewer passes
 
@@ -118,7 +124,7 @@ After all five passes, consolidate findings before posting:
 
 - **Deduplicate**: when findings share a root cause, keep the most specific; drop the rest.
 - **Drop**: speculative, low-confidence, style-only, or broad rewrite suggestions.
-- **Drop**: findings already covered by existing unresolved review comments.
+- **Drop**: findings already covered by existing review comments. Compare candidate findings against the line-level PR review comments fetched in step 5, top-level PR comments (`comments` from step 4), and prior review bodies (`reviews` from step 4). A finding is a duplicate when the root cause is already addressed, even if the exact wording differs. Do not drop a finding merely because a related area was discussed; only drop it when the specific actionable issue is already covered.
 - **Promote only** findings that are:
   - High-confidence and actionable.
   - Tied to the PR diff or directly related context.
