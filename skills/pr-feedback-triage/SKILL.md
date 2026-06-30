@@ -43,10 +43,10 @@ When a mode disables an action, skip that destructive or externally visible acti
 
 Gather the complete feedback set before editing:
 
-- Fetch unresolved review threads, requested-change reviews, inline comments, copied comments, and PR-level summary comments when they add distinct actionable information.
+- Fetch unresolved review threads, requested-change reviews, inline comments, copied comments, and PR-level summary comments.
 - Use platform-native APIs/CLI when available. Paginate results; do not inspect only the first page of threads or comments.
-- For bot reviewers that post both summary comments and inline comments, prefer inline comments for actionable triage. Fetch or use summary comments only when they contain distinct severity, rationale, or fix instructions not already present in inline comments.
-- Summary comments may be skipped when inline feedback plus the current diff and file contents are sufficient.
+- For bot reviewers that post both summary comments and inline comments, prefer inline comments for actionable triage. Incorporate summary findings only when they contain distinct severity, rationale, or fix instructions not already captured from inline comments.
+- Summary comments may be excluded from triage when they do not add distinct actionable context.
 - Preserve every thread/comment identifier needed to reply or resolve later.
 - Compare each comment with the current diff and file contents because review lines can become outdated.
 
@@ -80,7 +80,7 @@ When resolving a thread, add a concise reply first only if it provides useful co
 
 ## Platform Action Contract
 
-Do not treat triage as complete until every collected source ID reaches an explicit terminal state:
+Do not treat triage as complete until every incorporated source ID reaches an explicit terminal state:
 
 - `resolved`: a platform resolve action succeeded, or a re-check shows the thread is already resolved.
 - `replied_left_open`: a reply or question was posted and the thread is intentionally left unresolved.
@@ -158,9 +158,9 @@ flowchart TD
 ## Compact Workflow
 
 1. **Collect all relevant feedback**
-   - Identify the PR and gather unresolved review threads, requested-change reviews, inline comments, copied comments, and only useful PR-level summaries.
+   - Identify the PR and gather unresolved review threads, requested-change reviews, inline comments, copied comments, and PR-level summaries.
    - Paginate all platform calls and keep comment/thread IDs for later replies and resolution.
-   - For bot reviews, prioritize inline comments and use summary comments only when they add distinct actionable context.
+   - For bot reviews, prioritize inline comments and incorporate summary findings only when they add distinct actionable context.
 
 2. **Classify each triage record**
    - **Fix**: Valid requested change; make the smallest focused edit when not in `dry_run`.
@@ -176,7 +176,7 @@ flowchart TD
    - In `dry_run`, stop at triage, proposed fixes, suggested replies, and verification plan.
    - In `no_push`, local edits are allowed, but do not push or resolve threads whose fix is only local. Reply or resolve non-code, already-addressed, or outdated threads only when the action does not depend on unpushed work and `no_reply` is not set.
    - In `no_reply`, do not post replies or resolve threads; report suggested replies/actions instead.
-   - In normal mode, commit and push changed code when appropriate, then execute the platform action queue for every collected source ID.
+   - In normal mode, commit and push changed code when appropriate, then execute the platform action queue for every incorporated source ID.
 
 4. **Verify before claiming completion**
    - For fixes, run appropriate checks or explain why they could not run.
