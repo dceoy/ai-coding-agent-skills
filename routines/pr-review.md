@@ -17,7 +17,7 @@ git config user.email "noreply@anthropic.com"
 4. Retrieve PR metadata and diff:
    - `gh pr view <PR> --json number,title,body,url,baseRefName,headRefName,files,commits,reviews,reviewThreads`
    - `gh pr diff <PR>`
-5. Read project guidance if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, style docs, CI configuration.
+5. Read project guidance if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, test docs, style docs, CI configuration.
 6. Review only changed files and directly related context needed to understand the diff.
 
 ## Reviewer passes
@@ -108,7 +108,7 @@ Check:
 - Race conditions and TOCTOU risks.
 - Insufficient security logging.
 
-If uncertain, place the finding in the top-level summary as "needs human verification" rather than posting a confident inline claim.
+If uncertain, include it only as a top-level "needs human verification" note when the attack surface is material and the verification target is concrete. Do not post uncertain security claims inline.
 
 ## Final arbitration
 
@@ -127,12 +127,12 @@ After all five passes, consolidate findings before posting:
 
 ## Severity thresholds
 
-| Severity   | Criteria                                                                                                                                 | Posting                                                                             |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `CRITICAL` | Data loss, security vulnerability, production outage, broken core behavior, severe compatibility break, explicit project-rule violation. | Post inline when mapped to a changed line.                                          |
-| `HIGH`     | Important correctness, reliability, security, performance, or API contract issue that should be addressed before merge.                  | Post inline when mapped to a changed line.                                          |
-| `MEDIUM`   | Real but non-blocking issue, meaningful test gap, maintainability concern, documentation mismatch.                                       | Summarize top-level; inline only when the location is exact and the fix is obvious. |
-| `LOW`      | Nice-to-have, subjective style, minor cleanup, speculative improvement.                                                                  | Suppress unless explicitly required by project guidance.                            |
+| Severity   | Criteria                                                                                                                                 | Posting                                                                  |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `CRITICAL` | Data loss, security vulnerability, production outage, broken core behavior, severe compatibility break, explicit project-rule violation. | Post inline when mapped to a changed line.                               |
+| `HIGH`     | Important correctness, reliability, security, performance, or API contract issue that should be addressed before merge.                  | Post inline when mapped to a changed line.                               |
+| `MEDIUM`   | Real but non-blocking issue, meaningful test gap, maintainability concern, documentation mismatch.                                       | Summarize top-level only unless explicitly required by project guidance. |
+| `LOW`      | Nice-to-have, subjective style, minor cleanup, speculative improvement.                                                                  | Suppress unless explicitly required by project guidance.                 |
 
 ## Inline vs top-level comment policy
 
