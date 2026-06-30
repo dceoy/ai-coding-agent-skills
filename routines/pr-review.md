@@ -12,15 +12,15 @@ This routine emulates the review methodology of Claude Code Action's `.claude/co
 
 It also preserves the review coverage of `pr-review-toolkit` by mapping its aspects and agents into the routine passes below:
 
-| `pr-review-toolkit` aspect | Toolkit agent | Routine coverage |
-| --- | --- | --- |
-| `code` | `code-reviewer` | Pass 1 general code-quality review |
-| `errors` | `silent-failure-hunter` | Pass 1 conditional silent-failure subcheck |
-| `types` | `type-design-analyzer` | Pass 1 conditional type-design subcheck |
-| `simplify` | `code-simplifier` | Pass 1 conditional simplification subcheck |
-| `tests` | `pr-test-analyzer` | Pass 3 test-coverage review |
-| `comments` | `comment-analyzer` | Pass 4 documentation/comment-accuracy review |
-| `all` | all applicable toolkit agents | All selected routine passes and subchecks |
+| `pr-review-toolkit` aspect | Toolkit agent                 | Routine coverage                             |
+| -------------------------- | ----------------------------- | -------------------------------------------- |
+| `code`                     | `code-reviewer`               | Pass 1 general code-quality review           |
+| `errors`                   | `silent-failure-hunter`       | Pass 1 conditional silent-failure subcheck   |
+| `types`                    | `type-design-analyzer`        | Pass 1 conditional type-design subcheck      |
+| `simplify`                 | `code-simplifier`             | Pass 1 conditional simplification subcheck   |
+| `tests`                    | `pr-test-analyzer`            | Pass 3 test-coverage review                  |
+| `comments`                 | `comment-analyzer`            | Pass 4 documentation/comment-accuracy review |
+| `all`                      | all applicable toolkit agents | All selected routine passes and subchecks    |
 
 Routines may not provide true Claude Code subagent isolation. Treat the reviewer passes below as subagent-equivalent review lenses, and preserve independence by writing candidate findings for each pass before reading, suppressing, or consolidating findings from other passes.
 
@@ -362,6 +362,7 @@ After all selected passes finish, consolidate findings before posting:
   - Prior review bodies from `reviews` in setup step 5.
 
   Treat a finding as duplicate only when the specific actionable root cause is already covered, even if the wording differs. Do not drop a finding merely because a related area was discussed. When REST review comments lack resolution state, use the current diff as the source of truth: suppress stale already-fixed feedback, but do not repost an active issue that is already clearly covered.
+
 - **Promote only** findings that are:
   - High-confidence and actionable.
   - Tied to the PR diff or directly related context.
@@ -372,12 +373,12 @@ After all selected passes finish, consolidate findings before posting:
 
 ## Severity thresholds
 
-| Severity   | Criteria                                                                                                                                 | Posting                                                                  |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Severity   | Criteria                                                                                                                                             | Posting                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `CRITICAL` | Data loss, exploitable security vulnerability, production outage, broken core behavior, severe compatibility break, explicit project-rule violation. | Post inline when mapped to a changed line and inline posting is available. |
-| `HIGH`     | Important correctness, reliability, security, performance, or API contract issue that should be addressed before merge.                  | Post inline when mapped to a changed line and inline posting is available. |
-| `MEDIUM`   | Real but non-blocking issue, meaningful test gap, maintainability concern, documentation mismatch, or migration/release-note gap.        | Summarize top-level only unless explicitly required by project guidance. |
-| `LOW`      | Nice-to-have, subjective style, minor cleanup, speculative improvement.                                                                  | Suppress unless explicitly required by project guidance.                 |
+| `HIGH`     | Important correctness, reliability, security, performance, or API contract issue that should be addressed before merge.                              | Post inline when mapped to a changed line and inline posting is available. |
+| `MEDIUM`   | Real but non-blocking issue, meaningful test gap, maintainability concern, documentation mismatch, or migration/release-note gap.                    | Summarize top-level only unless explicitly required by project guidance.   |
+| `LOW`      | Nice-to-have, subjective style, minor cleanup, speculative improvement.                                                                              | Suppress unless explicitly required by project guidance.                   |
 
 ## Inline vs top-level comment policy
 
