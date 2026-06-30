@@ -4,30 +4,14 @@ This routine is **review-only**: do not modify repository source files, push unr
 
 ## Compatibility and runtime constraints
 
-Emulate Claude Code Action's reviewers and preserve `pr-review-toolkit` coverage:
-
-| Source capability                          | Routine coverage                              |
-| ------------------------------------------ | --------------------------------------------- |
-| Claude `code-quality-reviewer`             | Pass 1 general code-quality review            |
-| Claude `performance-reviewer`              | Pass 2 performance review                     |
-| Claude `test-coverage-reviewer`            | Pass 3 test-coverage review                   |
-| Claude `documentation-accuracy-reviewer`   | Pass 4 documentation/comment-accuracy review  |
-| Claude `security-code-reviewer`            | Pass 5 security review                        |
-| Toolkit `code` / `code-reviewer`           | Pass 1 general code-quality review            |
-| Toolkit `errors` / `silent-failure-hunter` | Pass 1 silent-failure subcheck                |
-| Toolkit `types` / `type-design-analyzer`   | Pass 1 type-design subcheck                   |
-| Toolkit `simplify` / `code-simplifier`     | Pass 1 simplification subcheck, advisory only |
-| Toolkit `tests` / `pr-test-analyzer`       | Pass 3 test-coverage review                   |
-| Toolkit `comments` / `comment-analyzer`    | Pass 4 documentation/comment-accuracy review  |
-| `all`                                      | All five Claude passes plus toolkit subchecks |
+Emulate Claude reviewers as passes: `code-quality-reviewer`, `performance-reviewer`, `test-coverage-reviewer`, `documentation-accuracy-reviewer`, and `security-code-reviewer`. Preserve toolkit aspects: `code`/`code-reviewer`, `errors`/`silent-failure-hunter`, `types`/`type-design-analyzer`, `simplify`/`code-simplifier`, `tests`/`pr-test-analyzer`, `comments`/`comment-analyzer`; `all` runs all Claude passes plus toolkit subchecks.
 
 Reproduce review methodology and posting policy, not exact Claude runtime behavior:
 
 - Treat passes as subagent-equivalent lenses; true subagent isolation may be unavailable.
-- Produce raw candidate findings independently for each selected pass before reading, suppressing, or consolidating findings from other passes.
-- Keep raw per-pass findings internal; post only the arbitrated final result.
-- Accept `parallel` only for compatibility; execute sequentially and report the sequential fallback in final notes.
-- `code-simplifier` can directly edit code in its native agent context, but this routine is review-only. Convert simplification opportunities into suggestions only. If `simplify` is selected, final notes must state direct editing was unavailable and simplification was advisory-only.
+- Produce raw candidate findings independently for each selected pass, keep them internal, and post only the arbitrated final result.
+- Accept `parallel` only for compatibility; execute sequentially and report the fallback in final notes.
+- `code-simplifier` can directly edit code in its native context, but this routine is review-only. Convert simplification opportunities into suggestions only. If `simplify` is selected, final notes must state direct editing was unavailable and simplification was advisory-only.
 - Support local-diff review before a PR exists; inline comments are available only when a GitHub PR is resolved.
 
 ## Setup and scope
@@ -81,19 +65,11 @@ Each candidate finding must include lens name, exact file and line when possible
 
 Run for `all`, `code`, `quality`, `errors`, `types`, or `simplify`.
 
-General checks: project guidance; implementation/PR intent alignment; functional bugs; edge cases; races; null/undefined handling; invalid assumptions; broken control flow; error handling; resource lifecycle; naming; size; responsibility boundaries; duplication; magic constants; complexity; API/backward compatibility; migration risk; defaults; observability; type safety; invariants; concrete SOLID/design-pattern risks; and, for TypeScript, unsafe `any`, strict null handling, narrowing, discriminated-union exhaustiveness, and documented `type` vs `interface` conventions.
+General checks: project guidance; PR-intent alignment; functional bugs; edge cases; races; null/undefined handling; invalid assumptions; broken control flow; error handling; resource lifecycle; naming; size; responsibility boundaries; duplication; magic constants; complexity; API/backward compatibility; migration risk; defaults; observability; type safety; invariants; concrete SOLID/design-pattern risks; and, for TypeScript, unsafe `any`, strict null handling, narrowing, discriminated-union exhaustiveness, and documented `type` vs `interface` conventions.
 
-Preserve toolkit `code-reviewer` scoring internally:
+Preserve toolkit `code-reviewer` scoring internally: 0-25 likely false positive/pre-existing, 26-50 minor nit, 51-75 valid low-impact, 76-90 important, 91-100 critical or explicit project-guidance violation. Carry general code-quality findings with confidence >=80 to arbitration. Map 91-100 to `CRITICAL` and 80-90 to `HIGH`. Use 51-79 only as `MEDIUM` top-level material when another selected pass independently supports it.
 
-- 0-25: likely false positive or pre-existing issue.
-- 26-50: minor nitpick not required by trusted guidance.
-- 51-75: valid but low-impact issue.
-- 76-90: important issue requiring attention.
-- 91-100: critical bug or explicit project-guidance violation.
-
-Carry general code-quality findings with confidence >=80 to arbitration. Map 91-100 to `CRITICAL` and 80-90 to `HIGH`. Use 51-79 only as `MEDIUM` top-level material when another selected pass independently supports it.
-
-Silent-failure subcheck: run for `errors` or changed exceptions, result types, retries, fallbacks, defaults on failure, logging-and-continue behavior, optional chaining/null coalescing around important operations, async failure paths, external I/O, validation, or cleanup. Check logging severity/context, user/operator feedback, catch specificity, fallback justification/observability, propagation, cleanup, and rollback. Treat empty catches, swallowed errors, unlogged external-operation fallback, broad catches hiding unrelated defects, and mock/fake production fallback as `HIGH` or `CRITICAL` when material.
+Silent-failure subcheck: run for `errors` or changed exceptions, result types, retries, fallbacks, defaults on failure, logging-and-continue behavior, optional chaining/null coalescing around important operations, async failure paths, external I/O, validation, or cleanup. Treat empty catches, swallowed errors, unlogged external-operation fallback, broad catches hiding unrelated defects, and mock/fake production fallback as `HIGH` or `CRITICAL` when material.
 
 Type-design subcheck: run for `types` or changed classes, structs, interfaces, aliases, schemas, enums, data models, validators, value objects, public APIs, or domain entities. Identify invariants and invalid states; check construction, mutation, defaults, and serialization boundaries. Internally rate encapsulation, invariant expression, usefulness, and enforcement from 1-10; surface ratings only when they clarify a concrete issue.
 
@@ -101,7 +77,7 @@ Simplification subcheck: run for `simplify` or material complexity after correct
 
 ### Pass 2 — performance-reviewer
 
-Run for `all`, `performance`, or `perf`. Report only measurable impact, scalability risk, or resource-safety impact. Check algorithmic complexity, repeated work, allocations, data structures, N+1 queries, pagination/indexes, round trips, batching, deduplication, caching, blocking async operations, retry storms, backoff, pooling, resource reuse, and leaks from connections, listeners, timers, subscriptions, circular references, or cleanup omissions.
+Run for `all`, `performance`, or `perf`. Report only measurable impact, scalability risk, or resource-safety impact. Check complexity, repeated work, allocations, data structures, N+1 queries, pagination/indexes, round trips, batching, deduplication, caching, blocking async operations, retry storms, backoff, pooling, resource reuse, and leaks from connections, listeners, timers, subscriptions, circular references, or cleanup omissions.
 
 ### Pass 3 — test-coverage-reviewer
 
@@ -140,7 +116,7 @@ Before posting, re-check `HEAD_SHA`. If it changed, stop before posting inline c
 
 ## Output format
 
-When issues are found:
+Use this structure, omitting empty issue sections. When no high-confidence issues are found, write `No high-confidence blocking issues found.` and include `## Checked` instead of issue sections.
 
 ```markdown
 # PR Review Summary
@@ -163,6 +139,10 @@ When issues are found:
   - Rationale:
   - Recommendation:
 
+## Checked
+
+- Code quality, silent failures, performance, tests, documentation, security, type design, and simplification opportunities as applicable.
+
 ## Strengths
 
 - 1-3 short, specific bullets only.
@@ -174,27 +154,4 @@ When issues are found:
 ## Recommended Action
 
 Concise merge guidance, without approving or requesting changes unless explicitly instructed.
-```
-
-When no high-confidence issues are found:
-
-```markdown
-# PR Review Summary
-
-No high-confidence blocking issues found.
-
-## Checked
-
-- Code quality and project guidelines
-- Silent failure, error handling, and resource lifecycle
-- Performance and scalability
-- Test coverage and test quality
-- Documentation and comment accuracy
-- Security and trust boundaries
-- Type design and invariants, when applicable
-- Simplification opportunities, when applicable
-
-## Notes
-
-- Mention only meaningful non-blocking observations, skipped aspects, ignored unknown tokens, `parallel` sequential fallback, advisory-only `simplify` behavior, local-diff mode, inline-posting limitations, or human-review areas.
 ```
