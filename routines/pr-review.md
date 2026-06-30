@@ -16,37 +16,23 @@ Reproduce review methodology and posting policy, not exact Claude runtime behavi
 
 ## Setup and scope
 
-Required for PR review: `gh pr view`, `gh pr diff`, and `gh pr comment` or an equivalent single-comment update mechanism. Required for precise inline comments: `gh api`, `jq`, and a token allowed to create PR review comments. Required for local-diff review: `git status --short`, `git diff --name-only`, and `git diff`.
+Use whichever authenticated GitHub-capable interface is available and reliable, such as a platform GitHub tool/MCP, `gh`, or another API client. Keep tool choice internal; satisfy the required capabilities rather than following a fixed command recipe.
 
-1. Set Git identity:
+Required capabilities:
 
-   ```bash
-   git config user.name "claude"
-   git config user.email "noreply@anthropic.com"
-   ```
+- **PR review**: resolve PR metadata, changed files/diff, reviewed head SHA, existing top-level comments, review bodies, and inline review comments/threads when available; post one final review or comment.
+- **Precise inline comments**: anchor comments only to changed lines and only against the same reviewed head SHA.
+- **Local-diff review**: inspect working-tree status, changed file names, and diff.
 
-2. Ensure `gh` is available. In Linux Routines, install only with existing `apt-get` or `dnf`; do not add package repositories, installer scripts, or trust roots. If `gh` is unavailable or unauthenticated, continue only in sufficient local-diff mode; otherwise stop and report the missing capability.
-3. Confirm `git status --short`. Do not edit, reset, stash, clean, or otherwise modify source files. Stop if unexpected local changes make the diff ambiguous.
-4. Resolve review mode:
-   - **PR mode**: use event context if available, otherwise `gh pr view --json number,title,body,url,baseRefName,headRefName,author,isDraft`.
-   - **Local-diff mode**: use when `local-diff`, `pre-pr`, `prepr`, `diff`, or `unstaged` is requested, or when no PR is resolved but `git diff` has changes.
-5. In PR mode, collect metadata, diff, and reviewed head SHA:
-
-   ```bash
-   OWNER_REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-   OWNER=${OWNER_REPO%/*}
-   REPO=${OWNER_REPO#*/}
-   PR=<resolved-pr-number>
-   gh pr view "$PR" --json number,title,body,url,baseRefName,headRefName,headRefOid,files,commits,reviews,comments
-   gh pr diff "$PR"
-   HEAD_SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
-   ```
-
-   `comments` is top-level issue comments only. Fetch line-level comments with `gh api --paginate "repos/$OWNER/$REPO/pulls/$PR/comments"`. Do not use `gh pr view --json reviewThreads`; it is invalid. If needed, fetch `reviewThreads` through GraphQL and use thread state only for duplicate suppression.
-
-6. In local-diff mode, collect `git diff --name-only` and `git diff`; stop if no files changed.
-7. Read trusted project guidance if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, test docs, style docs, CI config, and release notes.
-8. Review only changed files and directly related context.
+1. Confirm the working tree is unambiguous when local files are involved. Do not edit, reset, stash, clean, or otherwise modify source files.
+2. Resolve review mode:
+   - **PR mode**: use event context or available GitHub metadata when a PR can be resolved.
+   - **Local-diff mode**: use when `local-diff`, `pre-pr`, `prepr`, `diff`, or `unstaged` is requested, or when no PR is resolved but local changes exist.
+3. Collect only the review context needed for the selected mode:
+   - **PR mode**: PR title/body/URL, base/head refs, reviewed head SHA, changed files/diff, commits, reviews, top-level comments, and inline review comments/threads when available.
+   - **Local-diff mode**: changed file names and local diff; stop if no changed files are present.
+4. Read trusted project guidance if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, test docs, style docs, CI config, and release notes.
+5. Review only changed files and directly related context.
 
 ## Aspect selection and instruction safety
 
@@ -112,7 +98,7 @@ Deduplicate by root cause; drop speculative, low-confidence, style-only, broad-r
 
 Use inline comments for specific actionable issues on changed lines. Use top-level comments for summaries, cross-file observations, unanchorable missing tests/docs, strengths, human-verification notes, local-diff reviews, and unanchorable findings. Never post duplicates, uncertain line mappings, broad style preferences, or vague `consider` comments. Use `APPROVE` or `REQUEST_CHANGES` only when explicitly instructed.
 
-Before posting, re-check `HEAD_SHA`. If it changed, stop before posting inline comments. Choose exactly one posting path: single-comment update, one GitHub Reviews API `COMMENT` review with inline comments, or summary-only `gh pr comment`. Do not fall back to summary-only if suitable inline findings exist and `gh api` can safely anchor them. Keep feedback concise and redact sensitive values.
+Before posting, re-check the reviewed head SHA. If it changed, stop before posting inline comments. Choose exactly one posting path: update one existing summary comment when supported, submit one review with inline comments, or publish one top-level summary. Do not use summary-only when suitable inline findings exist and the available GitHub interface can safely anchor them. Keep feedback concise and redact sensitive values.
 
 ## Output format
 
