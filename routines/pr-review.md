@@ -172,7 +172,7 @@ Use **top-level comments** for:
 
 ## Output format
 
-When issues are found:
+When issues are found (submit the body below directly — do not include the outer code fence):
 
 ```markdown
 # PR Review Summary
@@ -204,7 +204,7 @@ When issues are found:
 Concise merge guidance, without approving or requesting changes unless explicitly instructed.
 ```
 
-When no high-confidence issues are found:
+When no high-confidence issues are found (submit the body below directly — do not include the outer code fence):
 
 ```markdown
 # PR Review Summary
