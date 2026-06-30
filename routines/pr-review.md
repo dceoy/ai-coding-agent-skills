@@ -17,7 +17,7 @@ git config user.email "noreply@anthropic.com"
    - Use GitHub event context if available.
    - Otherwise: `gh pr view --json number,title,body,url,baseRefName,headRefName,author,isDraft`
 4. Retrieve PR metadata and diff:
-   - `gh pr view <PR> --json number,title,body,url,baseRefName,headRefName,files,commits,reviews,reviewThreads`
+   - `gh pr view <PR> --json number,title,body,url,baseRefName,headRefName,files,commits,reviews,comments`
    - `gh pr diff <PR>`
 5. Read project guidance if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, test docs, style docs, CI configuration.
 6. Review only changed files and directly related context needed to understand the diff.
