@@ -1,7 +1,7 @@
 {
   "skillListingBudgetFraction": 0.01,
   "enabledPlugins": {
-    "pr-review-toolkit@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": false,
     "skill-creator@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
