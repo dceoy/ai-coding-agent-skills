@@ -37,7 +37,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `code-review` - Comprehensive multi-agent code review for pull requests
 - `code-simplifier` - Simplify and refine code for clarity and maintainability
 - `pr-feedback-triage` - Triage and resolve pull request review feedback
-- `pr-review` - Comprehensive PR review across five lenses plus toolkit subchecks (code quality, performance, tests, documentation, security, silent failures, type design, simplification)
+- `pr-review` - Autonomous CI/GitHub PR review that posts concise, high-confidence findings by default
 - `security-guidance` - Security-focused review of code changes, diffs, commits, and pull requests
 
 ### AI Tools
@@ -117,5 +117,3 @@ Install and authenticate the required CLI tools before running skills:
 See [AGENTS.md](./AGENTS.md) for repository guidelines and agent-specific rules.
 
 ## License
-
-See [LICENSE](./LICENSE) for details.
