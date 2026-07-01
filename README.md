@@ -117,3 +117,5 @@ Install and authenticate the required CLI tools before running skills:
 See [AGENTS.md](./AGENTS.md) for repository guidelines and agent-specific rules.
 
 ## License
+
+See [LICENSE](./LICENSE) for details.
