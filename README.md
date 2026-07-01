@@ -37,7 +37,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `code-review` - Comprehensive multi-agent code review for pull requests
 - `code-simplifier` - Simplify and refine code for clarity and maintainability
 - `pr-feedback-triage` - Triage and resolve pull request review feedback
-- `pr-review-toolkit` - Comprehensive PR review using specialized agents (code quality, tests, error handling, comments, types, simplification)
+- `pr-review` - Comprehensive PR review across five lenses plus toolkit subchecks (code quality, performance, tests, documentation, security, silent failures, type design, simplification)
 - `security-guidance` - Security-focused review of code changes, diffs, commits, and pull requests
 
 ### AI Tools
