@@ -106,12 +106,18 @@ For concrete security findings, include vulnerability class, location, impact, r
 
 Deduplicate by root cause; drop speculative, low-confidence, style-only, broad-rewrite, nice-to-have, and already-covered findings; compare against line-level comments, review-thread state when available, top-level comments, and review bodies; promote only high-confidence actionable findings tied to the diff or directly related context. Do not post raw pass outputs.
 
-| Severity   | Criteria                                                                                                                                             | Posting                                            |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `CRITICAL` | Data loss, exploitable security vulnerability, production outage, broken core behavior, severe compatibility break, explicit project-rule violation. | Inline when safely mapped.                         |
-| `HIGH`     | Important correctness, reliability, security, performance, or API contract issue that should be addressed before merge.                              | Inline when safely mapped.                         |
-| `MEDIUM`   | Real but non-blocking issue, meaningful test gap, maintainability concern, documentation mismatch, or migration/release-note gap.                    | Top-level unless project guidance requires inline. |
-| `LOW`      | Nice-to-have, subjective style, minor cleanup, speculative improvement.                                                                              | Suppress unless project guidance requires it.      |
+- **`CRITICAL`**
+  - Criteria: Data loss, exploitable security vulnerability, production outage, broken core behavior, severe compatibility break, explicit project-rule violation.
+  - Posting: Inline when safely mapped.
+- **`HIGH`**
+  - Criteria: Important correctness, reliability, security, performance, or API contract issue that should be addressed before merge.
+  - Posting: Inline when safely mapped.
+- **`MEDIUM`**
+  - Criteria: Real but non-blocking issue, meaningful test gap, maintainability concern, documentation mismatch, or migration/release-note gap.
+  - Posting: Top-level unless project guidance requires inline.
+- **`LOW`**
+  - Criteria: Nice-to-have, subjective style, minor cleanup, speculative improvement.
+  - Posting: Suppress unless project guidance requires it.
 
 Use inline comments for specific actionable issues on changed lines. Use top-level comments for summaries, cross-file observations, unanchorable missing tests/docs, strengths, human-verification notes, and unanchorable findings. Never post duplicates, uncertain line mappings, broad style preferences, or vague `consider` comments. Use `APPROVE` or `REQUEST_CHANGES` only when explicitly instructed.
 
