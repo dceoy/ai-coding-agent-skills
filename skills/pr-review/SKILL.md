@@ -1,7 +1,7 @@
 ---
 name: pr-review
 description: Run an autonomous CI/GitHub pull request review that inspects PR diffs and posts concise, high-confidence review findings to GitHub by default. Use in CI, GitHub Actions, or other automated PR-review contexts where posting review comments is expected.
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(gh auth status:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr list:*), Bash(gh pr comment:*), Bash(gh pr review:*), Bash(gh api:*), Read, Grep, Glob
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(gh auth status:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr list:*), Bash(gh pr comment:*), Bash(gh pr review:*), Bash(gh api:*), mcp__github__*, Read, Grep, Glob
 ---
 
 # PR Review
@@ -39,7 +39,7 @@ Reproduce review methodology and posting policy, not exact Claude runtime behavi
 
 ## Setup and Scope
 
-Use whichever authenticated GitHub-capable interface is available and reliable, such as a platform GitHub tool/MCP, `gh`, or another API client. Keep tool choice internal; satisfy the required capabilities rather than following a fixed command recipe. When using `gh`, verify authentication before review execution with `gh auth status` or an equivalent API check.
+Use whichever authenticated GitHub-capable interface is available and reliable. This skill explicitly permits both `gh` and GitHub MCP tools; select either path based on availability and reliability, and satisfy the required capabilities rather than following a fixed command recipe. When using `gh`, verify authentication before review execution with `gh auth status` or an equivalent API check.
 
 Required capabilities:
 
@@ -57,7 +57,7 @@ In the default mode, the review is not complete until GitHub has accepted a PR c
 
 - Post by default for every successful run, including the clean-result case. Use `dry-run` or `no-post` only when explicitly selected.
 - Include the hidden marker `<!-- pr-review-skill -->` and a current-run marker such as `<!-- pr-review-skill-run: <reviewed-head-sha>-<UTC timestamp or nonce> -->` in the posted body so later runs can identify, update, and verify the skill's own summary without adding visible noise.
-- Prefer one review submission when inline comments are available and safely anchored. Otherwise, post one top-level PR comment. With `gh`, use `gh pr review --comment --body <body>`, `gh pr comment --body <body>`, or an equivalent `gh api` mutation rather than only echoing the body.
+- Prefer one review submission when inline comments are available and safely anchored. Otherwise, post one top-level PR comment. With `gh`, use `gh pr review --comment --body <body>`, `gh pr comment --body <body>`, or an equivalent `gh api` mutation rather than only echoing the body. With GitHub MCP, use equivalent PR review or comment mutation tools rather than only returning the body.
 - If updating an existing summary comment is supported, update only a prior comment containing `<!-- pr-review-skill -->`; otherwise create a new comment/review.
 - After posting, verify the current operation, not any stale marker from an earlier run. Confirm the newly created or updated comment/review ID, an `updated_at` value from the attempted mutation, or the exact expected current body containing both the marker and current-run marker in an issue comment, review body, or inline review comment on the reviewed head SHA.
 - If verification fails, retry once with a top-level PR comment. If that also fails, report posting failure explicitly and exit non-zero in CI/autonomous execution when possible.
