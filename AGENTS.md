@@ -11,7 +11,6 @@ skills/                        # Source of truth for all skills
 ├── <skill-name>/SKILL.md      # Each skill is a directory with a SKILL.md
 .claude/skills -> ../skills    # Symlink: exposes skills/ to Claude Code runtime
 .agents/skills/                # Per-skill symlinks into skills/ (other runtimes)
-routines/                      # Claude Code Routines (scheduled cloud agents)
 tests/                         # Python tests for QA validation
 pyproject.toml                 # Local QA tooling: ruff, pyright, pytest
 ```
@@ -35,11 +34,11 @@ allowed-tools: Bash, Read, Write, ... # tools the skill may use
    add a per-skill symlink: `ln -s ../../skills/<skill-name> .agents/skills/<skill-name>`.
 3. Keep `description` in the frontmatter precise — it controls when the skill auto-triggers in Claude Code.
 
-## Routines
+## Autonomous and Scheduled Use
 
-The `routines/` directory contains instruction files for [Claude Code Routines](https://code.claude.com/docs/en/routines) — scheduled cloud agents that run autonomously on a cron schedule. Unlike skills (which are invoked interactively), routines run unattended and are self-contained.
+Do not duplicate skill instructions into separate routine files unless a runtime truly requires a self-contained prompt. Prefer invoking the canonical skill under `skills/` and passing schedule, PR, branch, or CI context from the runtime configuration.
 
-Each routine is a plain Markdown file with no frontmatter. The file body is the instruction set the agent executes on each scheduled run.
+For autonomous PR review, `skills/pr-review/SKILL.md` is the source of truth. It defines the GitHub posting contract used by CI, GitHub Actions, Claude Code Routines, and other automated review contexts.
 
 ## Local QA
 
