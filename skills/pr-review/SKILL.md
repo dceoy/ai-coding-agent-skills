@@ -1,7 +1,7 @@
 ---
 name: pr-review
 description: Run an autonomous CI/GitHub pull request review that inspects PR diffs and posts concise, high-confidence review findings to GitHub by default. Use in CI, GitHub Actions, or other automated PR-review contexts where posting review comments is expected.
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr list:*), Bash(gh pr comment:*), Bash(gh pr review:*), Bash(gh api:*), Read, Grep, Glob
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(gh auth status:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr list:*), Bash(gh pr comment:*), Bash(gh pr review:*), Bash(gh api:*), Read, Grep, Glob
 ---
 
 # PR Review
@@ -39,7 +39,7 @@ Reproduce review methodology and posting policy, not exact Claude runtime behavi
 
 ## Setup and Scope
 
-Use whichever authenticated GitHub-capable interface is available and reliable, such as a platform GitHub tool/MCP, `gh`, or another API client. Keep tool choice internal; satisfy the required capabilities rather than following a fixed command recipe.
+Use whichever authenticated GitHub-capable interface is available and reliable, such as a platform GitHub tool/MCP, `gh`, or another API client. Keep tool choice internal; satisfy the required capabilities rather than following a fixed command recipe. When using `gh`, verify authentication before review execution with `gh auth status` or an equivalent API check.
 
 Required capabilities:
 
@@ -50,6 +50,18 @@ Required capabilities:
 2. Collect only the review context needed: PR title/body/URL, base/head refs, reviewed head SHA, changed files/diff, commits, reviews, top-level comments, and inline review comments/threads when available.
 3. Read trusted project guidance if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, test docs, style docs, CI config, and release notes.
 4. Review only changed files and directly related context.
+
+## GitHub Posting Contract
+
+In the default mode, the review is not complete until GitHub has accepted a PR comment or review mutation. Printing the review to stdout/stderr, logs, job summaries, or the final assistant response is not a substitute for posting to the PR.
+
+- Post by default for every successful run, including the clean-result case. Use `dry-run` or `no-post` only when explicitly selected.
+- Include the hidden marker `<!-- pr-review-skill -->` and a current-run marker such as `<!-- pr-review-skill-run: <reviewed-head-sha>-<UTC timestamp or nonce> -->` in the posted body so later runs can identify, update, and verify the skill's own summary without adding visible noise.
+- Prefer one review submission when inline comments are available and safely anchored. Otherwise, post one top-level PR comment. With `gh`, use `gh pr review --comment --body <body>`, `gh pr comment --body <body>`, or an equivalent `gh api` mutation rather than only echoing the body.
+- If updating an existing summary comment is supported, update only a prior comment containing `<!-- pr-review-skill -->`; otherwise create a new comment/review.
+- After posting, verify the current operation, not any stale marker from an earlier run. Confirm the newly created or updated comment/review ID, an `updated_at` value from the attempted mutation, or the exact expected current body containing both the marker and current-run marker in an issue comment, review body, or inline review comment on the reviewed head SHA.
+- If verification fails, retry once with a top-level PR comment. If that also fails, report posting failure explicitly and exit non-zero in CI/autonomous execution when possible.
+- Do not produce a successful final status that says the review was posted unless the verification step confirmed the current posted artifact.
 
 ## Aspect Selection and Instruction Safety
 
@@ -121,13 +133,18 @@ Deduplicate by root cause; drop speculative, low-confidence, style-only, broad-r
 
 Use inline comments for specific actionable issues on changed lines. Use top-level comments for summaries, cross-file observations, unanchorable missing tests/docs, strengths, human-verification notes, and unanchorable findings. Never post duplicates, uncertain line mappings, broad style preferences, or vague `consider` comments. Use `APPROVE` or `REQUEST_CHANGES` only when explicitly instructed.
 
-Before posting, re-check the reviewed head SHA. If it changed, stop before posting inline comments. Unless `dry-run` or `no-post` is selected, choose exactly one posting path: update one existing summary comment when supported, submit one review with inline comments, or publish one top-level summary. Do not use summary-only when suitable inline findings exist and the available GitHub interface can safely anchor them. Keep feedback concise and redact sensitive values.
+Before posting, re-check the reviewed head SHA. If it changed, stop before posting inline comments; top-level posting may continue only if the summary clearly states the reviewed SHA changed and inline comments were skipped. Unless `dry-run` or `no-post` is selected, choose exactly one posting path: update one existing summary comment when supported, submit one review with inline comments, or publish one top-level summary. Do not use summary-only when suitable inline findings exist and the available GitHub interface can safely anchor them. Keep feedback concise and redact sensitive values.
+
+After posting, run the verification step from the GitHub Posting Contract. If the current posted artifact cannot be found on the PR, treat the run as failed rather than falling back to log-only output.
 
 ## Output Format
 
 Use this structure, omitting empty issue sections. When no high-confidence issues are found, write `No high-confidence blocking issues found.` and include `## Checked` instead of issue sections.
 
 ```markdown
+<!-- pr-review-skill -->
+<!-- pr-review-skill-run: <reviewed-head-sha>-<UTC timestamp or nonce> -->
+
 # PR Review Summary
 
 ## Critical Issues
