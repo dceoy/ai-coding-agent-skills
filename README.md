@@ -4,7 +4,7 @@ Agent skills for AI coders
 
 ## Overview
 
-Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations via `.claude/skills -> ../skills` and per-skill symlinks under `.agents/skills/` (e.g. `.agents/skills/<skill> -> ../../skills/<skill>`).
+Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations via `.claude/skills -> ../skills` and per-skill symlinks under `.agents/skills/` (e.g. `.agents/skills/<skill> -> ../../skills/<skill>`). Autonomous or scheduled workflows should invoke these canonical skills instead of maintaining duplicate routine prompts.
 
 Each skill directory contains a `SKILL.md` that documents prerequisites and invocation.
 
@@ -17,7 +17,7 @@ Each skill directory contains a `SKILL.md` that documents prerequisites and invo
    ```
 
 2. Pick a runtime and explore the skills in `skills/` and the relevant runtime integration:
-   - **Claude Code:** `.claude/skills -> ../skills` (symlink exposing all skills)
+   - **Claude Code / Claude Code Routines:** `.claude/skills -> ../skills` (symlink exposing all skills)
    - **Codex CLI / other runtimes:** `.agents/skills/` (per-skill symlinks into `skills/`)
 
 3. Open a skill directory and read the `SKILL.md` to learn how to invoke it.
@@ -54,7 +54,6 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 ```
 .
 ├── skills/                  # Shared skill directories (source of truth)
-├── routines/                # Claude Code Routines (scheduled cloud agents)
 ├── .agents/
 │   └── skills/              # Per-skill symlinks into skills/ (other runtimes)
 ├── .claude/
@@ -82,6 +81,8 @@ Install and authenticate the required CLI tools before running skills:
 ## Usage notes
 
 - Skills do not always auto-run; use your agent's skill invocation flow or ask for the skill explicitly.
+- For Claude Code Routines, CI, and other autonomous workflows, invoke the canonical skill under `skills/` and pass runtime-specific context externally.
+- `pr-review` is the source of truth for autonomous PR review behavior, including GitHub posting and verification.
 - If a skill fails, open its `SKILL.md` and verify prerequisites and command syntax.
 
 ## Troubleshooting
