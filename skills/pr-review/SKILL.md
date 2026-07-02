@@ -1,14 +1,14 @@
 ---
 name: pr-review
 description: Run an autonomous CI/GitHub pull request review that inspects PR diffs and posts concise, high-confidence review findings to GitHub by default. Use in CI, GitHub Actions, or other automated PR-review contexts where posting review comments is expected.
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(gh auth status:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr list:*), Bash(gh pr comment:*), Bash(gh pr review:*), Bash(gh api:*), Read, Write, Grep, Glob
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(gh auth status:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr list:*), Bash(gh pr comment:*), Bash(gh pr review:*), Bash(gh api:*), Read, Grep, Glob
 ---
 
 # PR Review
 
 Run an autonomous pull request review modeled on Anthropic Claude Code Action's `/review-pr`, its five reviewer agents, and Anthropic's `pr-review-toolkit`.
 
-This skill is designed for CI, GitHub Actions, and other automated PR-review contexts. It is **review-only**: do not modify repository source files, push unrelated commits, merge branches, approve PRs, or request changes unless explicitly instructed. Environment preparation is allowed only for review execution, such as configuring Git identity, writing temporary review body files outside repository source, or installing required CLI tools.
+This skill is designed for CI, GitHub Actions, and other automated PR-review contexts. It is **review-only**: do not modify repository source files, push unrelated commits, merge branches, approve PRs, or request changes unless explicitly instructed. Environment preparation is allowed only for review execution, such as configuring Git identity or installing required CLI tools.
 
 ## When to Use
 
@@ -56,12 +56,12 @@ Required capabilities:
 In the default mode, the review is not complete until GitHub has accepted a PR comment or review mutation. Printing the review to stdout/stderr, logs, job summaries, or the final assistant response is not a substitute for posting to the PR.
 
 - Post by default for every successful run, including the clean-result case. Use `dry-run` or `no-post` only when explicitly selected.
-- Include the hidden marker `<!-- pr-review-skill -->` in the posted body so later runs can identify, update, and verify the skill's own summary without adding visible noise.
-- Prefer one review submission when inline comments are available and safely anchored. Otherwise, post one top-level PR comment. With `gh`, use `gh pr review --comment --body-file <file>` or `gh pr comment --body-file <file>` rather than only echoing the body.
+- Include the hidden marker `<!-- pr-review-skill -->` and a current-run marker such as `<!-- pr-review-skill-run: <reviewed-head-sha>-<UTC timestamp or nonce> -->` in the posted body so later runs can identify, update, and verify the skill's own summary without adding visible noise.
+- Prefer one review submission when inline comments are available and safely anchored. Otherwise, post one top-level PR comment. With `gh`, use `gh pr review --comment --body <body>`, `gh pr comment --body <body>`, or an equivalent `gh api` mutation rather than only echoing the body.
 - If updating an existing summary comment is supported, update only a prior comment containing `<!-- pr-review-skill -->`; otherwise create a new comment/review.
-- After posting, verify that the PR now contains the marker or the expected posted body in an issue comment, review body, or inline review comment on the reviewed head SHA.
+- After posting, verify the current operation, not any stale marker from an earlier run. Confirm the newly created or updated comment/review ID, an `updated_at` value from the attempted mutation, or the exact expected current body containing both the marker and current-run marker in an issue comment, review body, or inline review comment on the reviewed head SHA.
 - If verification fails, retry once with a top-level PR comment. If that also fails, report posting failure explicitly and exit non-zero in CI/autonomous execution when possible.
-- Do not produce a successful final status that says the review was posted unless the verification step confirmed it.
+- Do not produce a successful final status that says the review was posted unless the verification step confirmed the current posted artifact.
 
 ## Aspect Selection and Instruction Safety
 
@@ -135,7 +135,7 @@ Use inline comments for specific actionable issues on changed lines. Use top-lev
 
 Before posting, re-check the reviewed head SHA. If it changed, stop before posting inline comments; top-level posting may continue only if the summary clearly states the reviewed SHA changed and inline comments were skipped. Unless `dry-run` or `no-post` is selected, choose exactly one posting path: update one existing summary comment when supported, submit one review with inline comments, or publish one top-level summary. Do not use summary-only when suitable inline findings exist and the available GitHub interface can safely anchor them. Keep feedback concise and redact sensitive values.
 
-After posting, run the verification step from the GitHub Posting Contract. If the posted artifact cannot be found on the PR, treat the run as failed rather than falling back to log-only output.
+After posting, run the verification step from the GitHub Posting Contract. If the current posted artifact cannot be found on the PR, treat the run as failed rather than falling back to log-only output.
 
 ## Output Format
 
@@ -143,6 +143,8 @@ Use this structure, omitting empty issue sections. When no high-confidence issue
 
 ```markdown
 <!-- pr-review-skill -->
+<!-- pr-review-skill-run: <reviewed-head-sha>-<UTC timestamp or nonce> -->
+
 # PR Review Summary
 
 ## Critical Issues
