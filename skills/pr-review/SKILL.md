@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Run an autonomous CI/GitHub pull request review that inspects PR diffs and posts concise, high-confidence review findings to GitHub by default. Use in CI, GitHub Actions, or other automated PR-review contexts where posting review comments is expected.
+description: Run an autonomous CI/GitHub pull request review that inspects PR diffs and posts concise, high-confidence review findings to GitHub by default. Use in CI, GitHub Actions, Claude Code Routines, or other automated PR-review contexts where posting review comments is expected.
 allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(gh auth status:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr list:*), Bash(gh pr comment:*), Bash(gh pr review:*), Bash(gh api:*), mcp__github__*, Read, Grep, Glob
 ---
 
@@ -8,11 +8,11 @@ allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git s
 
 Run an autonomous pull request review modeled on Anthropic Claude Code Action's `/review-pr`, its five reviewer agents, and Anthropic's `pr-review-toolkit`.
 
-This skill is designed for CI, GitHub Actions, and other automated PR-review contexts. It is **review-only**: do not modify repository source files, push unrelated commits, merge branches, approve PRs, or request changes unless explicitly instructed. Environment preparation is allowed only for review execution, such as configuring Git identity or installing required CLI tools.
+This skill is designed for CI, GitHub Actions, Claude Code Routines, and other automated PR-review contexts. It is **review-only**: do not modify repository source files, push unrelated commits, merge branches, approve PRs, or request changes unless explicitly instructed. Environment preparation is allowed only for review execution, such as configuring Git identity or installing required CLI tools. In normal mode, the review body must be sent to GitHub through an authenticated posting mutation; logging the body is not a completed review.
 
 ## When to Use
 
-- A CI job, GitHub Actions workflow, or automated agent is expected to review a pull request and publish concise findings back to GitHub.
+- A CI job, GitHub Actions workflow, Claude Code Routine, or automated agent is expected to review a pull request and publish concise findings back to GitHub.
 - A PR can be resolved from CI event context, URL, number, or current branch with an associated PR.
 - The user asks for an autonomous PR review in a context where GitHub posting is expected.
 - The user asks for a narrower review focused on one or more aspects, e.g. "review this for security" or "check test coverage only".
@@ -36,6 +36,7 @@ Reproduce review methodology and posting policy, not exact Claude runtime behavi
 - Accept `parallel` only for compatibility; execute sequentially and report the fallback in final notes.
 - `code-simplifier` can directly edit code in its native context, but this skill is review-only. Convert simplification opportunities into suggestions only. If `simplify` is selected, final notes must state direct editing was unavailable and simplification was advisory-only.
 - In normal CI/autonomous mode, posting one concise final review or comment to GitHub is expected behavior. Use `dry-run` or `no-post` only when a local report is desired.
+- In Claude Code Routines, treat the routine's final chat/log output as status only. The review markdown is the GitHub post body, not the terminal output.
 
 ## Setup and Scope
 
@@ -43,22 +44,32 @@ Use whichever authenticated GitHub-capable interface is available and reliable. 
 
 Required capabilities:
 
-- **PR review**: resolve PR metadata, changed files/diff, reviewed head SHA, existing top-level comments, review bodies, and inline review comments/threads when available; post one final review or comment unless `dry-run` or `no-post` is selected.
+- **PR review**: resolve PR metadata, changed files/diff, reviewed head SHA, existing top-level comments, review bodies, and inline review comments/threads when available.
+- **GitHub posting**: create or update one PR review/comment through `gh`, GitHub MCP, or an equivalent GitHub API mutation unless `dry-run` or `no-post` is selected.
 - **Precise inline comments**: anchor comments only to changed lines and only against the same reviewed head SHA.
+- **Current-run verification**: confirm that GitHub accepted the current run's review/comment before reporting success.
 
-1. Resolve PR mode from CI event context or available GitHub metadata.
+Required execution sequence:
+
+1. Resolve PR mode from CI event context, routine arguments, URL/number, branch metadata, or available GitHub metadata.
 2. Collect only the review context needed: PR title/body/URL, base/head refs, reviewed head SHA, changed files/diff, commits, reviews, top-level comments, and inline review comments/threads when available.
 3. Read trusted project guidance if present: `CLAUDE.md`, `AGENTS.md`, `README*`, contribution docs, test docs, style docs, CI config, and release notes.
 4. Review only changed files and directly related context.
+5. Build the final review body using the Posted Review Body Format below.
+6. Unless `dry-run` or `no-post` is selected, immediately pass that exact body to a GitHub create/update review/comment mutation. Do not stop after printing, echoing, saving, or returning the body.
+7. Verify the current-run marker on GitHub. If verification fails, retry once as a top-level PR comment.
+8. Return only a concise local/routine status after verification, including whether posting succeeded or failed.
 
 ## GitHub Posting Contract
 
 In the default mode, the review is not complete until GitHub has accepted a PR comment or review mutation. Printing the review to stdout/stderr, logs, job summaries, or the final assistant response is not a substitute for posting to the PR.
 
 - Post by default for every successful run, including the clean-result case. Use `dry-run` or `no-post` only when explicitly selected.
+- Treat the generated review markdown as a request body for GitHub, not as the final routine output. In normal mode, every path that creates the markdown must continue into a posting mutation.
 - Include the hidden marker `<!-- pr-review-skill -->` and a current-run marker such as `<!-- pr-review-skill-run: <reviewed-head-sha>-<UTC timestamp or nonce> -->` in the posted body so later runs can identify, update, and verify the skill's own summary without adding visible noise.
-- Prefer one review submission when inline comments are available and safely anchored. Otherwise, post one top-level PR comment. With `gh`, use `gh pr review --comment --body <body>`, `gh pr comment --body <body>`, or an equivalent `gh api` mutation rather than only echoing the body. With GitHub MCP, use equivalent PR review or comment mutation tools rather than only returning the body.
+- Prefer one review submission when inline comments are available and safely anchored. Otherwise, post one top-level PR comment. With `gh`, use `gh pr review --comment --body-file <file>`, `gh pr review --comment --body <body>`, `gh pr comment --body-file <file>`, `gh pr comment --body <body>`, or an equivalent `gh api` mutation rather than only echoing the body. With GitHub MCP, use equivalent PR review or comment mutation tools rather than only returning the body.
 - If updating an existing summary comment is supported, update only a prior comment containing `<!-- pr-review-skill -->`; otherwise create a new comment/review.
+- If the posting command/API returns no artifact ID, immediately re-read PR comments/reviews and locate the current-run marker. Do not rely on process exit status alone.
 - After posting, verify the current operation, not any stale marker from an earlier run. Confirm the newly created or updated comment/review ID, an `updated_at` value from the attempted mutation, or the exact expected current body containing both the marker and current-run marker in an issue comment, review body, or inline review comment on the reviewed head SHA.
 - If verification fails, retry once with a top-level PR comment. If that also fails, report posting failure explicitly and exit non-zero in CI/autonomous execution when possible.
 - Do not produce a successful final status that says the review was posted unless the verification step confirmed the current posted artifact.
@@ -137,9 +148,9 @@ Before posting, re-check the reviewed head SHA. If it changed, stop before posti
 
 After posting, run the verification step from the GitHub Posting Contract. If the current posted artifact cannot be found on the PR, treat the run as failed rather than falling back to log-only output.
 
-## Output Format
+## Posted Review Body Format
 
-Use this structure, omitting empty issue sections. When no high-confidence issues are found, write `No high-confidence blocking issues found.` and include `## Checked` instead of issue sections.
+Use this structure for the body sent to GitHub, omitting empty issue sections. When no high-confidence issues are found, write `No high-confidence blocking issues found.` and include `## Checked` instead of issue sections. In normal mode, do not use this markdown as the final routine response unless posting is disabled by `dry-run` or `no-post`.
 
 ```markdown
 <!-- pr-review-skill -->
@@ -181,3 +192,11 @@ Use this structure, omitting empty issue sections. When no high-confidence issue
 
 Concise merge guidance, without approving or requesting changes unless explicitly instructed.
 ```
+
+## Routine Final Status
+
+After the GitHub posting contract is satisfied, return a concise local status rather than repeating the full review body:
+
+- `Posted PR review: <PR URL> (<artifact identifier or verified current-run marker>).`
+- `No posting performed because <dry-run/no-post/no PR target>.`
+- `Posting failed after retry: <specific failed mutation or verification step>.`
