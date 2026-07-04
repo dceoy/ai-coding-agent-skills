@@ -1,5 +1,5 @@
 ---
-name: github-pr-feedback-triage
+name: pr-feedback-triage
 description: Triage pull request review comments into fixes, replies, clarification requests, or open follow-ups while respecting safe execution modes.
 allowed-tools: Bash(git:*), Bash(gh:*), mcp__github__*, Read, Grep, Glob, Edit, MultiEdit, Write
 ---

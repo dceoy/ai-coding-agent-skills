@@ -36,8 +36,8 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 - `code-review` - Comprehensive multi-agent code review for pull requests
 - `code-simplifier` - Simplify and refine code for clarity and maintainability
-- `github-pr-feedback-triage` - Triage and resolve pull request review feedback
-- `github-pr-review` - Autonomous CI/GitHub PR review that posts concise, high-confidence findings by default
+- `pr-feedback-triage` - Triage and resolve pull request review feedback
+- `pr-review` - Autonomous CI/GitHub PR review that posts concise, high-confidence findings by default
 - `security-guidance` - Security-focused review of code changes, diffs, commits, and pull requests
 
 ### AI Tools
@@ -82,7 +82,7 @@ Install and authenticate the required CLI tools before running skills:
 
 - Skills do not always auto-run; use your agent's skill invocation flow or ask for the skill explicitly.
 - For Claude Code Routines, CI, and other autonomous workflows, invoke the canonical skill under `skills/` and pass runtime-specific context externally.
-- `github-pr-review` is the source of truth for autonomous PR review behavior, including GitHub posting and verification.
+- `pr-review` is the source of truth for autonomous PR review behavior, including GitHub posting and verification.
 - If a skill fails, open its `SKILL.md` and verify prerequisites and command syntax.
 
 ## Troubleshooting

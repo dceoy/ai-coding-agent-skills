@@ -1,5 +1,5 @@
 ---
-name: github-pr-review
+name: pr-review
 description: Run an autonomous CI/GitHub pull request review that inspects PR diffs and posts concise, high-confidence review findings to GitHub by default. Use in CI, GitHub Actions, Claude Code Routines, or other automated PR-review contexts where posting review comments is expected.
 allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(gh auth status:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr list:*), Bash(gh pr comment:*), Bash(gh pr review:*), Bash(gh api:*), mcp__github__*, Read, Grep, Glob
 ---
