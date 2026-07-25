@@ -4,18 +4,7 @@
 
 This is a single-source skill library shared across AI coding runtimes. The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
 
-## Architecture
-
-```
-skills/                        # Source of truth for all skills
-├── <skill-name>/SKILL.md      # Each skill is a directory with a SKILL.md
-.claude/skills -> ../skills    # Symlink: exposes skills/ to Claude Code runtime
-.agents/skills/                # Per-skill symlinks into skills/ (other runtimes)
-tests/                         # Python tests for QA validation
-pyproject.toml                 # Local QA tooling: ruff, pyright, pytest
-```
-
-### SKILL.md Frontmatter
+## SKILL.md Frontmatter
 
 Each `SKILL.md` uses YAML frontmatter:
 
