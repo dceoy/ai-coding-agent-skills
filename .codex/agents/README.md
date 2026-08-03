@@ -25,47 +25,43 @@ A read-only parent prevents implementation workers from writing. A workspace-wri
 
 ## User-wide installation
 
-The files in this repository are project-scoped by default. To make the agent definitions available in every Codex project, copy them to `~/.codex/agents/`:
+The files in this repository are project-scoped by default. Codex uses `$CODEX_HOME` as its home directory when set and otherwise defaults to `$HOME/.codex`.
+
+To copy the agent definitions and routing instructions for every Codex project:
 
 ```bash
-mkdir -p ~/.codex/agents
-cp .codex/agents/*.toml ~/.codex/agents/
-```
+codex_home="${CODEX_HOME:-$HOME/.codex}"
+mkdir -p "$codex_home/agents"
+cp .codex/agents/*.toml "$codex_home/agents/"
 
-Install the supplied routing instructions only when neither global instruction file exists:
-
-```bash
-if [ -e "$HOME/.codex/AGENTS.override.md" ] || [ -L "$HOME/.codex/AGENTS.override.md" ]; then
-  printf '%s\n' 'Keep the existing ~/.codex/AGENTS.override.md and merge the Model routing section from .codex/AGENTS.md into that active override manually.'
-elif [ -e "$HOME/.codex/AGENTS.md" ] || [ -L "$HOME/.codex/AGENTS.md" ]; then
-  printf '%s\n' 'Keep the existing ~/.codex/AGENTS.md and merge the Model routing section from .codex/AGENTS.md manually.'
+if [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
+  printf 'Keep the existing %s and merge the Model routing section from .codex/AGENTS.md into that active override manually.\n' "$codex_home/AGENTS.override.md"
+elif [ -e "$codex_home/AGENTS.md" ] || [ -L "$codex_home/AGENTS.md" ]; then
+  printf 'Keep the existing %s and merge the Model routing section from .codex/AGENTS.md manually.\n' "$codex_home/AGENTS.md"
 else
-  cp .codex/AGENTS.md "$HOME/.codex/AGENTS.md"
+  cp .codex/AGENTS.md "$codex_home/AGENTS.md"
 fi
 ```
 
-Codex prefers a non-empty `~/.codex/AGENTS.override.md` over `~/.codex/AGENTS.md`. If an override exists, merge the routing section into that file or remove it only after preserving its instructions. Do not replace either existing file or symlink until its current instructions have been preserved.
+Codex prefers a non-empty `AGENTS.override.md` over `AGENTS.md` in its home directory. If an override exists, merge the routing section into that file or remove it only after preserving its instructions. Do not replace either existing file or symlink until its current instructions have been preserved.
 
 To keep the agent definitions synchronized with this repository, use symlinks from a local clone:
 
 ```bash
+codex_home="${CODEX_HOME:-$HOME/.codex}"
 repo_root="$(git rev-parse --show-toplevel)"
-mkdir -p ~/.codex/agents
+mkdir -p "$codex_home/agents"
 
 for file in "$repo_root"/.codex/agents/*.toml; do
-  ln -sfn "$file" "$HOME/.codex/agents/$(basename "$file")"
+  ln -sfn "$file" "$codex_home/agents/$(basename "$file")"
 done
-```
 
-Link the routing instructions only when neither global instruction file exists:
-
-```bash
-if [ -e "$HOME/.codex/AGENTS.override.md" ] || [ -L "$HOME/.codex/AGENTS.override.md" ]; then
-  printf '%s\n' 'Keep the existing ~/.codex/AGENTS.override.md and merge the Model routing section from the repository file into that active override manually.'
-elif [ -e "$HOME/.codex/AGENTS.md" ] || [ -L "$HOME/.codex/AGENTS.md" ]; then
-  printf '%s\n' 'Keep the existing ~/.codex/AGENTS.md and merge the Model routing section from the repository file manually.'
+if [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
+  printf 'Keep the existing %s and merge the Model routing section from the repository file into that active override manually.\n' "$codex_home/AGENTS.override.md"
+elif [ -e "$codex_home/AGENTS.md" ] || [ -L "$codex_home/AGENTS.md" ]; then
+  printf 'Keep the existing %s and merge the Model routing section from the repository file manually.\n' "$codex_home/AGENTS.md"
 else
-  ln -s "$repo_root/.codex/AGENTS.md" "$HOME/.codex/AGENTS.md"
+  ln -s "$repo_root/.codex/AGENTS.md" "$codex_home/AGENTS.md"
 fi
 ```
 
