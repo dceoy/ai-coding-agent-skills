@@ -1,15 +1,16 @@
 # Codex custom subagents
 
-These project-scoped agents separate high-quality planning and advice from implementation. Current Codex releases discover each standalone TOML file under `.codex/agents/` automatically; no per-agent registration in `.codex/config.toml` is required.
+These project-scoped agents separate high-quality planning and final review from implementation. Current Codex releases discover each standalone TOML file under `.codex/agents/` automatically; no per-agent registration in `.codex/config.toml` is required.
 
 The invocation examples target local Codex app, CLI, and IDE sessions. Tool-backed or programmatic Codex integrations may not expose named project agents; verify runtime support before relying on these definitions. See [openai/codex#15250](https://github.com/openai/codex/issues/15250).
 
-| Agent          | Model           | Configured sandbox | Purpose                                                                |
-| -------------- | --------------- | ------------------ | ---------------------------------------------------------------------- |
-| `planner_sol`  | `gpt-5.6-sol`   | Read-only          | Produce a decision-complete implementation plan and select an executor |
-| `advisor_sol`  | `gpt-5.6-sol`   | Read-only          | Provide architectural or technical advice without implementation       |
-| `worker_terra` | `gpt-5.6-terra` | Workspace write    | Implement non-trivial approved plans                                   |
-| `worker_luna`  | `gpt-5.6-luna`  | Workspace write    | Implement narrow, deterministic, mechanically verifiable plans         |
+| Agent          | Model           | Configured sandbox | Purpose                                                                    |
+| -------------- | --------------- | ------------------ | -------------------------------------------------------------------------- |
+| `planner_sol`  | `gpt-5.6-sol`   | Read-only          | Produce a five-part, decision-complete implementation contract             |
+| `advisor_sol`  | `gpt-5.6-sol`   | Read-only          | Provide technical advice or a fresh `ship / fix-first / rethink` review    |
+| `worker_terra` | `gpt-5.6-terra` | Workspace write    | Implement approved non-trivial contracts and report verification evidence |
+
+`worker_luna` was removed after reevaluating its routing value. Narrow, deterministic edits are already handled directly by the main agent, while delegated implementation benefits from one consistent Terra contract and review path.
 
 ## Permission model
 
@@ -17,15 +18,17 @@ The sandbox values above are agent-file defaults, not immutable per-agent bounda
 
 Use these parent permission modes:
 
-- Planning or advice only: start the parent turn in read-only mode.
+- Planning, advice, or final review only: start the parent turn in read-only mode.
 - Implementation: start a separate parent turn in workspace-write mode.
-- One-turn planning and implementation: use workspace-write mode, but understand that the planner's read-only behavior is instruction-enforced rather than sandbox-enforced.
+- One-turn planning and implementation: use workspace-write mode, but understand that planner and reviewer read-only behavior is instruction-enforced rather than sandbox-enforced.
 
-A read-only parent prevents implementation workers from writing. A workspace-write parent can grant write access to planning agents despite their configured defaults.
+A read-only parent prevents implementation workers from writing. A workspace-write parent can grant write access to planning or review agents despite their configured defaults. For a final review under a broadened parent permission, capture the repository state before and after review and reject the verdict if any mutation occurs.
 
 ## User-wide installation
 
 The files in this repository are project-scoped by default. Codex uses `$CODEX_HOME` as its home directory when set and otherwise defaults to `$HOME/.codex`.
+
+Before updating an installation created from an earlier version, review and remove the retired `$CODEX_HOME/agents/worker-luna.toml` or `$HOME/.codex/agents/worker-luna.toml`. Preserve it first if it contains local customizations. Leaving it installed does not change this repository's routing policy, but Codex may continue to expose the stale role by name.
 
 To copy the agent definitions and routing instructions for every Codex project:
 
@@ -88,18 +91,18 @@ fi
 
 The symlink preflight likewise stops before creating any links when a destination already exists.
 
-Start a new Codex session after installing or updating the files.
+Start a new Codex session after installing, removing a retired role, or updating the files.
 
 ## Usage
 
 Ask Codex to delegate explicitly by agent name.
 
-### Plan and implement in one turn
+### Plan, implement, verify, and review in one turn
 
-Start the parent turn in workspace-write mode. This convenience workflow relies on the planner instructions to avoid edits:
+Start the parent turn in workspace-write mode. This convenience workflow relies on planner and reviewer instructions to avoid edits:
 
 ```text
-Use planner_sol to plan this task. After the plan is complete, delegate implementation to the recommended worker_terra or worker_luna agent. Use only one active write-capable worker at a time, and do not run workers concurrently.
+Use planner_sol to produce the five-part implementation contract. Delegate it to worker_terra. Inspect the complete diff and rerun validation in the parent session, then use a fresh advisor_sol context for final review. Do not report completion unless the verdict is ship.
 ```
 
 ### Approval-gated workflow
@@ -107,13 +110,13 @@ Use planner_sol to plan this task. After the plan is complete, delegate implemen
 Start the planning turn in read-only mode:
 
 ```text
-Use planner_sol to produce the implementation plan only. Do not modify files.
+Use planner_sol to produce the five-part implementation contract only. Do not modify files.
 ```
 
-After reviewing the plan, start a separate parent turn in workspace-write mode:
+After reviewing the contract, start a separate parent turn in workspace-write mode:
 
 ```text
-Implement the approved plan with worker_terra.
+Implement the approved contract with worker_terra. Inspect the complete diff and rerun all validation before requesting final review from a fresh advisor_sol context.
 ```
 
 ### Advice only
@@ -124,12 +127,30 @@ Start the parent turn in read-only mode:
 Use advisor_sol to evaluate this design. Return advice only and do not modify files.
 ```
 
+### Final review only
+
+Start the parent turn in read-only mode when enforced isolation is required:
+
+```text
+Use a fresh advisor_sol context to review the stated goal, complete change set, interfaces, constraints, and verification evidence. Return only ship, fix-first, or rethink and do not modify files.
+```
+
 ## Routing policy
 
 The routing policy applies only to the root or main agent. Named custom agents follow their agent-specific instructions and must not spawn or delegate to another subagent.
 
-Use `worker_luna` only for localized, low-risk changes with explicit scope and mechanical validation. Use `worker_terra` when the change requires diagnosis, non-trivial reasoning, cross-cutting edits, or adaptation to repository state.
+Use the main agent directly for simple questions and localized, deterministic edits. Use `planner_sol` and `worker_terra` for delegated non-trivial implementation.
 
-Use only one active write-capable worker at a time. A sequential Luna-to-Terra handoff is allowed only after Luna has stopped, reported every partial edit, and returned control to the parent. The parent must review that state before starting Terra; workers must not spawn or delegate to another write-capable worker themselves.
+The planner must produce these five contract sections:
 
-If an implementation agent encounters an unplanned architectural, security, compatibility, or data-model decision, return control to `planner_sol` or `advisor_sol` instead of silently expanding the plan.
+1. Objective
+2. Files and ownership
+3. Interfaces
+4. Constraints
+5. Verification
+
+Treat the worker report as claims. The main agent must inspect the complete working-tree diff, verify scope, rerun relevant checks, and reconcile the report with actual evidence.
+
+After parent verification, start a fresh `advisor_sol` context with the goal, allowed change set, complete diff or revisions, interfaces and constraints, and verification evidence. Completion requires `VERDICT: ship`. Any later code change invalidates the verdict and requires a new final review.
+
+If implementation encounters an unplanned architectural, security, compatibility, data-model, authentication, authorization, or migration decision, return control to `planner_sol` or `advisor_sol` instead of silently expanding the contract.
