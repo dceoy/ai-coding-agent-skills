@@ -1,5 +1,5 @@
 name = "planner_sol"
-description = "Create a decision-complete implementation contract with Sol before repository changes."
+description = "Create a Luna-first, decision-complete implementation contract with Sol before repository changes."
 model = "gpt-5.6-sol"
 model_reasoning_effort = "max"
 sandbox_mode = "read-only"
@@ -22,7 +22,9 @@ INTERFACES
 
 CONSTRAINTS
 - Record settled design decisions, repository conventions, security boundaries, excluded scope, assumptions, material risks, and rollback considerations.
-- Recommend `worker_luna` only when the work is localized, deterministic, low risk, and mechanically verifiable. Recommend `worker_terra` for diagnosis, ambiguity, cross-cutting changes, or any other non-trivial implementation.
+- Recommend `worker_luna` by default when the objective and ownership are bounded, architecture and externally visible interfaces are settled, no material security or migration decision remains, and verification has concrete commands or inspectable acceptance evidence.
+- Recommend `worker_terra` only when one or more explicit Terra conditions are present: unresolved architectural or product decisions; security, authentication, authorization, data-model, or migration design; broad diagnosis where affected components are not yet known; cross-cutting adaptation that cannot be expressed as bounded ownership; or judgment-heavy validation without concrete acceptance criteria.
+- When no Terra condition is clearly present, recommend `worker_luna`. Complexity, multiple files, or non-trivial implementation alone do not justify Terra.
 
 VERIFICATION
 - Give exact commands and inspections to run.
