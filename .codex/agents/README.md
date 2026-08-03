@@ -21,7 +21,7 @@ Use these parent permission modes:
 - Implementation: start a separate parent turn in workspace-write mode.
 - One-turn planning and implementation: use workspace-write mode, but understand that planner and reviewer read-only behavior is instruction-enforced rather than sandbox-enforced.
 
-A read-only parent prevents implementation workers from writing. A workspace-write parent can grant write access to planning or review agents despite their configured defaults. For a final review under a broadened parent permission, capture the repository state immediately before and after review and reject the verdict if any mutation occurs.
+A read-only parent prevents implementation workers from writing. A workspace-write parent can grant write access to planning or review agents despite their configured defaults. A named final review must be spawned with `fork_turns: "none"` so it receives no inherited implementation history. For a final review under a broadened parent permission, capture the repository state immediately before and after review and reject the verdict if any mutation occurs.
 
 ## User-wide installation
 
@@ -99,7 +99,7 @@ Ask Codex to delegate explicitly by agent name.
 Start the parent turn in workspace-write mode. This convenience workflow relies on planner and reviewer instructions to avoid edits:
 
 ```text
-Use planner_sol to produce the five-part implementation contract and resolve all material decisions before implementation. Capture the repository baseline, then delegate to worker_luna unless the contract requires bounded file discovery. Treat adaptive judgment as a Terra condition only after Luna reports a concrete suitability failure or escalation. If Luna declines or escalates, inspect its state and either replan or hand off sequentially to worker_terra. Compare the result against the baseline, rerun validation in the parent session, capture a pre-review baseline, and use a fresh advisor_sol context for final review. Reject the verdict if review mutates the repository, and do not report completion unless the verdict is ship.
+Use planner_sol to produce the five-part implementation contract and resolve all material decisions before implementation. Capture the repository baseline, including content or hashes for relevant pre-existing untracked files, then delegate to worker_luna unless the contract requires bounded file discovery. Treat adaptive judgment as a Terra condition only after Luna reports a concrete suitability failure or escalation. If Luna declines or escalates, inspect its state and either replan or hand off sequentially to worker_terra. Compare the result against the baseline, rerun validation in the parent session, capture a pre-review baseline with the same relevant untracked-file evidence, and spawn advisor_sol with fork_turns set to none for final review. Reject the verdict if review mutates the repository, and do not report completion unless the verdict is ship.
 ```
 
 ### Approval-gated workflow
@@ -113,7 +113,7 @@ Use planner_sol to produce the five-part implementation contract and a Luna-firs
 After reviewing the contract, start a separate parent turn in workspace-write mode:
 
 ```text
-Capture the repository baseline. Implement the approved contract with worker_luna unless bounded file discovery is required. Escalate adaptive judgment to worker_terra only after a documented Luna suitability failure. Compare the result against the baseline, rerun all validation, capture a pre-review baseline, and request final review from a fresh advisor_sol context.
+Capture the repository baseline, including content or hashes for relevant pre-existing untracked files. Implement the approved contract with worker_luna unless bounded file discovery is required. Escalate adaptive judgment to worker_terra only after a documented Luna suitability failure. Compare the result against the baseline, rerun all validation, capture a pre-review baseline with the same relevant untracked-file evidence, and spawn advisor_sol with fork_turns set to none for final review.
 ```
 
 ### Advice only
@@ -129,7 +129,7 @@ Use advisor_sol to evaluate this design. Return advice only and do not modify fi
 Start the parent turn in read-only mode when enforced isolation is required:
 
 ```text
-Use a fresh advisor_sol context to review the stated goal, the complete baseline-relative tracked diff and relevant untracked-file content evidence, interfaces, constraints, and verification evidence. Use immutable base and head revisions instead only when they fully encode the entire reviewed change set and the relevant worktree is clean. Return only ship, fix-first, or rethink and do not modify files.
+Spawn advisor_sol with fork_turns set to none. Review the stated goal, the complete baseline-relative tracked diff, content evidence for newly relevant untracked files, before-and-after content or hash evidence for relevant pre-existing untracked files, interfaces, constraints, and verification evidence. Use immutable base and head revisions instead only when they fully encode the entire reviewed change set and the relevant worktree is clean. Return only ship, fix-first, or rethink and do not modify files.
 ```
 
 ## Routing policy
@@ -175,15 +175,17 @@ Before starting a worker, the parent must capture the repository state, includin
 
 - current `HEAD`;
 - `git status --short` or equivalent status evidence;
-- staged and unstaged diffs; and
-- the untracked-file inventory, with content evidence when an untracked file is inside the approved ownership boundary.
+- staged and unstaged diffs;
+- the untracked-file inventory;
+- content evidence for newly relevant untracked files; and
+- content or cryptographic hashes for every relevant pre-existing untracked file inside the approved ownership boundary or used by verification, so same-path content mutations are detectable.
 
-After the worker returns, compare the repository against that captured state. Review and validate only the worker-introduced delta, while preserving and excluding pre-existing or concurrent edits. A current working-tree diff by itself is insufficient because it cannot attribute changes to the worker or detect committed mutations reliably.
+After the worker returns, compare the repository against that captured state, including the recorded content or hashes for relevant pre-existing untracked files. Review and validate only the worker-introduced delta, while preserving and excluding pre-existing or concurrent edits. A current working-tree diff by itself is insufficient because it cannot attribute changes to the worker, detect committed mutations reliably, or detect content changes to a pre-existing untracked path.
 
-After parent verification, capture a second repository baseline immediately before starting a fresh `advisor_sol` review. Supply the complete baseline-relative tracked diff, content evidence for relevant untracked files, interfaces, constraints, and verification evidence. Explicit immutable base and head revisions may replace that evidence only when they fully encode the entire reviewed change set and the relevant worktree is clean. Compare the repository state again after the reviewer returns. Any reviewer-time mutation invalidates the verdict and must be investigated without overwriting unrelated changes.
+After parent verification, capture a second repository baseline immediately before starting the final review, including content or hashes for every relevant pre-existing untracked file. Spawn `advisor_sol` with `fork_turns: "none"` so the reviewer receives no inherited implementation history. Supply the complete baseline-relative tracked diff, content evidence for newly relevant untracked files, before-and-after content or hash evidence for relevant pre-existing untracked files, interfaces, constraints, and verification evidence. Explicit immutable base and head revisions may replace that evidence only when they fully encode the entire reviewed change set and the relevant worktree is clean. Compare the repository state again after the reviewer returns, including relevant untracked-file content or hashes. Any reviewer-time mutation invalidates the verdict and must be investigated without overwriting unrelated changes.
 
 Treat every worker report as claims. The main agent must verify the baseline-relative change set, enforce the approved ownership boundary, rerun relevant checks, and reconcile the report with actual evidence.
 
-Completion requires `VERDICT: ship`. Any later code change invalidates the verdict and requires a new parent verification pass and fresh review.
+Completion requires `VERDICT: ship`. Any later change to the reviewed change set or verification-relevant repository state invalidates the verdict and requires a new parent verification pass and fresh no-history review.
 
 For `fix-first` findings, route bounded corrections to `worker_luna` by default, even when the initial implementation used Terra. Use `worker_terra` only when the finding introduces a valid Terra condition. Return `rethink` findings or newly unresolved material decisions to `planner_sol`, `advisor_sol`, or the user.
