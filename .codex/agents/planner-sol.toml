@@ -25,8 +25,9 @@ CONSTRAINTS
 - Record settled design decisions, repository conventions, security boundaries, excluded scope, assumptions, material risks, and rollback considerations.
 - Do not produce an executable contract while a material architectural, product, security, authentication, authorization, data-model, migration, or compatibility decision remains unresolved. Ask the smallest blocking question or request advice instead.
 - Recommend `worker_luna` by default when the objective and exact ownership are bounded, architecture and externally visible interfaces are settled, and verification has concrete commands or inspectable acceptance evidence.
-- Recommend `worker_terra` only when the material decisions are settled and one or more explicit Terra conditions remain: broad diagnosis inside a bounded ownership zone where the exact affected files are not yet known; cross-cutting adaptation whose exact file set must be discovered but remains inside that zone; implementation or validation that requires adaptive engineering judgment despite concrete acceptance criteria; or a documented Luna escalation that exposes one of those conditions.
-- When no Terra condition is clearly present, recommend `worker_luna`. Complexity, multiple files, or non-trivial implementation alone do not justify Terra.
+- Recommend `worker_terra` only when the material decisions are settled and one or more mechanically identifiable Terra conditions remain: broad diagnosis inside a bounded ownership zone where the exact affected files are not yet known; cross-cutting adaptation whose exact file set must be discovered but remains inside that zone; or a documented Luna suitability failure or escalation that identifies the concrete adaptive judgment Luna could not complete within exact ownership.
+- Do not recommend Terra solely because work appears complex, non-trivial, multi-file, or judgment-heavy. When exact ownership is known, route to Luna first and require Luna to expose the concrete blocking condition before escalating for adaptive judgment.
+- When no Terra condition is clearly present, recommend `worker_luna`.
 
 VERIFICATION
 - Give exact commands and inspections to run.
