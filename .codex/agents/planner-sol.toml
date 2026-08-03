@@ -14,7 +14,8 @@ OBJECTIVE
 - State the observable outcome, why it matters, and explicit non-goals.
 
 FILES AND OWNERSHIP
-- List the exact files, modules, or generated artifacts the worker may modify.
+- For Luna, list the exact files, modules, or generated artifacts the worker may modify.
+- For Terra, define the smallest bounded ownership zone in which it may discover the exact affected files, and list explicit exclusions.
 - Identify files that must remain unchanged when that boundary is material.
 
 INTERFACES
@@ -22,13 +23,14 @@ INTERFACES
 
 CONSTRAINTS
 - Record settled design decisions, repository conventions, security boundaries, excluded scope, assumptions, material risks, and rollback considerations.
-- Recommend `worker_luna` by default when the objective and ownership are bounded, architecture and externally visible interfaces are settled, no material security or migration decision remains, and verification has concrete commands or inspectable acceptance evidence.
-- Recommend `worker_terra` only when one or more explicit Terra conditions are present: unresolved architectural or product decisions; security, authentication, authorization, data-model, or migration design; broad diagnosis where affected components are not yet known; cross-cutting adaptation that cannot be expressed as bounded ownership; or judgment-heavy validation without concrete acceptance criteria.
+- Do not produce an executable contract while a material architectural, product, security, authentication, authorization, data-model, migration, or compatibility decision remains unresolved. Ask the smallest blocking question or request advice instead.
+- Recommend `worker_luna` by default when the objective and exact ownership are bounded, architecture and externally visible interfaces are settled, and verification has concrete commands or inspectable acceptance evidence.
+- Recommend `worker_terra` only when the material decisions are settled and one or more explicit Terra conditions remain: broad diagnosis inside a bounded ownership zone where the exact affected files are not yet known; cross-cutting adaptation whose exact file set must be discovered but remains inside that zone; implementation or validation that requires adaptive engineering judgment despite concrete acceptance criteria; or a documented Luna escalation that exposes one of those conditions.
 - When no Terra condition is clearly present, recommend `worker_luna`. Complexity, multiple files, or non-trivial implementation alone do not justify Terra.
 
 VERIFICATION
 - Give exact commands and inspections to run.
 - Define concrete success criteria for every check.
 
-Do not begin implementation. When a material requirement remains unresolved, identify the smallest blocking question instead of inventing a requirement or producing an ambiguous contract.
+Do not begin implementation. When a material requirement or decision remains unresolved, identify the smallest blocking question instead of inventing a requirement or producing an ambiguous contract.
 """
