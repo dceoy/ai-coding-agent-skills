@@ -57,9 +57,9 @@ Project-scoped agent definitions under `.codex/agents/` use a plan, Luna-first i
 - `planner_sol` - Produce a five-part implementation contract and Luna-first executor recommendation with `gpt-5.6-sol`
 - `advisor_sol` - Provide read-only technical advice or fresh final review with `gpt-5.6-sol`
 - `worker_luna` - Default implementation worker for bounded, settled, and verifiable contracts with `gpt-5.6-luna`
-- `worker_terra` - Escalation worker for broad diagnosis, unresolved scope, or adaptive decisions with `gpt-5.6-terra`
+- `worker_terra` - Escalation worker for bounded ownership-zone discovery or adaptive decisions with `gpt-5.6-terra`
 
-Use Luna by default whenever scope, interfaces, constraints, and acceptance evidence are sufficiently settled. Use Terra only for an explicit escalation condition; complexity or multiple files alone do not justify Terra. The main agent inspects the complete diff, reruns validation, and obtains a fresh Sol verdict before completion.
+Use Luna by default whenever exact scope, interfaces, constraints, and acceptance evidence are settled. Use Terra only after material decisions are settled and an explicit bounded-discovery or adaptive-judgment condition remains; complexity or multiple files alone do not justify Terra. The main agent captures a pre-worker repository baseline, verifies only the worker-introduced delta, reruns validation, guards against reviewer mutation, and obtains a fresh Sol verdict before completion.
 
 See [.codex/agents/README.md](./.codex/agents/README.md) for routing rules, permission behavior, and invocation examples.
 
