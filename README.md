@@ -52,13 +52,14 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ## Codex Custom Subagents
 
-Project-scoped agent definitions under `.codex/agents/` use a plan, implement, verify, and fresh-review workflow. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required.
+Project-scoped agent definitions under `.codex/agents/` use a plan, implement, verify, and fresh-review workflow. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required. All four agents use maximum reasoning effort.
 
-- `planner_sol` - Produce a five-part implementation contract with `gpt-5.6-sol`
+- `planner_sol` - Produce a five-part implementation contract and executor recommendation with `gpt-5.6-sol`
 - `advisor_sol` - Provide read-only technical advice or fresh final review with `gpt-5.6-sol`
-- `worker_terra` - Implement approved non-trivial contracts with `gpt-5.6-terra`
+- `worker_terra` - Implement non-trivial or adaptive contracts with `gpt-5.6-terra`
+- `worker_luna` - Implement localized deterministic contracts with `gpt-5.6-luna`
 
-Narrow, deterministic edits remain with the main agent. Delegated implementation uses one Terra worker, parent-session diff inspection and validation, and a fresh Sol verdict before completion.
+Use Luna only after its suitability check confirms explicit scope and mechanical validation; otherwise use Terra. The main agent inspects the complete diff, reruns validation, and obtains a fresh Sol verdict before completion.
 
 See [.codex/agents/README.md](./.codex/agents/README.md) for routing rules, permission behavior, and invocation examples.
 
