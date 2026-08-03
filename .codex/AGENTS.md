@@ -1,5 +1,7 @@
 # Global Codex instructions
 
+This file is the user-wide installation template. Project-local Codex sessions read the same routing policy from the repository-root `AGENTS.md`.
+
 ## Model routing
 
 Use the main agent directly for simple questions and narrow, deterministic edits.
