@@ -4,6 +4,8 @@ This file is the user-wide installation template. Project-local Codex sessions r
 
 ## Model routing
 
+This section applies only to the root or main agent that receives the user's task. Named custom agents (`planner_sol`, `advisor_sol`, `worker_terra`, and `worker_luna`) must ignore this section, follow their agent-specific instructions, and must not spawn or delegate to another subagent.
+
 Use the main agent directly for simple questions and narrow, deterministic edits.
 
 For non-trivial implementation tasks:
