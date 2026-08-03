@@ -52,16 +52,16 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ## Codex Custom Subagents
 
-Project-scoped agent definitions under `.codex/agents/` are native Codex agent roles used by the top-level Codex parent through native multi-agent dispatch. The TOML files are role definitions, not prompts for nested `codex exec` invocations. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required. All four agents use xhigh reasoning effort.
+Project-scoped definitions under `.codex/agents/` provide two native read-only Codex roles used by the top-level parent through native multi-agent dispatch. The TOML files are role definitions, not prompts for nested `codex exec` invocations. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required.
 
-- `planner_sol` - Produce a five-part implementation contract and Luna-first executor recommendation with `gpt-5.6-sol`
-- `advisor_sol` - Provide read-only technical advice or an attested fresh final review with `gpt-5.6-sol`
-- `worker_luna` - Default implementation worker for bounded, settled, and verifiable contracts with exact repository file and generated-artifact ownership, using `gpt-5.6-luna`
-- `worker_terra` - Escalation worker for bounded module, package, or directory discovery or Luna-documented adaptive decisions, with `gpt-5.6-terra`
+- `planner` - Produce a decision-complete five-part implementation contract with `gpt-5.6-sol`
+- `advisor` - Provide read-only technical advice or an attested fresh final review with `gpt-5.6-sol`
 
-Use Luna by default whenever every modifiable repository file and generated-artifact path is enumerated and interfaces, constraints, and acceptance evidence are settled. Use Terra escalation only after material decisions are settled and either bounded file discovery is required or Luna documents a concrete adaptive judgment it cannot complete within exact ownership; complexity, multiple files, or apparent need for engineering judgment alone do not justify escalation. The parent preflights native named-agent and model availability. If native named-agent dispatch is unavailable, stop and report `unsupported`; do not fall back to `codex exec`, nested Codex CLI processes, shell wrappers, direct parent execution, generic children, or compatibility modes.
+Both roles use `model_reasoning_effort = "xhigh"`. Implementation is performed directly by the top-level main agent with xhigh reasoning; there are no dedicated Luna or Terra worker subagents.
 
-The main agent first captures the approved full baseline, including staged, unstaged, and relevant untracked state. It uses a clean `HEAD`-based worktree only when that relevant workspace is clean; otherwise it seeds isolation from an immutable full-baseline snapshot or keeps the current worktree under exclusive writes. Workers report only their intentional edits, while the parent computes the authoritative baseline-relative delta, blocks on unexpected or unattributable concurrent mutations, reruns validation, and freezes a complete evidence packet. Final review then runs in a separate read-only parent session. The reviewer classifies `fix-first` remediation as parent evidence repair, repository changes, or both, so missing model/permission attestation or incomplete review inputs are not incorrectly delegated to an implementation worker.
+For non-trivial changes, the parent invokes `planner`, captures the complete pre-implementation baseline, and then implements the approved contract directly. The main agent owns scope enforcement, the authoritative baseline-relative delta, inspection, and verification. It freezes the verified state before a fresh separate read-only parent session invokes `advisor` with `fork_turns: "none"` for the final review gate.
+
+If native named-agent dispatch is unavailable for planning or review, stop and report `unsupported`; do not fall back to `codex exec`, nested Codex CLI processes, shell wrappers, generic children, copied prompts, or compatibility modes.
 
 See [.codex/agents/README.md](./.codex/agents/README.md) for routing rules, permission behavior, and invocation examples.
 
