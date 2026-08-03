@@ -1,13 +1,13 @@
 # Codex custom subagents
 
-These project-scoped agents separate planning and final review from implementation. Current Codex releases discover each standalone TOML file under `.codex/agents/` automatically; no per-agent registration in `.codex/config.toml` is required.
+These project-scoped TOML files define native Codex agent roles that separate planning and final review from implementation. Current Codex releases discover each standalone TOML file under `.codex/agents/` automatically; no per-agent registration in `.codex/config.toml` is required.
 
-The examples target local Codex app, CLI, and IDE sessions. Tool-backed or programmatic integrations may not expose named project agents; verify runtime support before relying on these definitions. See [openai/codex#15250](https://github.com/openai/codex/issues/15250). Some current builds also reject Luna as a spawned subagent even when it is available as a top-level model; see [openai/codex#34700](https://github.com/openai/codex/issues/34700). Generic spawned children may not prove that a named definition loaded, so worker and reviewer attestation is mandatory.
+Invoke these roles only from a top-level Codex parent through Codex's native multi-agent tools. These TOML files are native role definitions, not prompts intended for nested `codex exec` invocations, shell wrappers, or equivalent subprocesses. If the runtime does not expose native named-agent dispatch, stop and report `unsupported`; do not replace a named role with a generic child, copied prompt, direct parent execution, or compatibility mode. Runtime metadata must prove the resolved definition, effective model, reasoning effort, sandbox, and permission mode.
 
 - `planner_sol`: `gpt-5.6-sol`, maximum reasoning, read-only. Produces a five-part implementation contract with Luna-first routing.
 - `advisor_sol`: `gpt-5.6-sol`, maximum reasoning, read-only. Provides technical advice or an attested fresh `ship / fix-first / rethink` review with an explicit remediation class.
 - `worker_luna`: `gpt-5.6-luna`, maximum reasoning, workspace-write. Default worker for bounded, settled, and verifiable implementation contracts with exact file and artifact ownership.
-- `worker_terra`: `gpt-5.6-terra`, maximum reasoning, workspace-write. Handles bounded Terra escalation or constrained Luna-compatible execution when Luna cannot be spawned.
+- `worker_terra`: `gpt-5.6-terra`, maximum reasoning, workspace-write. Handles only bounded Terra escalation after an explicit Luna suitability failure or escalation.
 
 ## Permission model
 
@@ -98,7 +98,7 @@ Start a new Codex session after installing or updating the files.
 Start the parent turn in workspace-write mode:
 
 ```text
-Use planner_sol to produce the five-part implementation contract and resolve all material decisions before implementation. Require worker_luna ownership to enumerate every exact repository file and generated-artifact path; use a bounded Terra zone when the exact file set must be discovered. Capture the approved full baseline, including HEAD, staged and unstaged diffs, and relevant untracked contents or hashes. Use a clean HEAD-based worktree only when the relevant workspace is clean; otherwise seed isolation from an immutable snapshot of the full approved baseline or keep the current worktree under exclusive writes. Preflight the selected named worker and model. Delegate to worker_luna unless the contract requires bounded file discovery. If Luna cannot be spawned because of a runtime limitation, execute the exact contract in the parent when safe or invoke worker_terra in explicit luna-compatibility mode with Luna's exact ownership and no discovery or adaptive authority. Treat worker change reports as intentional-edit claims and compute the authoritative baseline-relative delta in the parent. Block on unexpected or unattributable mutations, rerun validation in the parent session, freeze the reviewed repository state, and prepare a complete final-review evidence packet. Do not run final review in this workspace-write turn.
+From the top-level Codex parent, use native multi-agent dispatch to invoke `planner_sol` for the five-part implementation contract and resolve all material decisions before implementation. Require `worker_luna` ownership to enumerate every exact repository file and generated-artifact path; use a bounded Terra zone when the exact file set must be discovered. Capture the approved full baseline, including HEAD, staged and unstaged diffs, and relevant untracked contents or hashes. Use a clean HEAD-based worktree only when the relevant workspace is clean; otherwise seed isolation from an immutable snapshot of the full approved baseline or keep the current worktree under exclusive writes. Preflight the native named worker and model. Delegate to native `worker_luna` unless the contract requires bounded file discovery. If native named-agent dispatch cannot resolve the selected role or configured model, stop and report `unsupported`; do not use `codex exec`, nested Codex CLI processes, shell wrappers, direct parent execution, generic children, or compatibility modes. Treat worker change reports as intentional-edit claims and compute the authoritative baseline-relative delta in the parent. Block on unexpected or unattributable mutations, rerun validation in the parent session, freeze the reviewed repository state, and prepare a complete final-review evidence packet. Do not run final review in this workspace-write turn.
 ```
 
 ### Final review
@@ -106,7 +106,7 @@ Use planner_sol to produce the five-part implementation contract and resolve all
 End the implementation turn and start a separate parent session in read-only mode:
 
 ```text
-Invoke advisor_sol with fork_turns set to none and retain evidence that the named definition, gpt-5.6-sol model, and effective read-only permission resolved. If named-agent attestation is unavailable, supply the advisor_sol final-review instructions explicitly in this separate read-only session and retain visible model, permission, and isolation evidence. Review the frozen goal, complete baseline-relative tracked diff, relevant untracked-file evidence, interfaces, constraints, and parent verification evidence. Return VERDICT and REMEDIATION. Confirm that the repository still matches the frozen pre-review baseline; any intervening or reviewer-time mutation invalidates the verdict.
+From a fresh separate read-only parent session, use native multi-agent dispatch to invoke the named `advisor_sol` role with `fork_turns` set to `none`. Retain runtime metadata proving the named definition, `gpt-5.6-sol` model, `reasoning_effort=max`, and effective read-only permission. If native named-agent dispatch or any required attestation is unavailable, stop and report `unsupported` or `fix-first` with `REMEDIATION: parent-evidence`; never substitute a generic child or copied prompt. Review the frozen goal, complete baseline-relative tracked diff, relevant untracked-file evidence, interfaces, constraints, and parent verification evidence. Return VERDICT and REMEDIATION. Confirm that the repository still matches the frozen pre-review baseline; any intervening or reviewer-time mutation invalidates the verdict.
 ```
 
 ### Approval-gated workflow
@@ -114,7 +114,7 @@ Invoke advisor_sol with fork_turns set to none and retain evidence that the name
 Start planning in read-only mode:
 
 ```text
-Use planner_sol to produce the five-part implementation contract and a Luna-first executor recommendation only. Resolve material decisions and do not modify files. Treat runtime model availability as an execution concern, not a Terra condition.
+From a read-only parent session, use native multi-agent dispatch to invoke `planner_sol` for the five-part implementation contract and a Luna-first executor recommendation only. Resolve material decisions and do not modify files. Treat native named-agent availability as an execution prerequisite; if it is unavailable, stop and report `unsupported` rather than using a fallback.
 ```
 
 After approval, use the plan-and-implement prompt in a workspace-write turn, then use the final-review prompt in a separate read-only session.
@@ -152,18 +152,11 @@ When exact file and artifact ownership is known, route to Luna first. The planne
 
 Luna must perform its pre-edit suitability check. If bounded discovery is required, it returns control without changes. If it escalates after partial edits, it stops, reports every intentional partial change, and returns control to the parent for a reviewed sequential handoff. Never run write-capable workers concurrently.
 
-## Execution-environment fallback
+## Native execution support
 
-Before delegation, preflight whether the runtime can resolve the named worker definition and configured model and retain either successful resolution evidence or the concrete failure.
+Before delegation, preflight whether the native runtime resolves the named role, loaded definition source, configured model and reasoning effort, configured sandbox, and effective permission mode. Retain the runtime metadata as the attestation; TOML contents and child self-reports are not substitutes.
 
-If a Luna-suitable task cannot spawn `worker_luna`:
-
-1. Do not reinterpret the failure as a Terra condition.
-2. Prefer direct parent execution when it can safely honor the exact contract.
-3. Otherwise invoke `worker_terra` in explicit `luna-compatibility` mode.
-4. Preserve Luna's exact file and artifact ownership, suitability checks, interfaces, constraints, and verification.
-5. Grant no discovery, adaptive-judgment, or scope-expansion authority.
-6. Stop with an unsupported-runtime result when no compliant executor is available.
+If native named-agent dispatch cannot resolve `planner_sol`, `worker_luna`, `worker_terra`, or `advisor_sol`, or cannot attest the required effective model, `reasoning_effort=max`, sandbox, or permission mode, stop and report `unsupported`. Do not fall back to `codex exec`, nested Codex CLI processes, shell wrappers, direct parent execution, generic children, or compatibility modes. Runtime unavailability is never a Terra condition.
 
 ## Attribution and review integrity
 
@@ -184,7 +177,7 @@ The reviewer returns a remediation class:
 
 - `none`: valid only with `VERDICT: ship`.
 - `parent-evidence`: the parent repairs missing baseline, review inputs, model/permission attestation, or review-session evidence and reruns review without invoking a worker.
-- `repository-change`: route bounded edits to Luna or Luna compatibility; use Terra escalation only for a valid Terra condition.
+- `repository-change`: route bounded edits to native `worker_luna`; use native `worker_terra` only for a valid Terra condition.
 - `mixed`: repair evidence in the parent and delegate only the repository-change portion.
 - `replan`: return architecture, requirements, or scope changes to the planner or user.
 
