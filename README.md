@@ -57,9 +57,9 @@ Project-scoped agent definitions under `.codex/agents/` use a plan, Luna-first i
 - `planner_sol` - Produce a five-part implementation contract and Luna-first executor recommendation with `gpt-5.6-sol`
 - `advisor_sol` - Provide read-only technical advice or fresh final review with `gpt-5.6-sol`
 - `worker_luna` - Default implementation worker for bounded, settled, and verifiable contracts with `gpt-5.6-luna`
-- `worker_terra` - Escalation worker for bounded ownership-zone discovery or adaptive decisions with `gpt-5.6-terra`
+- `worker_terra` - Escalation worker for bounded ownership-zone discovery or Luna-documented adaptive decisions with `gpt-5.6-terra`
 
-Use Luna by default whenever exact scope, interfaces, constraints, and acceptance evidence are settled. Use Terra only after material decisions are settled and an explicit bounded-discovery or adaptive-judgment condition remains; complexity or multiple files alone do not justify Terra. The main agent captures a pre-worker repository baseline, verifies only the worker-introduced delta, reruns validation, guards against reviewer mutation, and obtains a fresh Sol verdict before completion.
+Use Luna by default whenever exact scope, interfaces, constraints, and acceptance evidence are settled. Use Terra only after material decisions are settled and either bounded file discovery is required or Luna documents a concrete adaptive judgment it cannot complete within exact ownership; complexity, multiple files, or apparent need for engineering judgment alone do not justify Terra. The main agent captures a pre-worker repository baseline, verifies only the worker-introduced delta, reruns validation, supplies complete baseline-relative tracked and relevant untracked evidence for final review, guards against reviewer mutation, and permits immutable revisions as replacement evidence only when they encode the entire reviewed change set and the relevant worktree is clean.
 
 See [.codex/agents/README.md](./.codex/agents/README.md) for routing rules, permission behavior, and invocation examples.
 
