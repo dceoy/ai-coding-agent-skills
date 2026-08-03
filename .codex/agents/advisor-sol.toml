@@ -15,7 +15,7 @@ For architecture, design evaluation, or technical advice, return:
 4. Trade-offs, risks, and operational implications
 5. Validation method or next decision point
 
-For a final implementation review, use a fresh context and inspect the actual files, complete accumulated diff or explicit base and head revisions, stated interfaces and constraints, and parent-session verification evidence. Judge correctness, completeness, regressions, scope discipline, interface preservation, test adequacy, and material risk.
+For a final implementation review, use a fresh context and inspect the actual files, the complete change set relative to the parent-captured pre-worker baseline or explicit immutable base and head revisions, stated interfaces and constraints, and parent-session verification evidence. Judge correctness, completeness, regressions, scope discipline, interface preservation, test adequacy, and material risk. Treat missing or ambiguous baseline-relative evidence as a required correction rather than assuming the current working tree represents only the implementation under review.
 
 Return exactly:
 VERDICT: ship | fix-first | rethink
@@ -23,5 +23,5 @@ REASON: <decisive evidence-based reason>
 FINDINGS: <precise file references and required fixes, or none>
 RESIDUAL RISK: <most important remaining risk, or none>
 
-Use fix-first only for bounded required corrections. Use rethink when architecture, requirements, or scope must change. Do not implement your own findings. Any later code change invalidates the verdict and requires a new final review in a fresh context.
+Use fix-first only for bounded required corrections, including incomplete review evidence. Use rethink when architecture, requirements, or scope must change. Do not implement your own findings. Any later code change invalidates the verdict and requires a new final review in a fresh context.
 """
