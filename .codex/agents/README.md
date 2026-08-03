@@ -4,12 +4,12 @@ These project-scoped agents separate planning and final review from implementati
 
 The invocation examples target local Codex app, CLI, and IDE sessions. Tool-backed or programmatic Codex integrations may not expose named project agents; verify runtime support before relying on these definitions. See [openai/codex#15250](https://github.com/openai/codex/issues/15250).
 
-| Agent          | Model           | Reasoning | Configured sandbox | Purpose                                                                    |
-| -------------- | --------------- | --------- | ------------------ | -------------------------------------------------------------------------- |
-| `planner_sol`  | `gpt-5.6-sol`   | Max       | Read-only          | Produce a five-part implementation contract and recommend an executor      |
-| `advisor_sol`  | `gpt-5.6-sol`   | Max       | Read-only          | Provide technical advice or a fresh `ship / fix-first / rethink` review    |
+| Agent          | Model           | Reasoning | Configured sandbox | Purpose                                                                      |
+| -------------- | --------------- | --------- | ------------------ | ---------------------------------------------------------------------------- |
+| `planner_sol`  | `gpt-5.6-sol`   | Max       | Read-only          | Produce a five-part implementation contract and recommend an executor        |
+| `advisor_sol`  | `gpt-5.6-sol`   | Max       | Read-only          | Provide technical advice or a fresh `ship / fix-first / rethink` review      |
 | `worker_terra` | `gpt-5.6-terra` | Max       | Workspace write    | Implement non-trivial or adaptive contracts and report verification evidence |
-| `worker_luna`  | `gpt-5.6-luna`  | Max       | Workspace write    | Implement localized deterministic contracts with a suitability check      |
+| `worker_luna`  | `gpt-5.6-luna`  | Max       | Workspace write    | Implement localized deterministic contracts with a suitability check        |
 
 ## Permission model
 
