@@ -25,26 +25,44 @@ A read-only parent prevents implementation workers from writing. A workspace-wri
 
 ## User-wide installation
 
-The files in this repository are project-scoped by default. To make the agents and routing policy available in every Codex project, copy the agent definitions to `~/.codex/agents/` and the supplied routing instructions to `~/.codex/AGENTS.md`:
+The files in this repository are project-scoped by default. To make the agent definitions available in every Codex project, copy them to `~/.codex/agents/`:
 
 ```bash
 mkdir -p ~/.codex/agents
 cp .codex/agents/*.toml ~/.codex/agents/
-cp .codex/AGENTS.md ~/.codex/AGENTS.md
 ```
 
-If `~/.codex/AGENTS.md` already contains user-wide instructions, merge `.codex/AGENTS.md` into it instead of overwriting the file.
+Install the supplied routing instructions only when `~/.codex/AGENTS.md` does not already exist:
 
-To keep the user-wide files synchronized with this repository, use symlinks from a local clone:
+```bash
+if [ -e "$HOME/.codex/AGENTS.md" ] || [ -L "$HOME/.codex/AGENTS.md" ]; then
+  printf '%s\n' 'Keep the existing ~/.codex/AGENTS.md and merge the Model routing section from .codex/AGENTS.md manually.'
+else
+  cp .codex/AGENTS.md "$HOME/.codex/AGENTS.md"
+fi
+```
+
+Do not replace an existing file or symlink until its current instructions have been preserved in a merged `~/.codex/AGENTS.md`.
+
+To keep the agent definitions synchronized with this repository, use symlinks from a local clone:
 
 ```bash
 repo_root="$(git rev-parse --show-toplevel)"
 mkdir -p ~/.codex/agents
-ln -sfn "$repo_root/.codex/AGENTS.md" ~/.codex/AGENTS.md
 
 for file in "$repo_root"/.codex/agents/*.toml; do
   ln -sfn "$file" "$HOME/.codex/agents/$(basename "$file")"
 done
+```
+
+Link the routing instructions only when no global `AGENTS.md` exists:
+
+```bash
+if [ -e "$HOME/.codex/AGENTS.md" ] || [ -L "$HOME/.codex/AGENTS.md" ]; then
+  printf '%s\n' 'Keep the existing ~/.codex/AGENTS.md and merge the Model routing section from the repository file manually.'
+else
+  ln -s "$repo_root/.codex/AGENTS.md" "$HOME/.codex/AGENTS.md"
+fi
 ```
 
 Start a new Codex session after installing or updating the files.
