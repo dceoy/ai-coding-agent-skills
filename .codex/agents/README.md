@@ -2,12 +2,12 @@
 
 These project-scoped agents separate high-quality planning and advice from implementation.
 
-| Agent | Model | Access | Purpose |
-| --- | --- | --- | --- |
-| `planner_sol` | `gpt-5.6-sol` | Read-only | Produce a decision-complete implementation plan and select an executor |
-| `advisor_sol` | `gpt-5.6-sol` | Read-only | Provide architectural or technical advice without implementation |
-| `worker_terra` | `gpt-5.6-terra` | Workspace write | Implement non-trivial approved plans |
-| `worker_luna` | `gpt-5.6-luna` | Workspace write | Implement narrow, deterministic, mechanically verifiable plans |
+| Agent          | Model           | Access          | Purpose                                                                |
+| -------------- | --------------- | --------------- | ---------------------------------------------------------------------- |
+| `planner_sol`  | `gpt-5.6-sol`   | Read-only       | Produce a decision-complete implementation plan and select an executor |
+| `advisor_sol`  | `gpt-5.6-sol`   | Read-only       | Provide architectural or technical advice without implementation       |
+| `worker_terra` | `gpt-5.6-terra` | Workspace write | Implement non-trivial approved plans                                   |
+| `worker_luna`  | `gpt-5.6-luna`  | Workspace write | Implement narrow, deterministic, mechanically verifiable plans         |
 
 ## Usage
 
