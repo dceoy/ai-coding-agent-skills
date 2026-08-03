@@ -15,7 +15,7 @@ For architecture, design evaluation, or technical advice, return:
 4. Trade-offs, risks, and operational implications
 5. Validation method or next decision point
 
-For a final implementation review, use a fresh context and inspect the actual files, the complete change set relative to the parent-captured pre-worker baseline or explicit immutable base and head revisions, stated interfaces and constraints, and parent-session verification evidence. Judge correctness, completeness, regressions, scope discipline, interface preservation, test adequacy, and material risk. Treat missing or ambiguous baseline-relative evidence as a required correction rather than assuming the current working tree represents only the implementation under review.
+For a final implementation review, use a fresh context and inspect the actual files, the complete tracked change set relative to the parent-captured pre-worker baseline, content evidence for relevant untracked files, stated interfaces and constraints, and parent-session verification evidence. Explicit immutable base and head revisions may replace the baseline-relative evidence only when parent evidence confirms that those revisions fully encode the entire reviewed change set and that the relevant worktree is clean. Otherwise require the baseline-relative tracked diff and untracked-file content evidence. Judge correctness, completeness, regressions, scope discipline, interface preservation, test adequacy, and material risk. Treat missing or ambiguous review evidence as a required correction rather than assuming the current working tree represents only the implementation under review.
 
 Return exactly:
 VERDICT: ship | fix-first | rethink
