@@ -2,22 +2,78 @@
 
 This file is the user-wide installation template. Project-local Codex sessions read the same routing policy from the repository-root `AGENTS.md`.
 
+## Native named-agent dispatch
+
+`planner` and `advisor` must be dispatched only through Codex's native multi-agent tools. Their TOML files define native read-only roles; do not invoke them through `codex exec`, nested Codex CLI processes, shell wrappers, equivalent subprocess dispatch, copied prompts, or agent simulations.
+
+Implementation is owned by the top-level main agent. Do not delegate implementation to named or generic worker subagents. If native named-agent dispatch is unavailable for a phase that requires `planner` or `advisor`, stop and report `unsupported`; do not silently omit or simulate that phase.
+
 ## Model routing
 
-This section applies only to the root or main agent that receives the user's task. Named custom agents (`planner_sol`, `advisor_sol`, `worker_terra`, and `worker_luna`) must ignore this section, follow their agent-specific instructions, and must not spawn or delegate to another subagent.
+This section applies only to the top-level main agent. The named `planner` and `advisor` agents must follow their own definitions and must not spawn or delegate to another subagent.
 
-Use the main agent directly for simple questions and narrow, deterministic edits.
+Use the main agent directly for simple questions and narrow, deterministic edits when planning overhead is not justified.
 
 For non-trivial implementation tasks:
 
-1. Spawn `planner_sol` before modifying files.
-2. Wait for the complete plan and preserve its constraints and acceptance checks.
-3. Start exactly one implementation agent:
-   - Use `worker_luna` for localized, low-risk changes with explicit scope and mechanical validation.
-   - Use `worker_terra` for diagnosis, cross-cutting changes, ambiguity, or non-trivial implementation.
-4. If implementation encounters an architectural, security, compatibility, or data-model decision not covered by the plan, return control to `planner_sol` or `advisor_sol`.
-5. Do not run write-capable workers concurrently. A sequential Luna-to-Terra handoff is allowed only after Luna has stopped and reported all partial edits.
+1. Invoke `planner` before modifying files.
+2. Require its five-part implementation contract: objective, files and ownership, interfaces, constraints, and verification.
+3. Do not begin implementation while a material architectural, product, security, authentication, authorization, data-model, migration, compatibility, or externally visible interface decision remains unresolved. Return the smallest blocking question to `planner`, `advisor`, or the user.
+4. Preserve the approved contract's scope, settled decisions, interfaces, acceptance checks, ownership boundary, and explicit exclusions.
+5. Capture the approved pre-implementation baseline: current `HEAD`, porcelain-v2 status, staged and unstaged diffs, the untracked-file inventory, and content or cryptographic hashes for every relevant untracked file. Establish exclusive write ownership over every approved and verification-relevant path until final evidence capture.
+6. Retain runtime metadata for the planning, main-agent implementation, and final-review phases. Require configured and effective `reasoning_effort=xhigh` for `planner`, the main implementation agent, and `advisor`. For the named roles, metadata must also identify the resolved role, loaded definition source, configured and effective model, configured sandbox, and effective permission mode. Missing or lower required reasoning is a fail-closed result.
+7. The main agent implements the contract directly. It may discover exact affected files only inside a bounded ownership zone explicitly approved by the contract. It must not delegate implementation to a worker subagent.
+8. If implementation exposes a material decision not covered by the contract or requires crossing the approved ownership boundary, stop and return to `planner`, `advisor`, or the user instead of silently expanding scope.
+9. Compute the complete baseline-relative tracked and relevant untracked delta. Inspect every attributable change, preserve pre-existing work, reject unexpected or unattributable concurrent mutations, and rerun all relevant verification in the main session.
+10. Freeze the verified repository state and capture a review baseline, including `HEAD`, complete porcelain-v2 status, and a SHA-256 manifest for every reviewed and verification-relevant path.
+11. End the workspace-write implementation turn. Start a fresh, separate parent session in read-only mode and invoke `advisor` with no inherited implementation history (`fork_turns: "none"`). Provide the user goal, approved contract, complete baseline-relative change set, relevant untracked-file evidence, and main-session verification evidence.
+12. Require runtime evidence that the native `advisor` definition resolved with `gpt-5.6-sol`, `reasoning_effort=xhigh`, `fork_turns: "none"`, a fresh session, and effective read-only permission. If the target identity or required evidence is missing, the reviewer must return `fix-first` with `REMEDIATION: parent-evidence`; never accept `ship`.
+13. After review, confirm that the repository still matches the frozen review baseline. Any mutation during or after review invalidates the verdict.
+14. Do not report completion unless the attested `advisor` returns `VERDICT: ship`. Repository changes required by review are implemented directly by the main agent, followed by new verification, a new frozen evidence packet, and a fresh review.
 
-For architecture, design evaluation, or technical advice without implementation, spawn `advisor_sol` and keep the work read-only.
+For architecture, design evaluation, or technical advice without implementation, invoke `advisor` and keep the work read-only.
 
-Do not spawn a subagent when the main agent can complete the task safely and efficiently without delegation.
+Do not invoke a subagent when the main agent can complete a non-implementation task safely and efficiently without delegation.
+
+## SKILL.md Frontmatter
+
+Each `SKILL.md` uses YAML frontmatter:
+
+```yaml
+---
+name: <skill-name>
+description: <one-line description used for skill triggering>
+allowed-tools: Bash, Read, Write, ... # tools the skill may use
+---
+```
+
+## Adding or Modifying Skills
+
+1. Create or edit `skills/<skill-name>/SKILL.md` — this is the canonical skill definition.
+2. Claude Code picks up the skill automatically via `.claude/skills -> ../skills`. For non-Claude runtimes,
+   add a per-skill symlink: `ln -s ../../skills/<skill-name> .agents/skills/<skill-name>`.
+3. Keep `description` in the frontmatter precise — it controls when the skill auto-triggers in Claude Code.
+
+## Autonomous and Scheduled Use
+
+Do not duplicate skill instructions into separate routine files unless a runtime truly requires a self-contained prompt. Prefer invoking the canonical skill under `skills/` and passing schedule, PR, branch, or CI context from the runtime configuration.
+
+For autonomous PR review, `skills/pr-review/SKILL.md` is the source of truth. It defines the GitHub posting contract used by CI, GitHub Actions, Claude Code Routines, and other automated review contexts.
+
+## Local QA
+
+Before committing, run the following checks:
+
+| Check             | Command                          |
+| ----------------- | -------------------------------- |
+| Format Markdown   | `npx -y prettier -w './**/*.md'` |
+| Lint Python       | `uv run ruff check`              |
+| Type-check Python | `uv run pyright`                 |
+| Run tests         | `uv run pytest`                  |
+
+## Commit & Pull Request Guidelines
+
+- Format Markdown files using `npx -y prettier -w './**/*.md'` before committing.
+- Keep PRs focused and include: concise summary, affected workflow paths, linked issue/context, and regenerated `README.md` when workflow inventory changes.
+- Branch names use appropriate prefixes on creation (e.g., `feature/...`, `bugfix/...`, `refactor/...`, `docs/...`, `chore/...`).
+- When instructed to create a PR, create it as a draft with appropriate labels by default.

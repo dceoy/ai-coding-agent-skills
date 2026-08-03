@@ -52,12 +52,16 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ## Codex Custom Subagents
 
-Project-scoped agent definitions under `.codex/agents/` separate planning and advice from implementation. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required.
+Project-scoped definitions under `.codex/agents/` provide two native read-only Codex roles used by the top-level parent through native multi-agent dispatch. The TOML files are role definitions, not prompts for nested `codex exec` invocations. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required.
 
-- `planner_sol` - Produce decision-complete plans with `gpt-5.6-sol`
-- `advisor_sol` - Provide read-only technical advice with `gpt-5.6-sol`
-- `worker_terra` - Implement non-trivial plans with `gpt-5.6-terra`
-- `worker_luna` - Implement narrow, deterministic plans with `gpt-5.6-luna`
+- `planner` - Produce a decision-complete five-part implementation contract with `gpt-5.6-sol`
+- `advisor` - Provide read-only technical advice or an attested fresh final review with `gpt-5.6-sol`
+
+Both roles use `model_reasoning_effort = "xhigh"`. Implementation is performed directly by the top-level main agent with xhigh reasoning; there are no dedicated Luna or Terra worker subagents.
+
+For non-trivial changes, the parent invokes `planner`, captures the complete pre-implementation baseline, and then implements the approved contract directly. The main agent owns scope enforcement, the authoritative baseline-relative delta, inspection, and verification. It freezes the verified state before a fresh separate read-only parent session invokes `advisor` with `fork_turns: "none"` for the final review gate.
+
+If native named-agent dispatch is unavailable for planning or review, stop and report `unsupported`; do not fall back to `codex exec`, nested Codex CLI processes, shell wrappers, generic children, copied prompts, or compatibility modes.
 
 See [.codex/agents/README.md](./.codex/agents/README.md) for routing rules, permission behavior, and invocation examples.
 
