@@ -52,14 +52,14 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ## Codex Custom Subagents
 
-Project-scoped agent definitions under `.codex/agents/` use a plan, implement, verify, and fresh-review workflow. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required. All four agents use maximum reasoning effort.
+Project-scoped agent definitions under `.codex/agents/` use a plan, Luna-first implement, parent verify, and fresh-review workflow. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required. All four agents use maximum reasoning effort.
 
-- `planner_sol` - Produce a five-part implementation contract and executor recommendation with `gpt-5.6-sol`
+- `planner_sol` - Produce a five-part implementation contract and Luna-first executor recommendation with `gpt-5.6-sol`
 - `advisor_sol` - Provide read-only technical advice or fresh final review with `gpt-5.6-sol`
-- `worker_terra` - Implement non-trivial or adaptive contracts with `gpt-5.6-terra`
-- `worker_luna` - Implement localized deterministic contracts with `gpt-5.6-luna`
+- `worker_luna` - Default implementation worker for bounded, settled, and verifiable contracts with `gpt-5.6-luna`
+- `worker_terra` - Escalation worker for broad diagnosis, unresolved scope, or adaptive decisions with `gpt-5.6-terra`
 
-Use Luna only after its suitability check confirms explicit scope and mechanical validation; otherwise use Terra. The main agent inspects the complete diff, reruns validation, and obtains a fresh Sol verdict before completion.
+Use Luna by default whenever scope, interfaces, constraints, and acceptance evidence are sufficiently settled. Use Terra only for an explicit escalation condition; complexity or multiple files alone do not justify Terra. The main agent inspects the complete diff, reruns validation, and obtains a fresh Sol verdict before completion.
 
 See [.codex/agents/README.md](./.codex/agents/README.md) for routing rules, permission behavior, and invocation examples.
 
