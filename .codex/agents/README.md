@@ -23,6 +23,32 @@ Use these parent permission modes:
 
 A read-only parent prevents implementation workers from writing. A workspace-write parent can grant write access to planning agents despite their configured defaults.
 
+## User-wide installation
+
+The files in this repository are project-scoped by default. To make the agents and routing policy available in every Codex project, copy the agent definitions to `~/.codex/agents/` and the supplied routing instructions to `~/.codex/AGENTS.md`:
+
+```bash
+mkdir -p ~/.codex/agents
+cp .codex/agents/*.toml ~/.codex/agents/
+cp .codex/AGENTS.md ~/.codex/AGENTS.md
+```
+
+If `~/.codex/AGENTS.md` already contains user-wide instructions, merge `.codex/AGENTS.md` into it instead of overwriting the file.
+
+To keep the user-wide files synchronized with this repository, use symlinks from a local clone:
+
+```bash
+repo_root="$(git rev-parse --show-toplevel)"
+mkdir -p ~/.codex/agents
+ln -sfn "$repo_root/.codex/AGENTS.md" ~/.codex/AGENTS.md
+
+for file in "$repo_root"/.codex/agents/*.toml; do
+  ln -sfn "$file" "$HOME/.codex/agents/$(basename "$file")"
+done
+```
+
+Start a new Codex session after installing or updating the files.
+
 ## Usage
 
 Ask Codex to delegate explicitly by agent name.
