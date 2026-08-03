@@ -19,12 +19,9 @@ Use separate permission phases:
 - Planning and implementation: use a workspace-write parent turn. Planner read-only behavior is instruction-enforced in this phase.
 - Final review: end the workspace-write turn and start a separate parent session in read-only mode.
 
-A workspace-write parent cannot produce an acceptable final verdict merely by instructing a child not to edit. The review session must expose effective read-only permission and must receive no inherited implementation history. Before accepting a verdict, require one of these attested paths:
+A workspace-write parent cannot produce an acceptable final verdict merely by instructing a child not to edit. The review session must expose effective read-only permission and must receive no inherited implementation history. Before accepting a verdict, require a separate read-only parent session to resolve the named `advisor_sol` definition through native multi-agent dispatch with `fork_turns: "none"`, `gpt-5.6-sol`, `reasoning_effort=max`, and effective read-only permission.
 
-1. The separate read-only parent session resolved the named `advisor_sol` definition, selected `gpt-5.6-sol`, used `fork_turns: "none"`, and enforced effective read-only permission.
-2. The separate read-only parent session received the `advisor_sol` final-review instructions explicitly and exposes visible model, permission, and session-isolation evidence.
-
-A generic child response is not sufficient merely because it prints `VERDICT: ship`. If neither path can be attested, block completion with `REMEDIATION: parent-evidence`.
+A generic child response or copied review prompt is not sufficient merely because it prints `VERDICT: ship`. If native named-agent dispatch or any required attestation is unavailable, block completion with `unsupported` or `REMEDIATION: parent-evidence`.
 
 ## User-wide installation
 
@@ -124,7 +121,7 @@ After approval, use the plan-and-implement prompt in a workspace-write turn, the
 Start the parent turn in read-only mode:
 
 ```text
-Use advisor_sol to evaluate this design. Return advice only and do not modify files.
+From a read-only parent session, use native multi-agent dispatch to invoke `advisor_sol` to evaluate this design. Return advice only and do not modify files.
 ```
 
 ## Routing policy
