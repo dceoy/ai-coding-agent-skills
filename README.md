@@ -52,7 +52,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ## Codex Custom Subagents
 
-Project-scoped agent definitions under `.codex/agents/` are native Codex agent roles used by the top-level Codex parent through native multi-agent dispatch. The TOML files are role definitions, not prompts for nested `codex exec` invocations. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required. All four agents use maximum reasoning effort.
+Project-scoped agent definitions under `.codex/agents/` are native Codex agent roles used by the top-level Codex parent through native multi-agent dispatch. The TOML files are role definitions, not prompts for nested `codex exec` invocations. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required. All four agents use xhigh reasoning effort.
 
 - `planner_sol` - Produce a five-part implementation contract and Luna-first executor recommendation with `gpt-5.6-sol`
 - `advisor_sol` - Provide read-only technical advice or an attested fresh final review with `gpt-5.6-sol`
