@@ -6,19 +6,24 @@ This is a single-source skill library shared across AI coding runtimes. The `ski
 
 ## Model routing
 
-This section applies only to the root or main agent that receives the user's task. Named custom agents (`planner_sol`, `advisor_sol`, `worker_terra`, and `worker_luna`) must ignore this section, follow their agent-specific instructions, and must not spawn or delegate to another subagent.
+This section applies only to the root or main agent that receives the user's task. Named custom agents (`planner_sol`, `advisor_sol`, and `worker_terra`) must ignore this section, follow their agent-specific instructions, and must not spawn or delegate to another subagent.
 
 Use the main agent directly for simple questions and narrow, deterministic edits.
 
 For non-trivial implementation tasks:
 
 1. Spawn `planner_sol` before modifying files.
-2. Wait for the complete plan and preserve its constraints and acceptance checks.
-3. Start exactly one implementation agent:
-   - Use `worker_luna` for localized, low-risk changes with explicit scope and mechanical validation.
-   - Use `worker_terra` for diagnosis, cross-cutting changes, ambiguity, or non-trivial implementation.
-4. If implementation encounters an architectural, security, compatibility, or data-model decision not covered by the plan, return control to `planner_sol` or `advisor_sol`.
-5. Do not run write-capable workers concurrently. A sequential Luna-to-Terra handoff is allowed only after Luna has stopped and reported all partial edits.
+2. Require its five-part implementation contract: objective, files and ownership, interfaces, constraints, and verification.
+3. Wait for the complete contract and preserve its scope, settled decisions, interfaces, and acceptance checks.
+4. Start exactly one `worker_terra` implementation agent. Do not run write-capable workers concurrently.
+5. If implementation encounters a material architectural, security, compatibility, data-model, authentication, authorization, or migration decision not covered by the contract, return control to `planner_sol` or `advisor_sol` instead of silently expanding scope.
+6. Treat the worker report as claims that the main agent must verify:
+   - inspect the complete working-tree diff;
+   - confirm that only approved files and behavior changed;
+   - rerun the relevant verification commands in the main session; and
+   - resolve any discrepancy between the report and the actual evidence.
+7. Spawn a fresh `advisor_sol` context for final review. Provide the user goal, allowed change set, complete diff or explicit base and head revisions, interfaces and constraints, and the main session's verification evidence.
+8. Do not report completion unless the reviewer returns `VERDICT: ship`. A subsequent code change invalidates the verdict; verify again and obtain a new fresh review. Route `fix-first` findings back to `worker_terra`, and return `rethink` findings to `planner_sol` or the user.
 
 For architecture, design evaluation, or technical advice without implementation, spawn `advisor_sol` and keep the work read-only.
 
