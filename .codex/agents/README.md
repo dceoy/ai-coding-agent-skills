@@ -4,12 +4,12 @@ These project-scoped agents separate planning and final review from implementati
 
 The invocation examples target local Codex app, CLI, and IDE sessions. Tool-backed or programmatic Codex integrations may not expose named project agents; verify runtime support before relying on these definitions. See [openai/codex#15250](https://github.com/openai/codex/issues/15250).
 
-| Agent          | Model           | Reasoning | Configured sandbox | Purpose                                                                       |
-| -------------- | --------------- | --------- | ------------------ | ----------------------------------------------------------------------------- |
-| `planner_sol`  | `gpt-5.6-sol`   | Max       | Read-only          | Produce a five-part implementation contract with Luna-first routing           |
-| `advisor_sol`  | `gpt-5.6-sol`   | Max       | Read-only          | Provide technical advice or a fresh `ship / fix-first / rethink` review       |
+| Agent          | Model           | Reasoning | Configured sandbox | Purpose                                                                      |
+| -------------- | --------------- | --------- | ------------------ | ---------------------------------------------------------------------------- |
+| `planner_sol`  | `gpt-5.6-sol`   | Max       | Read-only          | Produce a five-part implementation contract with Luna-first routing          |
+| `advisor_sol`  | `gpt-5.6-sol`   | Max       | Read-only          | Provide technical advice or a fresh `ship / fix-first / rethink` review      |
 | `worker_luna`  | `gpt-5.6-luna`  | Max       | Workspace write    | Default worker for bounded, settled, and verifiable implementation contracts |
-| `worker_terra` | `gpt-5.6-terra` | Max       | Workspace write    | Escalation worker for bounded discovery or adaptive engineering judgment      |
+| `worker_terra` | `gpt-5.6-terra` | Max       | Workspace write    | Escalation worker for bounded discovery or Luna-documented adaptive judgment |
 
 ## Permission model
 
@@ -99,7 +99,7 @@ Ask Codex to delegate explicitly by agent name.
 Start the parent turn in workspace-write mode. This convenience workflow relies on planner and reviewer instructions to avoid edits:
 
 ```text
-Use planner_sol to produce the five-part implementation contract and resolve all material decisions before implementation. Capture the repository baseline, then delegate to worker_luna unless the contract defines a bounded Terra condition. If Luna declines or escalates, inspect its state and either replan or hand off sequentially to worker_terra. Compare the result against the baseline, rerun validation in the parent session, capture a pre-review baseline, and use a fresh advisor_sol context for final review. Reject the verdict if review mutates the repository, and do not report completion unless the verdict is ship.
+Use planner_sol to produce the five-part implementation contract and resolve all material decisions before implementation. Capture the repository baseline, then delegate to worker_luna unless the contract requires bounded file discovery. Treat adaptive judgment as a Terra condition only after Luna reports a concrete suitability failure or escalation. If Luna declines or escalates, inspect its state and either replan or hand off sequentially to worker_terra. Compare the result against the baseline, rerun validation in the parent session, capture a pre-review baseline, and use a fresh advisor_sol context for final review. Reject the verdict if review mutates the repository, and do not report completion unless the verdict is ship.
 ```
 
 ### Approval-gated workflow
@@ -113,7 +113,7 @@ Use planner_sol to produce the five-part implementation contract and a Luna-firs
 After reviewing the contract, start a separate parent turn in workspace-write mode:
 
 ```text
-Capture the repository baseline. Implement the approved contract with worker_luna unless a valid bounded Terra condition is documented. Compare the result against the baseline, rerun all validation, capture a pre-review baseline, and request final review from a fresh advisor_sol context.
+Capture the repository baseline. Implement the approved contract with worker_luna unless bounded file discovery is required. Escalate adaptive judgment to worker_terra only after a documented Luna suitability failure. Compare the result against the baseline, rerun all validation, capture a pre-review baseline, and request final review from a fresh advisor_sol context.
 ```
 
 ### Advice only
@@ -129,7 +129,7 @@ Use advisor_sol to evaluate this design. Return advice only and do not modify fi
 Start the parent turn in read-only mode when enforced isolation is required:
 
 ```text
-Use a fresh advisor_sol context to review the stated goal, the complete baseline-relative change set or immutable base and head revisions, interfaces, constraints, and verification evidence. Return only ship, fix-first, or rethink and do not modify files.
+Use a fresh advisor_sol context to review the stated goal, the complete baseline-relative tracked diff and relevant untracked-file content evidence, interfaces, constraints, and verification evidence. Use immutable base and head revisions instead only when they fully encode the entire reviewed change set and the relevant worktree is clean. Return only ship, fix-first, or rethink and do not modify files.
 ```
 
 ## Routing policy
@@ -147,18 +147,19 @@ Luna is suitable when:
 3. No material implementation decision remains unresolved.
 4. Verification has concrete commands or inspectable acceptance evidence.
 
-A Luna task may be non-trivial, span multiple files, or require substantial implementation. Complexity alone is not a Terra condition.
+A Luna task may be non-trivial, span multiple files, or require substantial implementation. Complexity or apparent need for engineering judgment alone is not a Terra condition.
 
 Use `worker_terra` only after all material decisions are settled and an explicit Terra condition exists:
 
 - broad diagnosis inside a bounded ownership zone where the exact affected files are not yet known;
-- cross-cutting adaptation whose exact file set must be discovered but remains inside that zone;
-- implementation or validation requiring adaptive engineering judgment despite concrete acceptance criteria; or
-- a documented Luna escalation that exposes one of those conditions.
+- cross-cutting adaptation whose exact file set must be discovered but remains inside that zone; or
+- a documented Luna suitability failure or escalation identifying the concrete adaptive judgment Luna could not complete within exact ownership.
+
+When exact ownership is known, route to Luna first. Do not choose Terra solely because the work appears judgment-heavy; Luna must first identify the concrete blocking judgment before an adaptive-judgment escalation.
 
 The planner must define Terra's smallest bounded ownership zone and explicit exclusions. Terra may discover the exact affected files and make tactical decisions only inside that boundary while preserving settled interfaces and constraints. Crossing the boundary or encountering a new material decision requires replanning or advice.
 
-Luna must perform its pre-edit suitability check. If unsuitable before editing, it returns control without changes and distinguishes a valid Terra condition from an unresolved decision. If it escalates after partial edits, it stops, reports every partial change, and returns control to the parent. The parent must inspect that state, update the contract when necessary, and perform a sequential handoff. Never run write-capable workers concurrently.
+Luna must perform its pre-edit suitability check. If bounded file discovery is required, it returns control without changes and states the exact discovery condition. For adaptive judgment within exact ownership, Luna attempts the work and may escalate only after identifying the concrete blocking judgment. If it escalates after partial edits, it stops, reports every partial change, and returns control to the parent. The parent must inspect that state, update the contract when necessary, and perform a sequential handoff. Never run write-capable workers concurrently.
 
 The planner must produce these five contract sections:
 
@@ -179,7 +180,7 @@ Before starting a worker, the parent must capture the repository state, includin
 
 After the worker returns, compare the repository against that captured state. Review and validate only the worker-introduced delta, while preserving and excluding pre-existing or concurrent edits. A current working-tree diff by itself is insufficient because it cannot attribute changes to the worker or detect committed mutations reliably.
 
-After parent verification, capture a second repository baseline immediately before starting a fresh `advisor_sol` review. Supply the baseline-relative change set or explicit immutable base and head revisions, interfaces, constraints, and verification evidence. Compare the repository state again after the reviewer returns. Any reviewer-time mutation invalidates the verdict and must be investigated without overwriting unrelated changes.
+After parent verification, capture a second repository baseline immediately before starting a fresh `advisor_sol` review. Supply the complete baseline-relative tracked diff, content evidence for relevant untracked files, interfaces, constraints, and verification evidence. Explicit immutable base and head revisions may replace that evidence only when they fully encode the entire reviewed change set and the relevant worktree is clean. Compare the repository state again after the reviewer returns. Any reviewer-time mutation invalidates the verdict and must be investigated without overwriting unrelated changes.
 
 Treat every worker report as claims. The main agent must verify the baseline-relative change set, enforce the approved ownership boundary, rerun relevant checks, and reconcile the report with actual evidence.
 
