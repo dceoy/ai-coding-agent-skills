@@ -32,7 +32,18 @@ To copy the agent definitions and routing instructions for every Codex project:
 ```bash
 codex_home="${CODEX_HOME:-$HOME/.codex}"
 mkdir -p "$codex_home/agents"
-cp .codex/agents/*.toml "$codex_home/agents/"
+
+for file in .codex/agents/*.toml; do
+  destination="$codex_home/agents/$(basename "$file")"
+  if [ -e "$destination" ] || [ -L "$destination" ]; then
+    printf 'Keep the existing %s and merge, back up, or remove it before installing this definition.\n' "$destination" >&2
+    exit 1
+  fi
+done
+
+for file in .codex/agents/*.toml; do
+  cp "$file" "$codex_home/agents/$(basename "$file")"
+done
 
 if [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
   printf 'Keep the existing %s and merge the Model routing section from .codex/AGENTS.md into that active override manually.\n' "$codex_home/AGENTS.override.md"
@@ -42,6 +53,8 @@ else
   cp .codex/AGENTS.md "$codex_home/AGENTS.md"
 fi
 ```
+
+The agent preflight stops before copying any definitions when a same-named file or symlink already exists. Preserve the existing definition and merge it manually, or back it up and remove it before rerunning the installation.
 
 Codex prefers a non-empty `AGENTS.override.md` over `AGENTS.md` in its home directory. If an override exists, merge the routing section into that file or remove it only after preserving its instructions. Do not replace either existing file or symlink until its current instructions have been preserved.
 
@@ -53,7 +66,15 @@ repo_root="$(git rev-parse --show-toplevel)"
 mkdir -p "$codex_home/agents"
 
 for file in "$repo_root"/.codex/agents/*.toml; do
-  ln -sfn "$file" "$codex_home/agents/$(basename "$file")"
+  destination="$codex_home/agents/$(basename "$file")"
+  if [ -e "$destination" ] || [ -L "$destination" ]; then
+    printf 'Keep the existing %s and merge, back up, or remove it before installing this symlink.\n' "$destination" >&2
+    exit 1
+  fi
+done
+
+for file in "$repo_root"/.codex/agents/*.toml; do
+  ln -s "$file" "$codex_home/agents/$(basename "$file")"
 done
 
 if [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
@@ -64,6 +85,8 @@ else
   ln -s "$repo_root/.codex/AGENTS.md" "$codex_home/AGENTS.md"
 fi
 ```
+
+The symlink preflight likewise stops before creating any links when a destination already exists.
 
 Start a new Codex session after installing or updating the files.
 
@@ -102,6 +125,8 @@ Use advisor_sol to evaluate this design. Return advice only and do not modify fi
 ```
 
 ## Routing policy
+
+The routing policy applies only to the root or main agent. Named custom agents follow their agent-specific instructions and must not spawn or delegate to another subagent.
 
 Use `worker_luna` only for localized, low-risk changes with explicit scope and mechanical validation. Use `worker_terra` when the change requires diagnosis, non-trivial reasoning, cross-cutting edits, or adaptation to repository state.
 
