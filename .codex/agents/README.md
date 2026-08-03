@@ -1,37 +1,55 @@
 # Codex custom subagents
 
-These project-scoped agents separate high-quality planning and advice from implementation.
+These project-scoped agents separate high-quality planning and advice from implementation. Current Codex releases discover each standalone TOML file under `.codex/agents/` automatically; no per-agent registration in `.codex/config.toml` is required.
 
-| Agent          | Model           | Access          | Purpose                                                                |
-| -------------- | --------------- | --------------- | ---------------------------------------------------------------------- |
-| `planner_sol`  | `gpt-5.6-sol`   | Read-only       | Produce a decision-complete implementation plan and select an executor |
-| `advisor_sol`  | `gpt-5.6-sol`   | Read-only       | Provide architectural or technical advice without implementation       |
-| `worker_terra` | `gpt-5.6-terra` | Workspace write | Implement non-trivial approved plans                                   |
-| `worker_luna`  | `gpt-5.6-luna`  | Workspace write | Implement narrow, deterministic, mechanically verifiable plans         |
+| Agent          | Model           | Configured sandbox | Purpose                                                                |
+| -------------- | --------------- | ------------------ | ---------------------------------------------------------------------- |
+| `planner_sol`  | `gpt-5.6-sol`   | Read-only          | Produce a decision-complete implementation plan and select an executor |
+| `advisor_sol`  | `gpt-5.6-sol`   | Read-only          | Provide architectural or technical advice without implementation       |
+| `worker_terra` | `gpt-5.6-terra` | Workspace write    | Implement non-trivial approved plans                                   |
+| `worker_luna`  | `gpt-5.6-luna`  | Workspace write    | Implement narrow, deterministic, mechanically verifiable plans         |
+
+## Permission model
+
+The sandbox values above are agent-file defaults, not immutable per-agent boundaries. A spawned agent inherits the parent turn's live permission mode, and runtime overrides such as `/permissions` or `--yolo` take precedence over the TOML defaults.
+
+Use these parent permission modes:
+
+- Planning or advice only: start the parent turn in read-only mode.
+- Implementation: start a separate parent turn in workspace-write mode.
+- One-turn planning and implementation: use workspace-write mode, but understand that the planner's read-only behavior is instruction-enforced rather than sandbox-enforced.
+
+A read-only parent prevents implementation workers from writing. A workspace-write parent can grant write access to planning agents despite their configured defaults.
 
 ## Usage
 
 Ask Codex to delegate explicitly by agent name.
 
-### Plan and implement
+### Plan and implement in one turn
+
+Start the parent turn in workspace-write mode. This convenience workflow relies on the planner instructions to avoid edits:
 
 ```text
-Use planner_sol to plan this task. After the plan is complete, delegate implementation to the recommended worker_terra or worker_luna agent. Use only one write-capable worker.
+Use planner_sol to plan this task. After the plan is complete, delegate implementation to the recommended worker_terra or worker_luna agent. Use only one active write-capable worker at a time, and do not run workers concurrently.
 ```
 
-For a human approval gate, split the workflow into two turns:
+### Approval-gated workflow
+
+Start the planning turn in read-only mode:
 
 ```text
 Use planner_sol to produce the implementation plan only. Do not modify files.
 ```
 
-After reviewing the plan:
+After reviewing the plan, start a separate parent turn in workspace-write mode:
 
 ```text
 Implement the approved plan with worker_terra.
 ```
 
 ### Advice only
+
+Start the parent turn in read-only mode:
 
 ```text
 Use advisor_sol to evaluate this design. Return advice only and do not modify files.
@@ -40,5 +58,7 @@ Use advisor_sol to evaluate this design. Return advice only and do not modify fi
 ## Routing policy
 
 Use `worker_luna` only for localized, low-risk changes with explicit scope and mechanical validation. Use `worker_terra` when the change requires diagnosis, non-trivial reasoning, cross-cutting edits, or adaptation to repository state.
+
+Use only one active write-capable worker at a time. A sequential Luna-to-Terra handoff is allowed only after Luna has stopped, reported every partial edit, and returned control to the parent. The parent must review that state before starting Terra; workers must not spawn or delegate to another write-capable worker themselves.
 
 If an implementation agent encounters an unplanned architectural, security, compatibility, or data-model decision, return control to `planner_sol` or `advisor_sol` instead of silently expanding the plan.
