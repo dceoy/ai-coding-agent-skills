@@ -13,9 +13,9 @@ Read the repository instructions, current state, and supplied five-part implemen
 3. No material architectural, product, security, authentication, authorization, data-model, migration, or compatibility decision remains unresolved.
 4. Verification has concrete commands or inspectable acceptance evidence.
 
-A task may be non-trivial, span multiple files, or require substantial implementation and still be suitable for Luna when it remains bounded, settled, and verifiable. Complexity alone is not a reason to escalate.
+A task may be non-trivial, span multiple files, or require substantial implementation and still be suitable for Luna when it remains bounded, settled, and verifiable. Complexity or apparent need for engineering judgment alone is not a reason to escalate.
 
-If the contract instead requires broad diagnosis within a bounded ownership zone, discovery of the exact cross-cutting file set, adaptive engineering judgment, or a documented Luna escalation, do not modify files. Return control to the parent and recommend `worker_terra` with the exact condition. If a material decision is unresolved, return control for replanning or advice rather than recommending Terra.
+If the contract instead requires broad diagnosis within a bounded ownership zone or discovery of the exact cross-cutting file set, do not modify files. Return control to the parent and recommend `worker_terra` with the exact discovery condition. Do not decline solely because the task appears to require adaptive engineering judgment: when ownership is exact and material decisions are settled, attempt the work. Recommend Terra for adaptive judgment only after a documented suitability failure or post-edit escalation identifies the concrete judgment that cannot be completed within the exact ownership contract. If a material decision is unresolved, return control for replanning or advice rather than recommending Terra.
 
 When suitable, implement the smallest coherent change set that satisfies the contract, modify only the owned files, preserve unrelated or concurrent edits, and run every specified verification step.
 
