@@ -4,10 +4,10 @@ These project-scoped TOML files define native Codex agent roles that separate pl
 
 Invoke these roles only from a top-level Codex parent through Codex's native multi-agent tools. These TOML files are native role definitions, not prompts intended for nested `codex exec` invocations, shell wrappers, or equivalent subprocesses. If the runtime does not expose native named-agent dispatch, stop and report `unsupported`; do not replace a named role with a generic child, copied prompt, direct parent execution, or compatibility mode. Runtime metadata must prove the resolved definition, effective model, reasoning effort, sandbox, and permission mode.
 
-- `planner_sol`: `gpt-5.6-sol`, maximum reasoning, read-only. Produces a five-part implementation contract with Luna-first routing.
-- `advisor_sol`: `gpt-5.6-sol`, maximum reasoning, read-only. Provides technical advice or an attested fresh `ship / fix-first / rethink` review with an explicit remediation class.
-- `worker_luna`: `gpt-5.6-luna`, maximum reasoning, workspace-write. Default worker for bounded, settled, and verifiable implementation contracts with exact file and artifact ownership.
-- `worker_terra`: `gpt-5.6-terra`, maximum reasoning, workspace-write. Handles only bounded Terra escalation after an explicit Luna suitability failure or escalation.
+- `planner_sol`: `gpt-5.6-sol`, xhigh reasoning, read-only. Produces a five-part implementation contract with Luna-first routing.
+- `advisor_sol`: `gpt-5.6-sol`, xhigh reasoning, read-only. Provides technical advice or an attested fresh `ship / fix-first / rethink` review with an explicit remediation class.
+- `worker_luna`: `gpt-5.6-luna`, xhigh reasoning, workspace-write. Default worker for bounded, settled, and verifiable implementation contracts with exact file and artifact ownership.
+- `worker_terra`: `gpt-5.6-terra`, xhigh reasoning, workspace-write. Handles only bounded Terra escalation after an explicit Luna suitability failure or escalation.
 
 ## Permission model
 
@@ -19,7 +19,7 @@ Use separate permission phases:
 - Planning and implementation: use a workspace-write parent turn. Planner read-only behavior is instruction-enforced in this phase.
 - Final review: end the workspace-write turn and start a separate parent session in read-only mode.
 
-A workspace-write parent cannot produce an acceptable final verdict merely by instructing a child not to edit. The review session must expose effective read-only permission and must receive no inherited implementation history. Before accepting a verdict, require a separate read-only parent session to resolve the named `advisor_sol` definition through native multi-agent dispatch with `fork_turns: "none"`, `gpt-5.6-sol`, `reasoning_effort=max`, and effective read-only permission.
+A workspace-write parent cannot produce an acceptable final verdict merely by instructing a child not to edit. The review session must expose effective read-only permission and must receive no inherited implementation history. Before accepting a verdict, require a separate read-only parent session to resolve the named `advisor_sol` definition through native multi-agent dispatch with `fork_turns: "none"`, `gpt-5.6-sol`, `reasoning_effort=xhigh`, and effective read-only permission.
 
 A generic child response or copied review prompt is not sufficient merely because it prints `VERDICT: ship`. If native named-agent dispatch or any required attestation is unavailable, block completion with `unsupported` or `REMEDIATION: parent-evidence`.
 
@@ -103,7 +103,7 @@ From the top-level Codex parent, use native multi-agent dispatch to invoke `plan
 End the implementation turn and start a separate parent session in read-only mode:
 
 ```text
-From a fresh separate read-only parent session, use native multi-agent dispatch to invoke the named `advisor_sol` role with `fork_turns` set to `none`. Retain runtime metadata proving the named definition, `gpt-5.6-sol` model, `reasoning_effort=max`, and effective read-only permission. If native named-agent dispatch or any required attestation is unavailable, stop and report `unsupported` or `fix-first` with `REMEDIATION: parent-evidence`; never substitute a generic child or copied prompt. Review the frozen goal, complete baseline-relative tracked diff, relevant untracked-file evidence, interfaces, constraints, and parent verification evidence. Return VERDICT and REMEDIATION. Confirm that the repository still matches the frozen pre-review baseline; any intervening or reviewer-time mutation invalidates the verdict.
+From a fresh separate read-only parent session, use native multi-agent dispatch to invoke the named `advisor_sol` role with `fork_turns` set to `none`. Retain runtime metadata proving the named definition, `gpt-5.6-sol` model, `reasoning_effort=xhigh`, and effective read-only permission. If native named-agent dispatch or any required attestation is unavailable, stop and report `unsupported` or `fix-first` with `REMEDIATION: parent-evidence`; never substitute a generic child or copied prompt. Review the frozen goal, complete baseline-relative tracked diff, relevant untracked-file evidence, interfaces, constraints, and parent verification evidence. Return VERDICT and REMEDIATION. Confirm that the repository still matches the frozen pre-review baseline; any intervening or reviewer-time mutation invalidates the verdict.
 ```
 
 ### Approval-gated workflow
@@ -153,7 +153,7 @@ Luna must perform its pre-edit suitability check. If bounded discovery is requir
 
 Before delegation, preflight whether the native runtime resolves the named role, loaded definition source, configured model and reasoning effort, configured sandbox, and effective permission mode. Retain the runtime metadata as the attestation; TOML contents and child self-reports are not substitutes.
 
-If native named-agent dispatch cannot resolve `planner_sol`, `worker_luna`, `worker_terra`, or `advisor_sol`, or cannot attest the required effective model, `reasoning_effort=max`, sandbox, or permission mode, stop and report `unsupported`. Do not fall back to `codex exec`, nested Codex CLI processes, shell wrappers, direct parent execution, generic children, or compatibility modes. Runtime unavailability is never a Terra condition.
+If native named-agent dispatch cannot resolve `planner_sol`, `worker_luna`, `worker_terra`, or `advisor_sol`, or cannot attest the required effective model, `reasoning_effort=xhigh`, sandbox, or permission mode, stop and report `unsupported`. Do not fall back to `codex exec`, nested Codex CLI processes, shell wrappers, direct parent execution, generic children, or compatibility modes. Runtime unavailability is never a Terra condition.
 
 ## Attribution and review integrity
 
