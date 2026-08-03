@@ -52,7 +52,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ## Codex Custom Subagents
 
-Project-scoped agent definitions under `.codex/agents/` use a plan, Luna-first implement, parent verify, and fresh-review workflow. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required. All four agents use maximum reasoning effort.
+Project-scoped agent definitions under `.codex/agents/` use a plan, Luna-first implement, parent verify, and separate fresh-review workflow. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required. All four agents use maximum reasoning effort.
 
 - `planner_sol` - Produce a five-part implementation contract and Luna-first executor recommendation with `gpt-5.6-sol`
 - `advisor_sol` - Provide read-only technical advice or an attested fresh final review with `gpt-5.6-sol`
@@ -61,7 +61,7 @@ Project-scoped agent definitions under `.codex/agents/` use a plan, Luna-first i
 
 Use Luna by default whenever exact scope, interfaces, constraints, and acceptance evidence are settled. Use Terra escalation only after material decisions are settled and either bounded file discovery is required or Luna documents a concrete adaptive judgment it cannot complete within exact ownership; complexity, multiple files, or apparent need for engineering judgment alone do not justify escalation. The parent preflights named-agent and model availability. If Luna cannot be spawned because of a runtime or backend limitation, the parent may execute the exact contract directly or use Terra in explicit Luna-compatibility mode without discovery, adaptive-judgment, or scope-expansion authority.
 
-The main agent captures a pre-worker repository baseline, verifies only the worker-introduced delta, reruns validation, supplies complete baseline-relative tracked and relevant untracked evidence for final review, and guards against reviewer mutation. Immutable revisions may replace baseline-relative evidence only when they encode the entire reviewed change set and the relevant worktree is clean. A final `ship` verdict is valid only when the parent can attest that the named `advisor_sol` configuration, Sol model, and read-only permission resolved, or when an equivalent separate read-only review session has explicit instructions plus visible model, permission, and isolation evidence.
+The main agent establishes an attribution boundary, preferably with a dedicated clean worktree or otherwise with exclusive access to owned and verification-relevant paths. It captures a pre-worker baseline, blocks on unexpected or unattributable concurrent mutations, verifies only attributable implementation changes, reruns validation, and freezes a complete evidence packet. Final review then runs in a separate read-only parent session. The reviewer classifies `fix-first` remediation as parent evidence repair, repository changes, or both, so missing model/permission attestation or incomplete review inputs are not incorrectly delegated to an implementation worker.
 
 See [.codex/agents/README.md](./.codex/agents/README.md) for routing rules, permission behavior, and invocation examples.
 
