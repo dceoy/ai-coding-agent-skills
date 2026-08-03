@@ -32,17 +32,19 @@ mkdir -p ~/.codex/agents
 cp .codex/agents/*.toml ~/.codex/agents/
 ```
 
-Install the supplied routing instructions only when `~/.codex/AGENTS.md` does not already exist:
+Install the supplied routing instructions only when neither global instruction file exists:
 
 ```bash
-if [ -e "$HOME/.codex/AGENTS.md" ] || [ -L "$HOME/.codex/AGENTS.md" ]; then
+if [ -e "$HOME/.codex/AGENTS.override.md" ] || [ -L "$HOME/.codex/AGENTS.override.md" ]; then
+  printf '%s\n' 'Keep the existing ~/.codex/AGENTS.override.md and merge the Model routing section from .codex/AGENTS.md into that active override manually.'
+elif [ -e "$HOME/.codex/AGENTS.md" ] || [ -L "$HOME/.codex/AGENTS.md" ]; then
   printf '%s\n' 'Keep the existing ~/.codex/AGENTS.md and merge the Model routing section from .codex/AGENTS.md manually.'
 else
   cp .codex/AGENTS.md "$HOME/.codex/AGENTS.md"
 fi
 ```
 
-Do not replace an existing file or symlink until its current instructions have been preserved in a merged `~/.codex/AGENTS.md`.
+Codex prefers a non-empty `~/.codex/AGENTS.override.md` over `~/.codex/AGENTS.md`. If an override exists, merge the routing section into that file or remove it only after preserving its instructions. Do not replace either existing file or symlink until its current instructions have been preserved.
 
 To keep the agent definitions synchronized with this repository, use symlinks from a local clone:
 
@@ -55,10 +57,12 @@ for file in "$repo_root"/.codex/agents/*.toml; do
 done
 ```
 
-Link the routing instructions only when no global `AGENTS.md` exists:
+Link the routing instructions only when neither global instruction file exists:
 
 ```bash
-if [ -e "$HOME/.codex/AGENTS.md" ] || [ -L "$HOME/.codex/AGENTS.md" ]; then
+if [ -e "$HOME/.codex/AGENTS.override.md" ] || [ -L "$HOME/.codex/AGENTS.override.md" ]; then
+  printf '%s\n' 'Keep the existing ~/.codex/AGENTS.override.md and merge the Model routing section from the repository file into that active override manually.'
+elif [ -e "$HOME/.codex/AGENTS.md" ] || [ -L "$HOME/.codex/AGENTS.md" ]; then
   printf '%s\n' 'Keep the existing ~/.codex/AGENTS.md and merge the Model routing section from the repository file manually.'
 else
   ln -s "$repo_root/.codex/AGENTS.md" "$HOME/.codex/AGENTS.md"
