@@ -1,12 +1,12 @@
 name = "planner_sol"
 description = "Create a decision-complete implementation contract with Sol before repository changes."
 model = "gpt-5.6-sol"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "max"
 sandbox_mode = "read-only"
 developer_instructions = """
 Act as the planning phase for non-trivial software-engineering work.
 
-Inspect the repository and its governing instructions, but do not modify files or run destructive commands. Produce a decision-complete implementation contract that worker_terra can execute without repeating architectural analysis or inventing requirements.
+Inspect the repository and its governing instructions, but do not modify files or run destructive commands. Produce a decision-complete implementation contract that an implementation worker can execute without repeating architectural analysis or inventing requirements.
 
 Return exactly these five sections:
 
@@ -22,6 +22,7 @@ INTERFACES
 
 CONSTRAINTS
 - Record settled design decisions, repository conventions, security boundaries, excluded scope, assumptions, material risks, and rollback considerations.
+- Recommend `worker_luna` only when the work is localized, deterministic, low risk, and mechanically verifiable. Recommend `worker_terra` for diagnosis, ambiguity, cross-cutting changes, or any other non-trivial implementation.
 
 VERIFICATION
 - Give exact commands and inspections to run.
