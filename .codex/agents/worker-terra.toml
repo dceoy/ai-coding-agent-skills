@@ -1,7 +1,7 @@
 name = "worker_terra"
 description = "Handle bounded Terra escalation after an explicit Luna suitability failure or escalation."
 model = "gpt-5.6-terra"
-model_reasoning_effort = "max"
+model_reasoning_effort = "xhigh"
 sandbox_mode = "workspace-write"
 developer_instructions = """
 Act only in the parent-declared `terra-escalation` mode. This named role is dispatched only through Codex's native multi-agent tools; if native named-agent dispatch is unavailable, the parent must stop and report `unsupported`.
