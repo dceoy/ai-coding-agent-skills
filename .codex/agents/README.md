@@ -101,8 +101,10 @@ Use native multi-agent dispatch to invoke `planner` and obtain its five-part imp
 End the implementation turn and start a fresh separate parent session in read-only mode:
 
 ```text
-Use native multi-agent dispatch to invoke `advisor` with `fork_turns` set to `none`. Retain runtime metadata proving the named definition, `gpt-5.6-sol`, `reasoning_effort=xhigh`, a fresh session, and effective read-only permission. Review the frozen goal, implementation contract, complete baseline-relative tracked diff, relevant untracked-file evidence, and main-session verification evidence. Return VERDICT and REMEDIATION. Any repository mutation invalidates the verdict.
+Use native multi-agent dispatch to invoke `advisor` with `fork_turns` set to `none`. Before dispatch, independently resolve and compare the canonical repository/worktree identity, complete frozen review baseline, original path inventory, and original SHA-256 manifest against the implementation packet. Retain runtime metadata proving the named definition, `gpt-5.6-sol`, `reasoning_effort=xhigh`, a fresh session, and effective read-only permission. Pass the original packet and parent comparison evidence to `advisor`; require it to repeat those comparisons before inspecting files or running verification. Review the frozen goal, implementation contract, complete baseline-relative tracked diff, relevant untracked-file evidence, and main-session verification evidence. Return VERDICT and REMEDIATION. After review, recompute and compare the same identity, `HEAD`, status, path inventory, and manifest against the original packet. Any mismatch or repository mutation invalidates the verdict.
 ```
+
+The canonical repository/worktree identity is the physical-path triplet produced by `cd "$(git rev-parse --show-toplevel)" && pwd -P`, `cd "$(git rev-parse --git-dir)" && pwd -P`, and `cd "$(git rev-parse --git-common-dir)" && pwd -P`. The complete frozen review baseline includes that triplet, exact `HEAD`, complete unedited `git status --porcelain=v2 --branch --untracked-files=all` output, a deterministically sorted repository-relative path inventory, and the original SHA-256 manifest for every tracked path present in the worktree and every non-ignored untracked file. Manifest records include path, filesystem kind and mode, and a digest over raw file bytes or symlink-target bytes; deleted reviewed paths receive explicit expected-absent records.
 
 ### Approval-gated workflow
 
@@ -142,7 +144,7 @@ Before implementation, capture `HEAD`, porcelain-v2 status, staged and unstaged 
 
 The main agent owns implementation, the authoritative baseline-relative delta, scope enforcement, inspection, and verification. If an unexpected mutation appears or exclusive access was violated, stop and reconcile rather than attributing the change to the main implementation phase.
 
-Freeze the verified state before ending the workspace-write turn. Final review must run in a fresh separate read-only parent session and receive the complete change set and verification evidence. Compare the repository with the frozen pre-review baseline after review; any intervening or reviewer-time mutation invalidates the verdict.
+Freeze the verified state before ending the workspace-write turn. Final review must run in a fresh separate read-only parent session and receive the canonical repository/worktree identity, complete frozen review baseline, original path inventory, original SHA-256 manifest, complete change set, and verification evidence. The parent and advisor must verify those values before inspecting files or running verification, and the parent must compare the same identified state against the original packet after review; any identity, manifest, or intervening/reviewer-time mutation invalidates the verdict.
 
 The reviewer returns a remediation class:
 
