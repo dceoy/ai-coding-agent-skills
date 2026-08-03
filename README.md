@@ -16,11 +16,12 @@ Each skill directory contains a `SKILL.md` that documents prerequisites and invo
    git clone git@github.com:dceoy/ai-coding-agent-skills.git
    ```
 
-2. Pick a runtime and explore the skills in `skills/` and the relevant runtime integration:
+2. Pick a runtime and explore the relevant integration:
    - **Claude Code / Claude Code Routines:** `.claude/skills -> ../skills` (symlink exposing all skills)
-   - **Codex CLI / other runtimes:** `.agents/skills/` (per-skill symlinks into `skills/`)
+   - **Codex CLI skills:** `.agents/skills/` (per-skill symlinks into `skills/`)
+   - **Codex CLI custom subagents:** `.codex/agents/` (project-scoped definitions discovered automatically by current Codex releases)
 
-3. Open a skill directory and read the `SKILL.md` to learn how to invoke it.
+3. Open a skill directory or `.codex/agents/README.md` to learn how to invoke it.
 
 ## Skills
 
@@ -49,6 +50,17 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `claude-agent-converter` - Convert Claude Code agents to portable skills
 - `claude-command-converter` - Convert Claude Code commands to portable skills
 
+## Codex Custom Subagents
+
+Project-scoped agent definitions under `.codex/agents/` separate planning and advice from implementation. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required.
+
+- `planner_sol` - Produce decision-complete plans with `gpt-5.6-sol`
+- `advisor_sol` - Provide read-only technical advice with `gpt-5.6-sol`
+- `worker_terra` - Implement non-trivial plans with `gpt-5.6-terra`
+- `worker_luna` - Implement narrow, deterministic plans with `gpt-5.6-luna`
+
+See [.codex/agents/README.md](./.codex/agents/README.md) for routing rules, permission behavior, and invocation examples.
+
 ## Structure
 
 ```
@@ -58,6 +70,8 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 │   └── skills/              # Per-skill symlinks into skills/ (other runtimes)
 ├── .claude/
 │   └── skills -> ../skills  # Symlink exposing skills/ to Claude Code runtime
+├── .codex/
+│   └── agents/              # Project-scoped Codex custom subagents
 ├── .github/
 │   └── workflows/           # CI workflows (ci.yml)
 ├── AGENTS.md                # Repository guidelines (source of truth)
