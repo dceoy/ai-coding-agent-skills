@@ -33,14 +33,16 @@ A present but invalid Git marker is unsupported, not `filesystem`. Git modes als
 
 The project manifest is deterministically sorted and byte-safe. Do not follow symlinks. Record directories with path, kind, and mode; regular files with path, kind, mode, byte length, and SHA-256 over raw bytes; symlinks with path, kind, mode, and SHA-256 over raw link-target bytes; and required missing paths as `expected-absent`.
 
+In `git-head`, retain both the porcelain untracked inventory and a complete untracked-content manifest. The latter applies the same byte-safe record schema to every untracked directory, regular file, and symlink; an unchanged path inventory is not evidence that untracked contents are unchanged.
+
 ## Planning mutation guard
 
 Before dispatching `planner` from a workspace-write parent, capture the complete initial-mode project baseline:
 
 - canonical project identity;
 - mode-specific Git/index/worktree evidence when applicable;
-- tracked-content or complete filesystem manifest;
-- relevant untracked and ignored-path evidence;
+- tracked-content plus complete untracked-content manifests for `git-head`, or the complete filesystem manifest for modes without a resolved `HEAD`;
+- relevant ignored-path evidence;
 - expected-absent records.
 
 After `planner` returns, capture the same evidence again and compare it byte-for-byte. Do not treat planner-created changes as the starting baseline. A planning-only read-only session may replace this guard, but the later write-capable session must still verify the same identity and state before accepting the contract.
@@ -107,7 +109,7 @@ After installation, start a fresh Codex session and verify that native `planner`
 Start a workspace-write parent turn:
 
 ```text
-Fix physical PROJECT_ROOT and classify the initial mode. Capture the complete pre-planning project guard before invoking native planner. After planner returns, recapture and byte-compare the same project evidence; stop on any mutation. Validate the five-part contract, capture planner-declared ignored/excluded paths and external inputs, then implement directly in the top-level main agent with reasoning_effort=xhigh. For a baseline-mode transition, retain the complete source baseline and transition bridge. Verify, freeze the full packet, and do not run final review in this turn.
+Fix physical PROJECT_ROOT and classify the initial mode. Capture the complete pre-planning project guard before invoking native planner, including tracked-content and complete untracked-content manifests in git-head mode. After planner returns, recapture and byte-compare the same project evidence; stop on any mutation. Validate the five-part contract, capture planner-declared ignored/excluded paths and external inputs, then implement directly in the top-level main agent with reasoning_effort=xhigh. For a baseline-mode transition, retain the complete source baseline and transition bridge. Verify, freeze the full packet, and do not run final review in this turn.
 ```
 
 ### Final review
@@ -115,7 +117,7 @@ Fix physical PROJECT_ROOT and classify the initial mode. Capture the complete pr
 Start a fresh separate read-only parent session:
 
 ```text
-Invoke native advisor with fork_turns set to none. Before dispatch, compare the pre-planning guard, post-planner equality evidence, immutable source baseline, transition bridge when applicable, final canonical identity and mode-specific evidence, path/filesystem manifests, ignored/excluded paths, external-input evidence or hermetic boundary, and verification evidence against the original packet. Require attested gpt-5.6-sol, reasoning_effort=xhigh, a fresh session, and effective read-only permission. Repeat final-state comparison after review; any mismatch invalidates the verdict.
+Invoke native advisor with fork_turns set to none. Before dispatch, compare the pre-planning guard, post-planner equality evidence, immutable source baseline, transition bridge when applicable, final canonical identity and mode-specific evidence, path inventory, tracked-content, untracked-content, and filesystem manifests as applicable, ignored/excluded paths, external-input evidence or hermetic boundary, and verification evidence against the original packet. Require attested gpt-5.6-sol, reasoning_effort=xhigh, a fresh session, and effective read-only permission. Repeat final-state comparison after review; any mismatch invalidates the verdict.
 ```
 
 ### Advice only
@@ -126,7 +128,7 @@ Use native advisor to evaluate this design. Return advice only and do not modify
 
 ## Review integrity
 
-Prevent other writers from modifying approved or verification-relevant project paths until final evidence capture. External inputs must remain frozen, replayable, or independently attestable.
+Prevent other writers from modifying approved or verification-relevant project paths until final evidence capture. External inputs must remain frozen, replayable, or independently attestable. In `git-head`, every pre-planning, frozen, handoff, and post-review comparison must include the complete untracked-content manifest rather than relying on untracked path inventory alone.
 
 Never read, print, serialize, copy into evidence, or compute an unkeyed digest of a secret value. Represent secrets only with non-secret immutable secret-manager version identifiers or externally produced keyed attestations whose key and raw secret never enter the agent context.
 
