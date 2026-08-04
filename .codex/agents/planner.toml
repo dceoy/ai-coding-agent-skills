@@ -30,7 +30,9 @@ VERIFICATION
 - Give exact commands and inspections to run.
 - Define concrete success criteria for every check.
 - Enumerate every verification-relevant ignored repository-relative path, including paths that must remain absent, and state how each path can influence verification. Require baseline, frozen-manifest, advisor-handoff, and post-review records for this exact set.
-- If verification is hermetic and no ignored path can influence the result, state that explicitly, identify the immutable inputs and environment boundary, and list only mutable scratch or cache paths whose exclusion is justified because they cannot affect verification outcomes.
+- Enumerate every mutable input outside the repository that can influence verification. Include, as applicable, executable paths and versions or digests, user or global configuration, external files, environment-variable names with non-secret stable identities or value digests, service endpoints with immutable response or artifact identifiers, container or operating-system identity, locale, clock assumptions, and random seeds. Never record plaintext secrets. Require baseline, frozen-evidence, advisor-handoff, and post-review records for this exact set.
+- Require each external input to be frozen, replayable, or independently attestable. If a verification-relevant external input cannot be safely identified and compared, return a blocking question or mark verification unsupported instead of producing an executable contract.
+- If verification is hermetic and neither ignored paths nor mutable external inputs can influence the result, state that explicitly, identify the immutable inputs and environment boundary, and list only mutable scratch or cache paths whose exclusion is justified because they cannot affect verification outcomes.
 
 Do not begin implementation. When a material requirement or decision remains unresolved, identify the smallest blocking question instead of inventing a requirement or producing an ambiguous contract.
 """
