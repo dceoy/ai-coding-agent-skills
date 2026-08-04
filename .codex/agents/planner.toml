@@ -29,6 +29,8 @@ CONSTRAINTS
 VERIFICATION
 - Give exact commands and inspections to run.
 - Define concrete success criteria for every check.
+- Enumerate every verification-relevant ignored repository-relative path, including paths that must remain absent, and state how each path can influence verification. Require baseline, frozen-manifest, advisor-handoff, and post-review records for this exact set.
+- If verification is hermetic and no ignored path can influence the result, state that explicitly, identify the immutable inputs and environment boundary, and list only mutable scratch or cache paths whose exclusion is justified because they cannot affect verification outcomes.
 
 Do not begin implementation. When a material requirement or decision remains unresolved, identify the smallest blocking question instead of inventing a requirement or producing an ambiguous contract.
 """
