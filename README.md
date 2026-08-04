@@ -57,11 +57,11 @@ Project-scoped definitions under `.codex/agents/` provide two native read-only C
 - `planner` - Produce a decision-complete implementation plan with `gpt-5.6-sol`
 - `advisor` - Provide read-only technical advice or final implementation review with `gpt-5.6-sol`
 
-Both roles use `model_reasoning_effort = "xhigh"`. Implementation is performed directly by the top-level main agent; there are no dedicated Luna or Terra worker subagents.
+Both roles use `model_reasoning_effort = "xhigh"`. Implementation is performed directly by the top-level main agent; there are no dedicated Luna or Terra worker subagents. The implementation session must be configured with `reasoning_effort=xhigh` separately.
 
-For non-trivial changes, invoke `planner`, resolve material decisions, implement the approved plan in the main agent, run verification, and invoke `advisor` in a fresh read-only context to review the planner contract, actual changes, and verification results. Repeat bounded fixes and review until `VERDICT: ship`.
+For non-trivial changes, invoke `planner`, resolve material decisions, implement the approved plan in the main agent, run verification, and invoke `advisor` in a fresh effectively read-only context with no inherited implementation history. Apply bounded `fix-first` findings, return `rethink` findings to `planner`, and treat `unsupported` as blocking. Report completion only after `VERDICT: ship`.
 
-Invoke these roles only through native multi-agent dispatch. If native dispatch is unavailable, report `unsupported`; do not fall back to nested `codex exec`, shell wrappers, copied prompts, or generic agents.
+Invoke these roles only through native multi-agent dispatch. If native dispatch or the required runtime guarantees are unavailable, report `unsupported`; do not fall back to nested `codex exec`, shell wrappers, copied prompts, or generic agents.
 
 See [.codex/agents/README.md](./.codex/agents/README.md) for installation and usage examples.
 
