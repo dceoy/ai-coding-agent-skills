@@ -2,10 +2,8 @@
 
 These project-scoped TOML files define two native read-only Codex roles:
 
-| Agent     | Model         | Reasoning | Sandbox   | Purpose                                           |
-| --------- | ------------- | --------- | --------- | ------------------------------------------------- |
-| `planner` | `gpt-5.6-sol` | `xhigh`   | Read-only | Produce a decision-complete implementation plan   |
-| `advisor` | `gpt-5.6-sol` | `xhigh`   | Read-only | Provide technical advice or final implementation review |
+- `planner`: `gpt-5.6-sol`, `xhigh`, read-only. Produces a decision-complete implementation plan.
+- `advisor`: `gpt-5.6-sol`, `xhigh`, read-only. Provides technical advice or final implementation review.
 
 Implementation is performed directly by the top-level main agent. There are no dedicated Luna or Terra worker roles.
 
