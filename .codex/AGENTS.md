@@ -18,9 +18,9 @@ Use the main agent directly for simple questions and narrow, deterministic edits
 
 For non-trivial implementation tasks:
 
-1. Invoke `planner` before editing and obtain a decision-complete contract covering objective, scope, interfaces, constraints, and verification.
+1. Invoke `planner` in a separate context with effective read-only permission and obtain a decision-complete contract covering objective, scope, interfaces, constraints, and verification. Accept the contract only when the runtime attests the named definition, model, reasoning effort, and effective permission; otherwise report `unsupported`.
 2. Resolve material architectural, product, security, compatibility, or data-model decisions before implementation. Do not invent requirements.
-3. Before editing, ensure the top-level implementation session is configured with `model_reasoning_effort = "xhigh"`; otherwise restart with `xhigh` or report `unsupported`. Implement the approved contract directly in that session. Do not delegate implementation to a worker subagent.
+3. Pass the approved contract to a top-level implementation session configured with `model_reasoning_effort = "xhigh"`; otherwise restart with `xhigh` or report `unsupported`. Implement the approved contract directly in that session. Do not delegate implementation to a worker subagent.
 4. Inspect the actual changes, preserve unrelated work, and run the relevant verification from the planner contract.
 5. Invoke `advisor` in a fresh context with effective read-only permission and no inherited implementation history (`fork_turns: "none"`). Provide the planner contract, actual changed files or diff, implementation decisions, and verification results. If either runtime guarantee cannot be established, report `unsupported` and do not accept a verdict.
 6. Handle the verdict: apply bounded `fix-first` findings in the main agent; for `rethink`, return to `planner` and approve a revised contract before reimplementation; `unsupported` blocks completion. Rerun verification and fresh review after changes. Report completion only after `VERDICT: ship`.
