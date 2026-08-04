@@ -20,12 +20,12 @@ For non-trivial implementation tasks:
 
 1. Invoke `planner` before editing and obtain a decision-complete contract covering objective, scope, interfaces, constraints, and verification.
 2. Resolve material architectural, product, security, compatibility, or data-model decisions before implementation. Do not invent requirements.
-3. Before editing, ensure the top-level implementation session is configured with `reasoning_effort=xhigh`; otherwise restart with `xhigh` or report `unsupported`. Implement the approved contract directly in that session. Do not delegate implementation to a worker subagent.
+3. Before editing, ensure the top-level implementation session is configured with `model_reasoning_effort = "xhigh"`; otherwise restart with `xhigh` or report `unsupported`. Implement the approved contract directly in that session. Do not delegate implementation to a worker subagent.
 4. Inspect the actual changes, preserve unrelated work, and run the relevant verification from the planner contract.
 5. Invoke `advisor` in a fresh context with effective read-only permission and no inherited implementation history (`fork_turns: "none"`). Provide the planner contract, actual changed files or diff, implementation decisions, and verification results. If either runtime guarantee cannot be established, report `unsupported` and do not accept a verdict.
 6. Handle the verdict: apply bounded `fix-first` findings in the main agent; for `rethink`, return to `planner` and approve a revised contract before reimplementation; `unsupported` blocks completion. Rerun verification and fresh review after changes. Report completion only after `VERDICT: ship`.
 
-The planner and advisor TOML files configure `reasoning_effort=xhigh` and read-only defaults. Runtime overrides must not weaken the final-review requirements above.
+The planner and advisor TOML files configure `model_reasoning_effort = "xhigh"` and read-only defaults. Runtime overrides must not weaken the final-review requirements above.
 
 For architecture, design evaluation, or technical advice without implementation, invoke `advisor` and keep the work read-only.
 

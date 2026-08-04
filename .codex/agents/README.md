@@ -17,12 +17,12 @@ For non-trivial implementation:
 
 1. Invoke `planner` before editing.
 2. Resolve material open decisions and approve the plan.
-3. Ensure the top-level implementation session is configured with `reasoning_effort=xhigh`; otherwise restart with `xhigh` or report `unsupported`. Implement the plan directly in that session.
+3. Ensure the top-level implementation session is configured with `model_reasoning_effort = "xhigh"`; otherwise restart with `xhigh` or report `unsupported`. Implement the plan directly in that session.
 4. Inspect the actual changes and run the planned verification.
 5. Invoke `advisor` in a fresh context with effective read-only permission and `fork_turns: "none"`, passing the planner contract, changed files or diff, implementation decisions, and verification results. If either runtime guarantee cannot be established, report `unsupported` and do not accept a verdict.
 6. Apply bounded `fix-first` findings in the main agent. For `rethink`, return to `planner` and approve a revised contract before reimplementation. `unsupported` blocks completion. Repeat verification and fresh review until `VERDICT: ship`.
 
-The planner and advisor TOMLs configure `xhigh` and read-only defaults. The top-level implementation session must be configured with `xhigh` separately, and runtime overrides must not weaken final-review isolation.
+The planner and advisor TOMLs configure `model_reasoning_effort = "xhigh"` and read-only defaults. The top-level implementation session must be configured with `model_reasoning_effort = "xhigh"` separately, and runtime overrides must not weaken final-review isolation.
 
 ## User-wide installation
 
@@ -62,7 +62,7 @@ Start a fresh Codex session after installation and verify that native `planner` 
 ### Plan and implement
 
 ```text
-Use native planner to produce a decision-complete plan for this task. Resolve any blocking questions, then implement the approved plan directly in a top-level main-agent session configured with xhigh reasoning. Do not delegate implementation to worker subagents. Run the planned verification and summarize the actual changes and results.
+Use native planner to produce a decision-complete plan for this task. Resolve any blocking questions, then implement the approved plan directly in a top-level main-agent session configured with model_reasoning_effort = "xhigh". Do not delegate implementation to worker subagents. Run the planned verification and summarize the actual changes and results.
 ```
 
 ### Final review
