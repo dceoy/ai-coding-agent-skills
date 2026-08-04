@@ -56,7 +56,7 @@ The preflight stops before copying definitions when a same-named file or symlink
 
 Codex prefers a non-empty `AGENTS.override.md` over `AGENTS.md` in its home directory. If an override exists, merge the routing section into that file or remove it only after preserving its instructions.
 
-To keep definitions synchronized with a local clone, use symlinks:
+To keep definitions synchronized with a local clone, repeat the regular-file copy steps above:
 
 ```bash
 codex_home="${CODEX_HOME:-$HOME/.codex}"
@@ -64,25 +64,19 @@ repo_root="$(git rev-parse --show-toplevel)"
 mkdir -p "$codex_home/agents"
 
 for file in "$repo_root"/.codex/agents/*.toml; do
-  destination="$codex_home/agents/$(basename "$file")"
-  if [ -e "$destination" ] || [ -L "$destination" ]; then
-    printf 'Keep the existing %s and merge, back up, or remove it before installing this symlink.\n' "$destination" >&2
-    exit 1
-  fi
-done
-
-for file in "$repo_root"/.codex/agents/*.toml; do
-  ln -s "$file" "$codex_home/agents/$(basename "$file")"
+  cp "$file" "$codex_home/agents/$(basename "$file")"
 done
 
 if [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
-  printf 'Keep the existing %s and merge the Model routing section from the repository file into that active override manually.\n' "$codex_home/AGENTS.override.md"
+  printf 'Merge the Model routing section from the repository file into the active override manually.\n'
 elif [ -e "$codex_home/AGENTS.md" ] || [ -L "$codex_home/AGENTS.md" ]; then
-  printf 'Keep the existing %s and merge the Model routing section from the repository file manually.\n' "$codex_home/AGENTS.md"
+  printf 'Keep the existing AGENTS.md and merge the Model routing section manually.\n'
 else
-  ln -s "$repo_root/.codex/AGENTS.md" "$codex_home/AGENTS.md"
+  cp "$repo_root/.codex/AGENTS.md" "$codex_home/AGENTS.md"
 fi
 ```
+
+Use regular-file copies for this synchronization step; Codex discovery may skip agent-definition symlinks. After copying, start a fresh Codex session and verify that native `planner` and `advisor` resolve from the expected copied definitions with the required role, model, reasoning, sandbox, and permission metadata. If either role is unavailable or the runtime cannot provide that capability evidence, stop and report `unsupported`.
 
 Start a new Codex session after installing or updating the files. Remove obsolete `planner-sol.toml`, `advisor-sol.toml`, `worker-luna.toml`, and `worker-terra.toml` files from existing user-wide installations to avoid duplicate or stale roles.
 
@@ -105,6 +99,8 @@ Use native multi-agent dispatch to invoke `advisor` with `fork_turns` set to `no
 ```
 
 The canonical repository/worktree identity is the physical-path triplet produced by `cd "$(git rev-parse --show-toplevel)" && pwd -P`, `cd "$(git rev-parse --git-dir)" && pwd -P`, and `cd "$(git rev-parse --git-common-dir)" && pwd -P`. The complete frozen review baseline includes that triplet, exact `HEAD`, complete unedited `git status --porcelain=v2 --branch --untracked-files=all` output, a deterministically sorted repository-relative path inventory, and the original SHA-256 manifest for every tracked path present in the worktree and every non-ignored untracked file. Manifest records include path, filesystem kind and mode, and a digest over raw file bytes or symlink-target bytes; deleted reviewed paths receive explicit expected-absent records.
+
+For a tracked gitlink/submodule (mode `160000`), record the path, `gitlink` kind, mode, full stage-zero index object ID, checked-out submodule `HEAD`, and exact dirty-state output, plus a SHA-256 digest over that canonical tuple. A gitlink is valid only when its stage-zero index entry exists, its checked-out `HEAD` resolves, and its status is clean; unmerged, missing, uninitialized, or dirty gitlinks invalidate the freeze. Apply the same rule to nested tracked gitlinks, and never initialize, clean, reset, or otherwise mutate a submodule automatically.
 
 ### Approval-gated workflow
 

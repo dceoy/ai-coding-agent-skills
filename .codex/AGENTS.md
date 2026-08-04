@@ -25,7 +25,7 @@ For non-trivial implementation tasks:
 7. The main agent implements the contract directly. It may discover exact affected files only inside a bounded ownership zone explicitly approved by the contract. It must not delegate implementation to a worker subagent.
 8. If implementation exposes a material decision not covered by the contract or requires crossing the approved ownership boundary, stop and return to `planner`, `advisor`, or the user instead of silently expanding scope.
 9. Compute the complete baseline-relative tracked and relevant untracked delta. Inspect every attributable change, preserve pre-existing work, reject unexpected or unattributable concurrent mutations, and rerun all relevant verification in the main session.
-10. Freeze the verified repository state and capture a complete frozen review baseline. It must include the canonical repository/worktree identity, exact `HEAD`, complete unedited `git status --porcelain=v2 --branch --untracked-files=all` output, a deterministically sorted repository-relative path inventory, and the original SHA-256 manifest for every tracked path present in the worktree and every non-ignored untracked file. Each manifest record must include the path, filesystem kind and mode, and a digest over raw file bytes or symlink-target bytes; include explicit expected-absent records for deleted paths in the reviewed change set. Define the canonical repository/worktree identity as this physical-path triplet: worktree root `cd "$(git rev-parse --show-toplevel)" && pwd -P`, worktree Git directory `cd "$(git rev-parse --git-dir)" && pwd -P`, and common Git directory `cd "$(git rev-parse --git-common-dir)" && pwd -P`.
+10. Freeze the verified repository state and capture a complete frozen review baseline. It must include the canonical repository/worktree identity, exact `HEAD`, complete unedited `git status --porcelain=v2 --branch --untracked-files=all` output, a deterministically sorted repository-relative path inventory, and the original SHA-256 manifest for every tracked path present in the worktree and every non-ignored untracked file. Each manifest record must include the path, filesystem kind and mode, and a digest over raw file bytes or symlink-target bytes; include explicit expected-absent records for deleted paths in the reviewed change set. For a tracked gitlink/submodule (mode `160000`), record the path, `gitlink` kind, mode, full stage-zero index object ID, checked-out submodule `HEAD`, and exact dirty-state output, plus a SHA-256 digest over that canonical tuple. A gitlink is valid only when its stage-zero index entry exists, its checked-out `HEAD` resolves, and its status is clean; unmerged, missing, uninitialized, or dirty gitlinks invalidate the freeze. Apply the same rule to nested tracked gitlinks, and never initialize, clean, reset, or otherwise mutate a submodule automatically. Define the canonical repository/worktree identity as this physical-path triplet: worktree root `cd "$(git rev-parse --show-toplevel)" && pwd -P`, worktree Git directory `cd "$(git rev-parse --git-dir)" && pwd -P`, and common Git directory `cd "$(git rev-parse --git-common-dir)" && pwd -P`.
 11. End the workspace-write implementation turn. Start a fresh, separate parent session in read-only mode and invoke `advisor` with no inherited implementation history (`fork_turns: "none"`). Before dispatching `advisor`, the fresh parent must independently resolve the canonical repository/worktree identity and recompute `HEAD`, complete porcelain-v2 status, the original path inventory, and the original SHA-256 manifest. It must compare every value exactly with the complete frozen review baseline; a mismatch or missing comparison evidence stops the review. Provide the advisor with the user goal, approved contract, complete baseline-relative change set, relevant untracked-file evidence, main-session verification evidence, canonical identity, complete frozen review baseline, original path inventory, original SHA-256 manifest, and the parent comparison evidence.
 12. Require runtime evidence that the native `advisor` definition resolved with `gpt-5.6-sol`, `reasoning_effort=xhigh`, `fork_turns: "none"`, a fresh session, and effective read-only permission. The advisor must complete this check before inspecting files or running verification. It must independently repeat the canonical identity and frozen-baseline comparisons against the original packet received from the parent. If the target identity, baseline, manifest, comparison, or required runtime evidence is missing or mismatched, the reviewer must return `fix-first` with `REMEDIATION: parent-evidence`; never accept `ship`.
 13. After review, the fresh parent must recompute the same canonical identity, `HEAD`, complete porcelain-v2 status, path inventory, and SHA-256 manifest and compare them against the original frozen review baseline, not a reviewer-generated replacement. Any mutation, identity mismatch, or manifest mismatch during or after review invalidates the verdict and requires a new freeze and fresh review.
@@ -35,45 +35,3 @@ For architecture, design evaluation, or technical advice without implementation,
 
 Do not invoke a subagent when the main agent can complete a non-implementation task safely and efficiently without delegation.
 
-## SKILL.md Frontmatter
-
-Each `SKILL.md` uses YAML frontmatter:
-
-```yaml
----
-name: <skill-name>
-description: <one-line description used for skill triggering>
-allowed-tools: Bash, Read, Write, ... # tools the skill may use
----
-```
-
-## Adding or Modifying Skills
-
-1. Create or edit `skills/<skill-name>/SKILL.md` — this is the canonical skill definition.
-2. Claude Code picks up the skill automatically via `.claude/skills -> ../skills`. For non-Claude runtimes,
-   add a per-skill symlink: `ln -s ../../skills/<skill-name> .agents/skills/<skill-name>`.
-3. Keep `description` in the frontmatter precise — it controls when the skill auto-triggers in Claude Code.
-
-## Autonomous and Scheduled Use
-
-Do not duplicate skill instructions into separate routine files unless a runtime truly requires a self-contained prompt. Prefer invoking the canonical skill under `skills/` and passing schedule, PR, branch, or CI context from the runtime configuration.
-
-For autonomous PR review, `skills/pr-review/SKILL.md` is the source of truth. It defines the GitHub posting contract used by CI, GitHub Actions, Claude Code Routines, and other automated review contexts.
-
-## Local QA
-
-Before committing, run the following checks:
-
-| Check             | Command                          |
-| ----------------- | -------------------------------- |
-| Format Markdown   | `npx -y prettier -w './**/*.md'` |
-| Lint Python       | `uv run ruff check`              |
-| Type-check Python | `uv run pyright`                 |
-| Run tests         | `uv run pytest`                  |
-
-## Commit & Pull Request Guidelines
-
-- Format Markdown files using `npx -y prettier -w './**/*.md'` before committing.
-- Keep PRs focused and include: concise summary, affected workflow paths, linked issue/context, and regenerated `README.md` when workflow inventory changes.
-- Branch names use appropriate prefixes on creation (e.g., `feature/...`, `bugfix/...`, `refactor/...`, `docs/...`, `chore/...`).
-- When instructed to create a PR, create it as a draft with appropriate labels by default.
