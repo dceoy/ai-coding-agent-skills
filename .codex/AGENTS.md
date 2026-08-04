@@ -34,4 +34,3 @@ For non-trivial implementation tasks:
 For architecture, design evaluation, or technical advice without implementation, invoke `advisor` and keep the work read-only.
 
 Do not invoke a subagent when the main agent can complete a non-implementation task safely and efficiently without delegation.
-
