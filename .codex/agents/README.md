@@ -2,72 +2,31 @@
 
 These project-scoped TOML files define two native read-only Codex roles:
 
-- `planner`: `gpt-5.6-sol`, xhigh reasoning, read-only. Produces a decision-complete five-part implementation contract.
-- `advisor`: `gpt-5.6-sol`, xhigh reasoning, read-only. Provides technical advice or an attested fresh `ship / fix-first / rethink` final review.
+| Agent     | Model         | Reasoning | Sandbox   | Purpose                                           |
+| --------- | ------------- | --------- | --------- | ------------------------------------------------- |
+| `planner` | `gpt-5.6-sol` | `xhigh`   | Read-only | Produce a decision-complete implementation plan   |
+| `advisor` | `gpt-5.6-sol` | `xhigh`   | Read-only | Provide technical advice or final implementation review |
 
-Implementation is performed directly by the top-level main agent. There are no dedicated Luna or Terra worker roles. Invoke these roles only through Codex native multi-agent tools; do not use nested `codex exec`, shell wrappers, copied prompts, generic children, or simulations.
+Implementation is performed directly by the top-level main agent. There are no dedicated Luna or Terra worker roles.
 
-## Permission model
+Invoke `planner` and `advisor` only through Codex native multi-agent tools. Do not use nested `codex exec`, shell wrappers, copied prompts, generic agents, or simulations.
 
-The TOML sandbox values are defaults. A spawned agent can inherit the parent turn's live permission mode, and runtime overrides take precedence.
+## Routing
 
-Use separate phases:
+Use the main agent directly for simple questions and narrow, deterministic edits.
 
-- Planning-only or advice: an effective read-only parent session.
-- Planning and implementation in one workspace-write turn: capture a complete pre-planning project guard before invoking `planner`, then recapture and byte-compare the same evidence immediately after planning. Any mutation invalidates the contract.
-- Final review: end the workspace-write turn and start a fresh parent session with effective read-only permission and no inherited implementation history.
+For non-trivial implementation:
 
-Run `planner`, the main implementation phase, and `advisor` with configured and effective `reasoning_effort=xhigh`.
+1. Invoke `planner` before editing.
+2. Resolve material open decisions and approve the plan.
+3. Implement the plan directly in the top-level main agent with `reasoning_effort=xhigh`.
+4. Inspect the actual changes and run the planned verification.
+5. Start a fresh read-only context and invoke `advisor` with `fork_turns: "none"`, passing the planner contract, changed files or diff, implementation decisions, and verification results.
+6. Apply bounded review fixes in the main agent and repeat verification and fresh review until `VERDICT: ship`.
 
-## Project identity and baseline modes
+The TOML sandbox values are defaults and may be overridden by the parent runtime. Use read-only contexts for planning, advice, and final review when supported; use a write-capable main-agent context for implementation.
 
-Fix a physical `PROJECT_ROOT` before planning or any write.
-
-Initial modes:
-
-- `git-head`: valid Git worktree with a resolvable commit `HEAD`.
-- `git-unborn`: valid Git worktree without a resolvable commit; record `HEAD` as `unborn:<full-symbolic-ref>`.
-- `filesystem`: no Git worktree applies; record `HEAD: absent`, `git-dir: absent`, and `common-dir: absent`.
-
-A present but invalid Git marker is unsupported, not `filesystem`. Git modes also record the physical worktree root, worktree Git directory, and common Git directory.
-
-The project manifest is deterministically sorted and byte-safe. Do not follow symlinks. Record directories with path, kind, and mode; regular files with path, kind, mode, byte length, and SHA-256 over raw bytes; symlinks with path, kind, mode, and SHA-256 over raw link-target bytes; and required missing paths as `expected-absent`.
-
-In `git-head`, retain both the porcelain untracked inventory and a complete untracked-content manifest. The latter applies the same byte-safe record schema to every untracked directory, regular file, and symlink; an unchanged path inventory is not evidence that untracked contents are unchanged.
-
-## Planning mutation guard
-
-Before dispatching `planner` from a workspace-write parent, capture the complete initial-mode project baseline:
-
-- canonical project identity;
-- mode-specific Git/index/worktree evidence when applicable;
-- tracked-content plus complete untracked-content manifests for `git-head`, or the complete filesystem manifest for modes without a resolved `HEAD`;
-- relevant ignored-path evidence;
-- expected-absent records.
-
-After `planner` returns, capture the same evidence again and compare it byte-for-byte. Do not treat planner-created changes as the starting baseline. A planning-only read-only session may replace this guard, but the later write-capable session must still verify the same identity and state before accepting the contract.
-
-Planner-declared external inputs that were not knowable before planning are captured after planning and before implementation.
-
-## Baseline-mode transitions
-
-Supported transitions are limited to:
-
-- `filesystem -> git-unborn`
-- `filesystem -> git-head`, through a recorded `git-unborn` checkpoint
-- `git-unborn -> git-head`
-
-Every other transition is unsupported.
-
-A transition bridge contains:
-
-1. Immutable initial identity, mode, and complete source evidence.
-2. Exact authorized transition commands or operations.
-3. Every intermediate Git checkpoint, including physical Git identity, symbolic `HEAD`, status, index, staged/unstaged state, and verification-relevant Git configuration.
-4. Source-to-final filesystem-manifest delta plus expected-absent, untracked, ignored-path, and external-input evidence.
-5. For a first commit, commit/tree IDs, final stage-zero index, and evidence that the commit tree matches the intended tracked content.
-
-A clean final status or final commit pair is not a substitute. The final packet carries both the source baseline and transition bridge.
+If native named-agent dispatch is unavailable for a required phase, report `unsupported` instead of simulating the role.
 
 ## User-wide installation
 
@@ -100,24 +59,20 @@ fi
 
 Use regular-file copies; agent-definition symlinks may not be discovered. Remove obsolete `planner-sol.toml`, `advisor-sol.toml`, `worker-luna.toml`, and `worker-terra.toml` from existing user-wide installations.
 
-After installation, start a fresh Codex session and verify that native `planner` and `advisor` resolve from the expected definitions with the required model, reasoning, sandbox, and effective permission metadata.
+Start a fresh Codex session after installation and verify that native `planner` and `advisor` resolve from the expected definitions.
 
 ## Usage
 
 ### Plan and implement
 
-Start a workspace-write parent turn:
-
 ```text
-Fix physical PROJECT_ROOT and classify the initial mode. Capture the complete pre-planning project guard before invoking native planner, including tracked-content and complete untracked-content manifests in git-head mode. After planner returns, recapture and byte-compare the same project evidence; stop on any mutation. Validate the five-part contract, capture planner-declared ignored/excluded paths and external inputs, then implement directly in the top-level main agent with reasoning_effort=xhigh. For a baseline-mode transition, retain the complete source baseline and transition bridge. Verify, freeze the full packet, and do not run final review in this turn.
+Use native planner to produce a decision-complete plan for this task. Resolve any blocking questions, then implement the approved plan directly in the top-level main agent with xhigh reasoning. Do not delegate implementation to worker subagents. Run the planned verification and summarize the actual changes and results.
 ```
 
 ### Final review
 
-Start a fresh separate read-only parent session:
-
 ```text
-Invoke native advisor with fork_turns set to none. Before dispatch, compare the pre-planning guard, post-planner equality evidence, immutable source baseline, transition bridge when applicable, final canonical identity and mode-specific evidence, path inventory, tracked-content, untracked-content, and filesystem manifests as applicable, ignored/excluded paths, external-input evidence or hermetic boundary, and verification evidence against the original packet. Require attested gpt-5.6-sol, reasoning_effort=xhigh, a fresh session, and effective read-only permission. Repeat final-state comparison after review; any mismatch invalidates the verdict.
+In a fresh read-only context, use native advisor with fork_turns set to none. Review the planner contract, actual changes, implementation decisions, and verification results. Do not modify files. Return VERDICT: ship, fix-first, or rethink.
 ```
 
 ### Advice only
@@ -125,19 +80,3 @@ Invoke native advisor with fork_turns set to none. Before dispatch, compare the 
 ```text
 Use native advisor to evaluate this design. Return advice only and do not modify files.
 ```
-
-## Review integrity
-
-Prevent other writers from modifying approved or verification-relevant project paths until final evidence capture. External inputs must remain frozen, replayable, or independently attestable. In `git-head`, every pre-planning, frozen, handoff, and post-review comparison must include the complete untracked-content manifest rather than relying on untracked path inventory alone.
-
-Never read, print, serialize, copy into evidence, or compute an unkeyed digest of a secret value. Represent secrets only with non-secret immutable secret-manager version identifiers or externally produced keyed attestations whose key and raw secret never enter the agent context.
-
-The reviewer remediation classes are:
-
-- `none`: valid only with `VERDICT: ship`.
-- `parent-evidence`: repair missing guard, baseline, transition, external-input, review-input, model, permission, or session evidence.
-- `repository-change`: implement a bounded project fix in the main agent.
-- `mixed`: repair evidence and implement project changes.
-- `replan`: return architecture, requirements, verification environment, project root, baseline mode, transition, or scope changes to `planner` or the user.
-
-Every project change, baseline-mode transition, or verification-relevant external-input change requires new verification, a new frozen packet, and a fresh separate read-only review.
