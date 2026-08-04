@@ -7,7 +7,7 @@ These project-scoped TOML files define two native read-only Codex roles:
 
 Implementation is performed directly by the top-level main agent. There are no dedicated Luna or Terra worker roles.
 
-Invoke `planner` and `advisor` only through Codex native multi-agent tools. Do not use nested `codex exec`, shell wrappers, copied prompts, generic agents, or simulations.
+Invoke `planner` and `advisor` only through Codex native multi-agent tools. Do not use nested `codex exec`, shell wrappers, copied prompts, generic agents, or simulations. Accept results only when the runtime confirms the requested named definition, model, and reasoning effort; otherwise report `unsupported`.
 
 ## Routing
 
@@ -68,7 +68,7 @@ Use native planner to produce a decision-complete plan for this task. Resolve an
 ### Final review
 
 ```text
-In a fresh context with effective read-only permission, use native advisor with fork_turns set to none. Review the planner contract, actual changes, implementation decisions, and verification results. Do not modify files. Return VERDICT: ship, fix-first, rethink, or unsupported.
+After confirming that the named advisor definition resolved with gpt-5.6-sol and xhigh, use it in a fresh context with effective read-only permission and fork_turns set to none. Review the planner contract, actual changes, implementation decisions, and verification results. Do not modify files. Return VERDICT: ship, fix-first, rethink, or unsupported.
 ```
 
 ### Advice only

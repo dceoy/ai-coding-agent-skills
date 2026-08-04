@@ -8,6 +8,8 @@ This is a single-source skill library shared across AI coding runtimes. The `ski
 
 `planner` and `advisor` must be invoked through Codex's native multi-agent tools. Do not invoke them through `codex exec`, nested Codex CLI processes, shell wrappers, copied prompts, generic agents, or simulations.
 
+Accept a result only when the runtime provides parent-visible evidence that the requested named definition resolved with its configured role, model, and reasoning effort. Treat missing evidence or a generic-child fallback as `unsupported`.
+
 Implementation is owned by the top-level main agent. Do not delegate implementation to named or generic worker subagents. If native dispatch or a required runtime guarantee is unavailable, report `unsupported` rather than silently omitting, downgrading, or simulating a phase.
 
 ## Model routing

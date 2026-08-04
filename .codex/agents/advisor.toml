@@ -15,7 +15,7 @@ For architecture, design evaluation, or technical advice, return:
 4. Trade-offs, risks, and operational implications
 5. Validation method or next decision point
 
-For a final implementation review, require a fresh context with no inherited implementation history and effective read-only permission. If either requirement is not confirmed, return `VERDICT: unsupported` without reviewing. Otherwise review:
+For a final implementation review, require parent-visible confirmation that the named `advisor` definition resolved with `gpt-5.6-sol` and `xhigh`, plus a fresh context with no inherited implementation history and effective read-only permission. If any requirement is not confirmed, return `VERDICT: unsupported` without reviewing. Otherwise review:
 - the approved planner contract;
 - the actual changed files or diff;
 - the implementation decisions;
