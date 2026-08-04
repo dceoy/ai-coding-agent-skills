@@ -1,33 +1,32 @@
 # Codex custom subagents
 
-These project-scoped agents separate high-quality planning and advice from implementation. Current Codex releases discover each standalone TOML file under `.codex/agents/` automatically; no per-agent registration in `.codex/config.toml` is required.
+These project-scoped TOML files define two native read-only Codex roles:
 
-The invocation examples target local Codex app, CLI, and IDE sessions. Tool-backed or programmatic Codex integrations may not expose named project agents; verify runtime support before relying on these definitions. See [openai/codex#15250](https://github.com/openai/codex/issues/15250).
+- `planner`: `gpt-5.6-sol`, `xhigh`, read-only. Produces a decision-complete implementation plan.
+- `advisor`: `gpt-5.6-sol`, `xhigh`, read-only. Provides technical advice or final implementation review.
 
-| Agent          | Model           | Configured sandbox | Purpose                                                                |
-| -------------- | --------------- | ------------------ | ---------------------------------------------------------------------- |
-| `planner_sol`  | `gpt-5.6-sol`   | Read-only          | Produce a decision-complete implementation plan and select an executor |
-| `advisor_sol`  | `gpt-5.6-sol`   | Read-only          | Provide architectural or technical advice without implementation       |
-| `worker_terra` | `gpt-5.6-terra` | Workspace write    | Implement non-trivial approved plans                                   |
-| `worker_luna`  | `gpt-5.6-luna`  | Workspace write    | Implement narrow, deterministic, mechanically verifiable plans         |
+Implementation is performed directly by the top-level main agent. There are no dedicated Luna or Terra worker roles.
 
-## Permission model
+Invoke `planner` and `advisor` only through Codex native multi-agent tools. Do not use nested `codex exec`, shell wrappers, copied prompts, generic agents, or simulations. Invoke each role with `fork_turns: "none"` and pass its task-specific context explicitly. Accept results only when the runtime confirms the requested named definition, model, and reasoning effort; otherwise report `unsupported`.
 
-The sandbox values above are agent-file defaults, not immutable per-agent boundaries. A spawned agent inherits the parent turn's live permission mode, and runtime overrides such as `/permissions` or `--yolo` take precedence over the TOML defaults.
+## Routing
 
-Use these parent permission modes:
+Use the main agent directly for simple questions and narrow, deterministic edits.
 
-- Planning or advice only: start the parent turn in read-only mode.
-- Implementation: start a separate parent turn in workspace-write mode.
-- One-turn planning and implementation: use workspace-write mode, but understand that the planner's read-only behavior is instruction-enforced rather than sandbox-enforced.
+For non-trivial implementation:
 
-A read-only parent prevents implementation workers from writing. A workspace-write parent can grant write access to planning agents despite their configured defaults.
+1. Invoke `planner` in a separate context with effective read-only permission. Accept its contract only when the runtime attests the named definition, model, reasoning effort, and effective permission; otherwise report `unsupported`.
+2. Resolve material open decisions and approve the plan.
+3. Pass the approved contract to a top-level implementation session configured with `model_reasoning_effort = "xhigh"`; otherwise restart with `xhigh` or report `unsupported`. Implement the plan directly in that session.
+4. Inspect the actual changes and run the planned verification.
+5. Invoke `advisor` in a fresh context with effective read-only permission, passing the planner contract, changed files or diff, implementation decisions, and verification results. If either runtime guarantee cannot be established, report `unsupported` and do not accept a verdict.
+6. Apply bounded `fix-first` findings in the main agent. For `rethink`, return to `planner` and approve a revised contract before reimplementation. `unsupported` blocks completion. Repeat verification and fresh review until `VERDICT: ship`.
+
+The planner and advisor TOMLs configure `model_reasoning_effort = "xhigh"` and read-only defaults. The top-level implementation session must be configured with `model_reasoning_effort = "xhigh"` separately, and runtime overrides must not weaken final-review isolation.
 
 ## User-wide installation
 
-The files in this repository are project-scoped by default. Codex uses `$CODEX_HOME` as its home directory when set and otherwise defaults to `$HOME/.codex`.
-
-To copy the agent definitions and routing instructions for every Codex project:
+Codex uses `$CODEX_HOME` when set and otherwise defaults to `$HOME/.codex`.
 
 ```bash
 codex_home="${CODEX_HOME:-$HOME/.codex}"
@@ -36,7 +35,7 @@ mkdir -p "$codex_home/agents"
 for file in .codex/agents/*.toml; do
   destination="$codex_home/agents/$(basename "$file")"
   if [ -e "$destination" ] || [ -L "$destination" ]; then
-    printf 'Keep the existing %s and merge, back up, or remove it before installing this definition.\n' "$destination" >&2
+    printf 'Preserve and merge or remove %s before installation.\n' "$destination" >&2
     exit 1
   fi
 done
@@ -46,90 +45,34 @@ for file in .codex/agents/*.toml; do
 done
 
 if [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
-  printf 'Keep the existing %s and merge the Model routing section from .codex/AGENTS.md into that active override manually.\n' "$codex_home/AGENTS.override.md"
+  printf 'Merge .codex/AGENTS.md into the active AGENTS.override.md manually.\n'
 elif [ -e "$codex_home/AGENTS.md" ] || [ -L "$codex_home/AGENTS.md" ]; then
-  printf 'Keep the existing %s and merge the Model routing section from .codex/AGENTS.md manually.\n' "$codex_home/AGENTS.md"
+  printf 'Merge .codex/AGENTS.md into the existing AGENTS.md manually.\n'
 else
   cp .codex/AGENTS.md "$codex_home/AGENTS.md"
 fi
 ```
 
-The agent preflight stops before copying any definitions when a same-named file or symlink already exists. Preserve the existing definition and merge it manually, or back it up and remove it before rerunning the installation.
+Use regular-file copies; agent-definition symlinks may not be discovered. Remove obsolete `planner-sol.toml`, `advisor-sol.toml`, `worker-luna.toml`, and `worker-terra.toml` from existing user-wide installations.
 
-Codex prefers a non-empty `AGENTS.override.md` over `AGENTS.md` in its home directory. If an override exists, merge the routing section into that file or remove it only after preserving its instructions. Do not replace either existing file or symlink until its current instructions have been preserved.
-
-To keep the agent definitions synchronized with this repository, use symlinks from a local clone:
-
-```bash
-codex_home="${CODEX_HOME:-$HOME/.codex}"
-repo_root="$(git rev-parse --show-toplevel)"
-mkdir -p "$codex_home/agents"
-
-for file in "$repo_root"/.codex/agents/*.toml; do
-  destination="$codex_home/agents/$(basename "$file")"
-  if [ -e "$destination" ] || [ -L "$destination" ]; then
-    printf 'Keep the existing %s and merge, back up, or remove it before installing this symlink.\n' "$destination" >&2
-    exit 1
-  fi
-done
-
-for file in "$repo_root"/.codex/agents/*.toml; do
-  ln -s "$file" "$codex_home/agents/$(basename "$file")"
-done
-
-if [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
-  printf 'Keep the existing %s and merge the Model routing section from the repository file into that active override manually.\n' "$codex_home/AGENTS.override.md"
-elif [ -e "$codex_home/AGENTS.md" ] || [ -L "$codex_home/AGENTS.md" ]; then
-  printf 'Keep the existing %s and merge the Model routing section from the repository file manually.\n' "$codex_home/AGENTS.md"
-else
-  ln -s "$repo_root/.codex/AGENTS.md" "$codex_home/AGENTS.md"
-fi
-```
-
-The symlink preflight likewise stops before creating any links when a destination already exists.
-
-Start a new Codex session after installing or updating the files.
+Start a fresh Codex session after installation and verify that native `planner` and `advisor` resolve from the expected definitions.
 
 ## Usage
 
-Ask Codex to delegate explicitly by agent name.
-
-### Plan and implement in one turn
-
-Start the parent turn in workspace-write mode. This convenience workflow relies on the planner instructions to avoid edits:
+### Planning and implementation phase
 
 ```text
-Use planner_sol to plan this task. After the plan is complete, delegate implementation to the recommended worker_terra or worker_luna agent. Use only one active write-capable worker at a time, and do not run workers concurrently.
+Use native planner with fork_turns set to none in a separate effectively read-only context, and supply the task-specific context explicitly. Produce a decision-complete plan for this task. Accept the plan only after confirming the named planner definition, gpt-5.6-sol, xhigh, and effective read-only permission. Resolve any blocking questions, then pass the approved contract to a top-level main-agent session configured with model_reasoning_effort = "xhigh". Do not delegate implementation to worker subagents. Run the planned verification and prepare the planner contract, actual changed files or diff, implementation decisions, and verification results for the mandatory final-review phase below. Do not report completion yet.
 ```
 
-### Approval-gated workflow
-
-Start the planning turn in read-only mode:
+### Mandatory final review
 
 ```text
-Use planner_sol to produce the implementation plan only. Do not modify files.
-```
-
-After reviewing the plan, start a separate parent turn in workspace-write mode:
-
-```text
-Implement the approved plan with worker_terra.
+After confirming that the named advisor definition resolved with gpt-5.6-sol and xhigh, use it in a fresh context with effective read-only permission and fork_turns set to none. Review the planner contract, actual changes, implementation decisions, and verification results. Do not modify files. Return VERDICT: ship, fix-first, rethink, or unsupported. Report completion only after VERDICT: ship; apply fix-first findings and rerun verification and review, return rethink findings to planner for a revised approved contract, and treat unsupported as blocking.
 ```
 
 ### Advice only
 
-Start the parent turn in read-only mode:
-
 ```text
-Use advisor_sol to evaluate this design. Return advice only and do not modify files.
+Use native advisor to evaluate this design. Return advice only and do not modify files.
 ```
-
-## Routing policy
-
-The routing policy applies only to the root or main agent. Named custom agents follow their agent-specific instructions and must not spawn or delegate to another subagent.
-
-Use `worker_luna` only for localized, low-risk changes with explicit scope and mechanical validation. Use `worker_terra` when the change requires diagnosis, non-trivial reasoning, cross-cutting edits, or adaptation to repository state.
-
-Use only one active write-capable worker at a time. A sequential Luna-to-Terra handoff is allowed only after Luna has stopped, reported every partial edit, and returned control to the parent. The parent must review that state before starting Terra; workers must not spawn or delegate to another write-capable worker themselves.
-
-If an implementation agent encounters an unplanned architectural, security, compatibility, or data-model decision, return control to `planner_sol` or `advisor_sol` instead of silently expanding the plan.

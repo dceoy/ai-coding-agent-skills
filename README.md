@@ -52,14 +52,18 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ## Codex Custom Subagents
 
-Project-scoped agent definitions under `.codex/agents/` separate planning and advice from implementation. Codex discovers each standalone TOML file automatically; no per-agent registration in `.codex/config.toml` is required.
+Project-scoped definitions under `.codex/agents/` provide two native read-only Codex roles:
 
-- `planner_sol` - Produce decision-complete plans with `gpt-5.6-sol`
-- `advisor_sol` - Provide read-only technical advice with `gpt-5.6-sol`
-- `worker_terra` - Implement non-trivial plans with `gpt-5.6-terra`
-- `worker_luna` - Implement narrow, deterministic plans with `gpt-5.6-luna`
+- `planner` - Produce a decision-complete implementation plan with `gpt-5.6-sol`
+- `advisor` - Provide read-only technical advice or final implementation review with `gpt-5.6-sol`
 
-See [.codex/agents/README.md](./.codex/agents/README.md) for routing rules, permission behavior, and invocation examples.
+Both roles use `model_reasoning_effort = "xhigh"`. Implementation is performed directly by the top-level main agent; there are no dedicated Luna or Terra worker subagents. The implementation session must be configured with `model_reasoning_effort = "xhigh"` separately.
+
+For non-trivial changes, invoke `planner` and `advisor` with `fork_turns: "none"`, pass each role only the task-specific context it needs, and require effective read-only permission plus named-definition, model, and reasoning attestation. Resolve material decisions before main-agent implementation, run verification, and report completion only after an independent `VERDICT: ship`.
+
+Invoke these roles only through native multi-agent dispatch. If native dispatch or the required runtime guarantees are unavailable, report `unsupported`; do not fall back to nested `codex exec`, shell wrappers, copied prompts, or generic agents.
+
+See [.codex/agents/README.md](./.codex/agents/README.md) for installation and usage examples.
 
 ## Structure
 

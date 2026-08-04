@@ -4,25 +4,36 @@
 
 This is a single-source skill library shared across AI coding runtimes. The `skills/` directory is the authoritative source of truth; runtime-specific directories reference it via symlinks.
 
+## Native named-agent dispatch
+
+`planner` and `advisor` must be invoked through Codex's native multi-agent tools. Do not invoke them through `codex exec`, nested Codex CLI processes, shell wrappers, copied prompts, generic agents, or simulations.
+
+Invoke each role with `fork_turns: "none"` and pass its task-specific context explicitly; do not rely on inherited conversation history.
+
+Accept a result only when the runtime provides parent-visible evidence that the requested named definition resolved with its configured role, model, and reasoning effort. Treat missing evidence or a generic-child fallback as `unsupported`.
+
+Implementation is owned by the top-level main agent. Do not delegate implementation to named or generic worker subagents. If native dispatch or a required runtime guarantee is unavailable, report `unsupported` rather than silently omitting, downgrading, or simulating a phase.
+
 ## Model routing
 
-This section applies only to the root or main agent that receives the user's task. Named custom agents (`planner_sol`, `advisor_sol`, `worker_terra`, and `worker_luna`) must ignore this section, follow their agent-specific instructions, and must not spawn or delegate to another subagent.
+This section applies only to the top-level main agent. The named `planner` and `advisor` agents follow their own definitions and must not spawn or delegate to another subagent.
 
-Use the main agent directly for simple questions and narrow, deterministic edits.
+Use the main agent directly for simple questions and narrow, deterministic edits when planning overhead is not justified.
 
 For non-trivial implementation tasks:
 
-1. Spawn `planner_sol` before modifying files.
-2. Wait for the complete plan and preserve its constraints and acceptance checks.
-3. Start exactly one implementation agent:
-   - Use `worker_luna` for localized, low-risk changes with explicit scope and mechanical validation.
-   - Use `worker_terra` for diagnosis, cross-cutting changes, ambiguity, or non-trivial implementation.
-4. If implementation encounters an architectural, security, compatibility, or data-model decision not covered by the plan, return control to `planner_sol` or `advisor_sol`.
-5. Do not run write-capable workers concurrently. A sequential Luna-to-Terra handoff is allowed only after Luna has stopped and reported all partial edits.
+1. Invoke `planner` in a separate context with effective read-only permission and obtain a decision-complete contract covering objective, scope, interfaces, constraints, and verification. Accept the contract only when the runtime attests the named definition, model, reasoning effort, and effective permission; otherwise report `unsupported`.
+2. Resolve material architectural, product, security, compatibility, or data-model decisions before implementation. Do not invent requirements.
+3. Pass the approved contract to a top-level implementation session configured with `model_reasoning_effort = "xhigh"`; otherwise restart with `xhigh` or report `unsupported`. Implement the approved contract directly in that session. Do not delegate implementation to a worker subagent.
+4. Inspect the actual changes, preserve unrelated work, and run the relevant verification from the planner contract.
+5. Invoke `advisor` in a fresh context with effective read-only permission. Provide the planner contract, actual changed files or diff, implementation decisions, and verification results. If either runtime guarantee cannot be established, report `unsupported` and do not accept a verdict.
+6. Handle the verdict: apply bounded `fix-first` findings in the main agent; for `rethink`, return to `planner` and approve a revised contract before reimplementation; `unsupported` blocks completion. Rerun verification and fresh review after changes. Report completion only after `VERDICT: ship`.
 
-For architecture, design evaluation, or technical advice without implementation, spawn `advisor_sol` and keep the work read-only.
+The planner and advisor TOML files configure `model_reasoning_effort = "xhigh"` and read-only defaults. Runtime overrides must not weaken the final-review requirements above.
 
-Do not spawn a subagent when the main agent can complete the task safely and efficiently without delegation.
+For architecture, design evaluation, or technical advice without implementation, invoke `advisor` and keep the work read-only.
+
+Do not invoke a subagent when the main agent can complete a non-implementation task safely and efficiently without delegation.
 
 ## SKILL.md Frontmatter
 
