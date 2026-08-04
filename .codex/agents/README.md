@@ -59,16 +59,16 @@ Start a fresh Codex session after installation and verify that native `planner` 
 
 ## Usage
 
-### Plan and implement
+### Planning and implementation phase
 
 ```text
-Use native planner in a separate effectively read-only context to produce a decision-complete plan for this task. Accept the plan only after confirming the named planner definition, gpt-5.6-sol, xhigh, and effective read-only permission. Resolve any blocking questions, then pass the approved contract to a top-level main-agent session configured with model_reasoning_effort = "xhigh". Do not delegate implementation to worker subagents. Run the planned verification and summarize the actual changes and results.
+Use native planner in a separate effectively read-only context to produce a decision-complete plan for this task. Accept the plan only after confirming the named planner definition, gpt-5.6-sol, xhigh, and effective read-only permission. Resolve any blocking questions, then pass the approved contract to a top-level main-agent session configured with model_reasoning_effort = "xhigh". Do not delegate implementation to worker subagents. Run the planned verification and prepare the planner contract, actual changed files or diff, implementation decisions, and verification results for the mandatory final-review phase below. Do not report completion yet.
 ```
 
-### Final review
+### Mandatory final review
 
 ```text
-After confirming that the named advisor definition resolved with gpt-5.6-sol and xhigh, use it in a fresh context with effective read-only permission and fork_turns set to none. Review the planner contract, actual changes, implementation decisions, and verification results. Do not modify files. Return VERDICT: ship, fix-first, rethink, or unsupported.
+After confirming that the named advisor definition resolved with gpt-5.6-sol and xhigh, use it in a fresh context with effective read-only permission and fork_turns set to none. Review the planner contract, actual changes, implementation decisions, and verification results. Do not modify files. Return VERDICT: ship, fix-first, rethink, or unsupported. Report completion only after VERDICT: ship; apply fix-first findings and rerun verification and review, return rethink findings to planner for a revised approved contract, and treat unsupported as blocking.
 ```
 
 ### Advice only
