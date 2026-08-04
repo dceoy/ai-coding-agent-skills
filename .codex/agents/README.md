@@ -21,6 +21,26 @@ Use separate phases:
 
 Run `planner`, the main implementation phase, and `advisor` with configured and effective `reasoning_effort=xhigh`. Final review must expose effective read-only permission, use `fork_turns: "none"`, and receive no inherited implementation history.
 
+## Project identity and baseline modes
+
+Fix an explicit workspace boundary as `PROJECT_ROOT` before planning or any write, and canonicalize it with `cd "$PROJECT_ROOT" && pwd -P`. Do not walk upward and adopt an unrelated Git repository. Every owned path and manifest record is project-relative.
+
+Use exactly one initial baseline mode:
+
+- `git-head`: a valid Git worktree with a resolvable commit `HEAD`.
+- `git-unborn`: a valid Git worktree without a resolvable `HEAD`; record `HEAD` as `unborn:<full-symbolic-ref>` from `git symbolic-ref -q HEAD`.
+- `filesystem`: no Git worktree applies to `PROJECT_ROOT`; record `HEAD: absent`, `git-dir: absent`, and `common-dir: absent`.
+
+A present but invalid `.git` marker is unsupported, not `filesystem`. Git initialization or creation of the first commit is a baseline-mode transition and must be explicitly authorized by the planner contract.
+
+The canonical identity always contains the physical `PROJECT_ROOT` and mode. Git modes additionally contain the physical worktree root, worktree Git directory, and common Git directory. `PROJECT_ROOT` and all owned paths must remain inside the resolved worktree and approved project boundary.
+
+For `git-head`, retain the commit ID, complete porcelain-v2 status, staged and unstaged diffs, untracked inventory, tracked-content manifest, verification-relevant ignored paths, and expected-absent records. For `git-unborn`, retain the symbolic `HEAD`, complete porcelain-v2 status, staged diff against the empty tree, unstaged diff, a deterministic index manifest from exact `git ls-files --stage -z` records, and a complete project-root filesystem manifest. For `filesystem`, use no Git commands and retain a complete project-root filesystem manifest.
+
+A filesystem manifest is a deterministically sorted, byte-safe project-relative inventory. Do not follow symlinks. Record directories with path, kind, and mode; regular files with path, kind, mode, byte length, and SHA-256 over raw bytes; symlinks with path, kind, mode, and SHA-256 over raw link-target bytes; and required missing paths as `expected-absent`. Sockets, FIFOs, devices, unreadable entries, path escapes, and unstable filesystem kinds are unsupported unless explicitly excluded as mutable scratch that cannot influence implementation or verification. In `git-unborn`, Git administrative storage may be excluded from raw filesystem hashing only when semantic Git evidence covers it; repository-local Git configuration, attributes, excludes, and hooks that can influence verification remain frozen inputs. Out-of-root symlink target content is an external input when it can influence results.
+
+The implementation packet and fresh review must use the same mode-specific identity and evidence. A mode transition must appear in the baseline-relative delta; any unapproved transition or mismatched root, mode, Git evidence, manifest, exclusion inventory, or external-input evidence invalidates the verdict.
+
 ## User-wide installation
 
 The files in this repository are project-scoped by default. Codex uses `$CODEX_HOME` when set and otherwise defaults to `$HOME/.codex`.
@@ -67,7 +87,7 @@ Remove obsolete `planner-sol.toml`, `advisor-sol.toml`, `worker-luna.toml`, and 
 Start the parent turn in workspace-write mode:
 
 ```text
-Use native multi-agent dispatch to invoke `planner` and obtain its five-part implementation contract. Resolve every material decision before editing. Require verification to declare a complete hermetic boundary or enumerate every verification-relevant ignored repository path and mutable external input. External-input evidence must cover applicable executable identities, user/global configuration, external files, environment-variable names with non-secret stable identities or, for non-secret values only, value digests, service endpoints with immutable response or artifact identifiers, container or operating-system identity, locale, clock assumptions, and random seeds. Never read, print, serialize, copy into evidence, or compute an unkeyed digest of a secret value. Represent a secret only by a non-secret immutable secret-manager version or revision identifier, or by an externally produced keyed attestation whose key and raw secret never enter the agent context. If no safe comparable identity exists, treat verification as unsupported. Capture the complete pre-implementation repository and external-input baseline, then implement the approved contract directly in the top-level main agent with reasoning_effort=xhigh. Compute and inspect the full baseline-relative delta, rerun verification in the main session, and freeze the reviewed repository and external environment state. Do not run final review in this workspace-write turn.
+Use native multi-agent dispatch to invoke `planner` and obtain its five-part implementation contract. Fix the physical PROJECT_ROOT, select git-head, git-unborn, or filesystem baseline mode, and resolve every material decision before editing. Require verification to declare a complete hermetic boundary or enumerate every verification-relevant ignored or excluded project path and mutable external input. External-input evidence must cover applicable executable identities, repository-local and user/global configuration, external files and out-of-root symlink targets, environment-variable names with non-secret stable identities or, for non-secret values only, value digests, service endpoints with immutable response or artifact identifiers, container or operating-system identity, locale, clock assumptions, and random seeds. Never read, print, serialize, copy into evidence, or compute an unkeyed digest of a secret value. Represent a secret only by a non-secret immutable secret-manager version or revision identifier, or by an externally produced keyed attestation whose key and raw secret never enter the agent context. If no safe comparable identity exists, treat verification as unsupported. Capture the complete mode-specific pre-implementation project and external-input baseline, then implement the approved contract directly in the top-level main agent with reasoning_effort=xhigh. Compute and inspect the full baseline-relative delta, rerun verification in the main session, and freeze the reviewed project and external environment state. Do not run final review in this workspace-write turn.
 ```
 
 ### Final review
@@ -75,25 +95,21 @@ Use native multi-agent dispatch to invoke `planner` and obtain its five-part imp
 End the implementation turn and start a fresh separate parent session in read-only mode:
 
 ```text
-Use native multi-agent dispatch to invoke `advisor` with `fork_turns` set to `none`. Before dispatch, independently resolve and compare the canonical repository/worktree identity, complete frozen review baseline, original path inventory, ignored-path inventory, verification-relevant external-input inventory and evidence, hermetic boundary when applicable, and original SHA-256 manifest against the implementation packet. Retain runtime metadata proving the named definition, `gpt-5.6-sol`, `reasoning_effort=xhigh`, a fresh session, and effective read-only permission. Pass the original packet and parent comparison evidence to `advisor`; require it to repeat every repository-state and external-input comparison before inspecting files or running verification. After review, recompute and compare the same repository and external evidence against the original packet. Any mismatch invalidates the verdict.
+Use native multi-agent dispatch to invoke `advisor` with `fork_turns` set to `none`. Before dispatch, independently resolve and compare the physical PROJECT_ROOT, baseline mode, mode-specific HEAD and Git evidence, complete frozen review baseline, original path inventory and filesystem manifest, ignored or excluded-path inventory, verification-relevant external-input inventory and evidence, and hermetic boundary when applicable against the implementation packet. Retain runtime metadata proving the named definition, `gpt-5.6-sol`, `reasoning_effort=xhigh`, a fresh session, and effective read-only permission. Pass the original packet and parent comparison evidence to `advisor`; require it to repeat every project-state and external-input comparison before inspecting files or running verification. After review, recompute and compare the same project and external evidence against the original packet. Any mismatch invalidates the verdict.
 ```
 
-The canonical repository/worktree identity is the physical-path triplet produced by `cd "$(git rev-parse --show-toplevel)" && pwd -P`, `cd "$(git rev-parse --git-dir)" && pwd -P`, and `cd "$(git rev-parse --git-common-dir)" && pwd -P`.
+For `git-head`, immutable base and head revisions may replace baseline-relative change evidence only when they fully encode the reviewed change set and the relevant worktree is clean. They are not a substitute in `git-unborn` or `filesystem` mode.
 
-The complete frozen review baseline includes that triplet, exact `HEAD`, complete unedited `git status --porcelain=v2 --branch --untracked-files=all` output, a deterministically sorted repository-relative path inventory, the planner-declared verification-relevant ignored-path inventory and external-input inventory or a hermetic-verification declaration, and the original SHA-256 manifest for every tracked path, every non-ignored untracked file, and every verification-relevant ignored path. Repository manifest records include path, filesystem kind and mode, and a digest over raw file bytes or symlink-target bytes; expected-absent paths receive explicit records.
+A hermetic-verification declaration may replace both excluded-path and external-input inventories only when it identifies immutable inputs and the complete environment boundary and lists excluded mutable scratch or cache paths with evidence that they cannot influence outcomes.
 
-External-input records identify each input without exposing secret values, explain how it influences verification, and contain a reproducible digest for non-secret values, immutable identifier, or other independently comparable attestation. A secret input may be represented only by a non-secret immutable secret-manager version or revision identifier, or by an externally produced keyed attestation whose key and raw secret never enter the agent context. Never read, print, serialize, copy into evidence, or compute an unkeyed digest of a secret value. Plaintext secrets, raw secret values, and unkeyed secret-derived digests invalidate the packet. Every external input must be frozen, replayable, or independently attestable. An input that cannot be safely identified and compared blocks verification and final review.
-
-A hermetic-verification declaration may replace both inventories only when it identifies immutable inputs and the complete environment boundary and lists excluded mutable scratch or cache paths with evidence that they cannot influence outcomes.
-
-For a tracked gitlink/submodule (mode `160000`), record the path, `gitlink` kind, mode, full stage-zero index object ID, checked-out submodule `HEAD`, exact dirty-state output, and a SHA-256 digest over that canonical tuple. Unmerged, missing, uninitialized, or dirty gitlinks invalidate the freeze. Apply the same rule recursively and never mutate submodules automatically.
+For a tracked gitlink/submodule in a Git mode (mode `160000`), record the path, `gitlink` kind, mode, full stage-zero index object ID, checked-out submodule `HEAD`, exact dirty-state output, and a SHA-256 digest over that canonical tuple. Unmerged, missing, uninitialized, or dirty gitlinks invalidate the freeze. Apply the same rule recursively and never mutate submodules automatically.
 
 ### Approval-gated workflow
 
 Start planning in read-only mode:
 
 ```text
-Use native multi-agent dispatch to invoke `planner` for the five-part implementation contract only. Resolve material decisions and do not modify files.
+Use native multi-agent dispatch to invoke `planner` for the five-part implementation contract only. Fix PROJECT_ROOT and the baseline mode, resolve material decisions, and do not modify files.
 ```
 
 After approval, perform implementation directly in a workspace-write main-agent turn, then use the final-review prompt in a separate read-only session.
@@ -110,11 +126,11 @@ Use native multi-agent dispatch to invoke `advisor` to evaluate this design. Ret
 
 Use the main agent directly for simple questions and narrow deterministic edits. For non-trivial implementation, use `planner` first and then implement directly in the main agent.
 
-The planner must define exact modifiable file and generated-artifact paths whenever they are knowable. When diagnosis or cross-cutting adaptation requires file discovery, it may instead define the smallest bounded module, package, or directory ownership zone plus explicit exclusions. The main agent may discover and modify files only inside that approved zone.
+The planner must define the physical project root, baseline mode, any authorized mode transition, and exact modifiable file and generated-artifact paths whenever they are knowable. When diagnosis or cross-cutting adaptation requires file discovery, it may instead define the smallest bounded module, package, or directory ownership zone plus explicit exclusions. The main agent may discover and modify files only inside that approved zone.
 
-Verification must cover both repository state and all mutable non-repository inputs that can influence results. Prefer a hermetic environment. When verification is not hermetic, require frozen, replayable, or independently attestable evidence for the complete external-input inventory. For secret inputs, evidence must use only a non-secret immutable secret-manager version or revision identifier, or an externally produced keyed attestation whose key and raw secret never enter the agent context; never read, expose, or unkeyed-hash secret values. Missing or unverifiable inputs are a fail-closed result, not permission to assume stability.
+Verification must cover the selected project-state baseline and all mutable inputs outside its manifest that can influence results. Prefer a hermetic environment. When verification is not hermetic, require frozen, replayable, or independently attestable evidence for the complete external-input inventory. For secret inputs, evidence must use only a non-secret immutable secret-manager version or revision identifier, or an externally produced keyed attestation whose key and raw secret never enter the agent context; never read, expose, or unkeyed-hash secret values. Missing or unverifiable inputs are a fail-closed result, not permission to assume stability.
 
-An unresolved material architectural, product, security, authentication, authorization, data-model, migration, compatibility, externally visible interface, or external-input decision is a replanning or advice condition. It is not permission to expand scope during implementation.
+An unresolved material architectural, product, security, authentication, authorization, data-model, migration, compatibility, externally visible interface, project-root, baseline-mode, or external-input decision is a replanning or advice condition. It is not permission to expand scope during implementation.
 
 ## Native execution support
 
@@ -124,18 +140,18 @@ Require effective `reasoning_effort=xhigh` for `planner`, the main implementatio
 
 ## Attribution and review integrity
 
-Before implementation, capture the complete repository baseline and every verification-relevant external-input record. Prevent other writers from modifying approved or verification-relevant repository paths until final evidence capture. External inputs must remain frozen or must be independently re-attestable throughout implementation and review.
+Before implementation, capture the complete mode-specific project baseline and every verification-relevant external-input record. Prevent other writers from modifying approved or verification-relevant project paths until final evidence capture. External inputs must remain frozen or must be independently re-attestable throughout implementation and review.
 
-The main agent owns implementation, authoritative baseline-relative repository and external-input evidence, scope enforcement, inspection, and verification. If an unexpected mutation appears, exclusive access is violated, or external evidence changes, stop and reconcile rather than attributing or ignoring the change.
+The main agent owns implementation, authoritative baseline-relative project and external-input evidence, scope enforcement, inspection, and verification. If an unexpected mutation appears, exclusive access is violated, the baseline mode changes without authorization, or external evidence changes, stop and reconcile rather than attributing or ignoring the change.
 
-Freeze the verified repository and external environment state before ending the workspace-write turn. Final review must run in a fresh separate read-only parent session and receive the complete original packet. The parent and advisor must verify all repository-state, ignored-path, external-input, hermetic-boundary, manifest, and runtime-attestation values before inspection or verification; the parent repeats them after review. Any mismatch invalidates the verdict.
+Freeze the verified project and external environment state before ending the workspace-write turn. Final review must run in a fresh separate read-only parent session and receive the complete original packet. The parent and advisor must verify all project-root, baseline-mode, Git-state when applicable, filesystem-manifest, excluded-path, external-input, hermetic-boundary, and runtime-attestation values before inspection or verification; the parent repeats them after review. Any mismatch invalidates the verdict.
 
 The reviewer returns a remediation class:
 
 - `none`: valid only with `VERDICT: ship`.
-- `parent-evidence`: repair missing baseline, external-input, review-input, model, permission, or session evidence without changing the repository.
+- `parent-evidence`: repair missing baseline, external-input, review-input, model, permission, or session evidence without changing the project.
 - `repository-change`: the main agent implements the bounded fix directly.
-- `mixed`: repair evidence and implement the repository-change portion directly.
-- `replan`: return architecture, requirements, verification environment, or scope changes to `planner` or the user.
+- `mixed`: repair evidence and implement the project-change portion directly.
+- `replan`: return architecture, requirements, verification environment, project root, baseline mode, or scope changes to `planner` or the user.
 
-Every repository change or verification-relevant external-input change requires new main-agent verification, a new frozen evidence packet, and a fresh separate read-only review.
+Every project change, baseline-mode change, or verification-relevant external-input change requires new main-agent verification, a new frozen evidence packet, and a fresh separate read-only review.
