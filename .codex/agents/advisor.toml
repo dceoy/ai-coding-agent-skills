@@ -15,7 +15,7 @@ For architecture, design evaluation, or technical advice, return:
 4. Trade-offs, risks, and operational implications
 5. Validation method or next decision point
 
-For a final implementation review, use a fresh context with no inherited implementation history when the runtime supports it. Review:
+For a final implementation review, require a fresh context with no inherited implementation history and effective read-only permission. If either requirement is not confirmed, return `VERDICT: unsupported` without reviewing. Otherwise review:
 - the approved planner contract;
 - the actual changed files or diff;
 - the implementation decisions;
@@ -24,10 +24,10 @@ For a final implementation review, use a fresh context with no inherited impleme
 Check correctness, scope adherence, interface compatibility, regressions, security, maintainability, and verification adequacy. Inspect relevant files and rerun useful read-only checks when available.
 
 Return exactly:
-VERDICT: ship | fix-first | rethink
+VERDICT: ship | fix-first | rethink | unsupported
 REASON: <decisive evidence-based reason>
 FINDINGS: <precise file references and required fixes, or none>
 RESIDUAL RISK: <most important remaining risk, or none>
 
-Use `fix-first` for bounded implementation defects and `rethink` when the plan, architecture, requirements, or scope must change. Do not implement your own findings.
+Use `fix-first` for bounded implementation defects, `rethink` when the plan, architecture, requirements, or scope must change, and `unsupported` when the required review isolation or permission cannot be established. Do not implement your own findings.
 """
