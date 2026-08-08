@@ -59,9 +59,9 @@ Project-scoped definitions under `.codex/agents/` provide two native read-only C
 
 Both roles use `model_reasoning_effort = "xhigh"`. Implementation is performed directly by the top-level main agent; there are no dedicated Luna or Terra worker subagents. The implementation session must be configured with `model_reasoning_effort = "xhigh"` separately.
 
-For non-trivial changes, invoke `planner` and `advisor` with `fork_turns: "none"`, pass each role only the task-specific context it needs, and require effective read-only permission plus named-definition, model, and reasoning attestation. Resolve material decisions before main-agent implementation, run verification, and report completion only after an independent `VERDICT: ship`.
+For non-trivial changes, invoke `planner` and `advisor` with `fork_turns: "none"`, pass each role only the task-specific context it needs, and require effective read-only permission. Treat the checked-in TOML definitions as authoritative for the configured named role, model, reasoning effort, and sandbox defaults; do not require parent-visible runtime configuration attestation. Resolve material decisions before main-agent implementation, run verification, and report completion only after an independent `VERDICT: ship`.
 
-Invoke these roles only through native multi-agent dispatch. If native dispatch or the required runtime guarantees are unavailable, report `unsupported`; do not fall back to nested `codex exec`, shell wrappers, copied prompts, or generic agents.
+Invoke these roles only through native multi-agent dispatch. Report `unsupported` only when native dispatch is unavailable or runtime evidence explicitly shows a fallback, incompatible override, writable permission, or inherited context contrary to the requested isolation; missing runtime telemetry alone is not a failure. Do not fall back to nested `codex exec`, shell wrappers, copied prompts, or generic agents.
 
 See [.codex/agents/README.md](./.codex/agents/README.md) for installation and usage examples.
 

@@ -10,9 +10,9 @@ This is a single-source skill library shared across AI coding runtimes. The `ski
 
 Invoke each role with `fork_turns: "none"` and pass its task-specific context explicitly; do not rely on inherited conversation history.
 
-Accept a result only when the runtime provides parent-visible evidence that the requested named definition resolved with its configured role, model, and reasoning effort. Treat missing evidence or a generic-child fallback as `unsupported`.
+Treat the installed agent TOML as the source of truth for the named role, model, reasoning effort, and sandbox defaults. A successful native dispatch to the requested named role is sufficient; the runtime does not need to echo those configuration values back to the parent. Treat the invocation as `unsupported` only when available runtime evidence explicitly shows that native dispatch is unavailable, a generic or different agent was used, or a configured guarantee was overridden incompatibly. Missing runtime telemetry is not evidence of a mismatch.
 
-Implementation is owned by the top-level main agent. Do not delegate implementation to named or generic worker subagents. If native dispatch or a required runtime guarantee is unavailable, report `unsupported` rather than silently omitting, downgrading, or simulating a phase.
+Implementation is owned by the top-level main agent. Do not delegate implementation to named or generic worker subagents. If native dispatch is explicitly unavailable or incompatible with the configured role, report `unsupported` rather than silently omitting, downgrading, or simulating a phase.
 
 ## Model routing
 
@@ -22,14 +22,14 @@ Use the main agent directly for simple questions and narrow, deterministic edits
 
 For non-trivial implementation tasks:
 
-1. Invoke `planner` in a separate context with effective read-only permission and obtain a decision-complete contract covering objective, scope, interfaces, constraints, and verification. Accept the contract only when the runtime attests the named definition, model, reasoning effort, and effective permission; otherwise report `unsupported`.
+1. Invoke `planner` in a separate context with effective read-only permission and obtain a decision-complete contract covering objective, scope, interfaces, constraints, and verification. Accept the contract when native dispatch returns the requested planner result unless runtime evidence explicitly reports a fallback, incompatible override, writable permission, or inherited context contrary to `fork_turns: "none"`.
 2. Resolve material architectural, product, security, compatibility, or data-model decisions before implementation. Do not invent requirements.
 3. Pass the approved contract to a top-level implementation session configured with `model_reasoning_effort = "xhigh"`; otherwise restart with `xhigh` or report `unsupported`. Implement the approved contract directly in that session. Do not delegate implementation to a worker subagent.
 4. Inspect the actual changes, preserve unrelated work, and run the relevant verification from the planner contract.
-5. Invoke `advisor` in a fresh context with effective read-only permission. Provide the planner contract, actual changed files or diff, implementation decisions, and verification results. If either runtime guarantee cannot be established, report `unsupported` and do not accept a verdict.
-6. Handle the verdict: apply bounded `fix-first` findings in the main agent; for `rethink`, return to `planner` and approve a revised contract before reimplementation; `unsupported` blocks completion. Rerun verification and fresh review after changes. Report completion only after `VERDICT: ship`.
+5. Invoke `advisor` in a fresh context with effective read-only permission. Provide the planner contract, actual changed files or diff, implementation decisions, and verification results. Accept its verdict unless runtime evidence explicitly reports a fallback, incompatible override, writable permission, or inherited context contrary to `fork_turns: "none"`.
+6. Handle the verdict: apply bounded `fix-first` findings in the main agent; for `rethink`, return to `planner` and approve a revised contract before reimplementation; an explicitly justified `unsupported` verdict blocks completion. Rerun verification and fresh review after changes. Report completion only after `VERDICT: ship`.
 
-The planner and advisor TOML files configure `model_reasoning_effort = "xhigh"` and read-only defaults. Runtime overrides must not weaken the final-review requirements above.
+The planner and advisor TOML files configure `model_reasoning_effort = "xhigh"` and read-only defaults. Runtime overrides must not weaken the final-review requirements above, but absence of parent-visible runtime metadata alone must not block execution.
 
 For architecture, design evaluation, or technical advice without implementation, invoke `advisor` and keep the work read-only.
 
