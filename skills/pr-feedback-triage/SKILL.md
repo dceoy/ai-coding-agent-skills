@@ -104,10 +104,10 @@ Use whichever authenticated GitHub-capable interface is available and reliable, 
 
 ### Publication Gate
 
-After a verified in-scope code change, unless `dry_run` or `no_push` is set:
+After a verified in-scope code change, unless `dry_run` or `no_push` is set, publish only changes attributable to the selected review feedback; include newly created files and leave unrelated pre-existing changes or commits untouched.
 
-1. Commit all in-scope tracked edits.
-2. Push the relevant commits to the PR head branch.
+1. Commit those changes.
+2. Push the resulting commits to the PR head branch.
 3. Re-fetch the PR head or remote branch and confirm the pushed commit is present or is an ancestor of the current head.
 
 Do not finish or resolve code-dependent threads until this gate succeeds. If commit, push, or remote confirmation fails, retry once when safe, continue independent platform actions, and report the blocker. `no_reply` does not bypass this gate.
