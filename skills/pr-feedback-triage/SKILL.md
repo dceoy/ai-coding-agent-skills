@@ -29,32 +29,16 @@ If no PR or review comments are identifiable, ask for the target PR or the copie
 
 - `dry_run`: inspect review feedback and report the triage only. Do not edit files, run write-mode formatters, commit, push, post replies, or resolve review threads.
 - `no_push`: local edits and verification are allowed, but do not push commits or otherwise update the remote branch. Report the local diff or local commits that still need to be pushed. Do not resolve threads whose resolution depends on unpushed local edits.
-- `no_reply`: do not post replies, submit reviews, or resolve review threads. Provide suggested replies and resolution actions in the final report instead. This flag does not disable commit or push; publish code changes normally unless `dry_run` or `no_push` is also set.
+- `no_reply`: do not post replies, submit reviews, or resolve review threads. Provide suggested replies and resolution actions in the final report instead. This does not disable commit or push unless `dry_run` or `no_push` is also set.
 
-When a mode disables an action, skip only the action disabled by that mode. Do not infer `no_push` from `no_reply`, and do not silently downgrade normal execution to a local-only result.
-
-## Completion Contract
-
-The workflow is continuation-oriented: after making a code change, do not stop after editing or verification. Continue through the remaining publish and platform actions until the applicable terminal state is reached.
-
-When neither `dry_run` nor `no_push` is set, every in-scope code change made by this skill must be committed and pushed to the pull request head branch before the skill can finish. In normal mode, handled review threads that depend on those changes must then be replied to when useful, resolved, and re-fetched to confirm their final state.
-
-Treat normal execution as complete only when all of the following are true:
-
-1. No in-scope tracked edits created for the handled feedback remain uncommitted.
-2. Every new in-scope commit is pushed to the PR head branch.
-3. A fresh PR/remote check confirms the pushed commit is reflected by the remote PR head, or is an ancestor of that head if another commit advanced the branch.
-4. Every incorporated source ID has reached a terminal platform state under the Platform Action Contract.
-5. The final unresolved-thread re-check agrees with the intended resolution decisions.
-
-Do not return the final report between verification and commit, between commit and push, or between push and thread reconciliation. If commit, push, remote-head verification, reply, or resolve fails, attempt a safe retry or corrective action when practical, continue with independent actions, and report the explicit blocker instead of silently treating the workflow as complete. Never resolve a thread whose fix exists only locally or whose commit was not confirmed on the remote PR branch.
+A mode disables only the actions it names; do not infer `no_push` from `no_reply` or silently downgrade normal execution to a local-only result.
 
 ## Preflight
 
 1. Identify the current branch and target PR.
 2. Check tracked local changes with `git diff --name-only` and `git diff --cached --name-only`. Ignore untracked files unless the review feedback explicitly concerns them.
 3. Check unpushed commits before relying on remote review feedback.
-4. If tracked local changes or unpushed commits exist, warn that existing PR comments may not cover the latest local state. Unless `dry_run` or `no_push` is set, include the relevant existing and newly created commits in the publish phase and verify that the PR head reflects them before resolving dependent threads. If authentication, branch protection, or repository policy blocks publication, report the blocker; do not silently stop at a local-only state.
+4. If tracked local changes or unpushed commits exist, warn that existing PR comments may not cover the latest local state. Handle publication under the Publication Gate below; report any authentication, branch-protection, or repository-policy blocker explicitly.
 
 ## Feedback Collection
 
@@ -82,9 +66,9 @@ Each triage record should track: original title, reviewer, source IDs, location,
 
 ## Resolution Policy
 
-In normal mode, `Resolve conversation` is the default action for any review thread that has been fully handled. A thread is handled when the requested change is implemented, verified, and published to the PR branch when code changed; the current code already satisfies the comment; the comment is outdated and no longer applies; or a deliberate deferral/won't-fix response has been posted with a clear reason.
+In normal mode, `Resolve conversation` is the default action for any review thread that has been fully handled. A thread is handled when the requested change is implemented, verified, and published when required by the Publication Gate; the current code already satisfies the comment; the comment is outdated and no longer applies; or a deliberate deferral/won't-fix response has been posted with a clear reason.
 
-Keep a thread open only when it still needs reviewer, maintainer, or product input, the fix is local-only or not confirmed on the remote PR branch, verification is missing for a material change, or the user explicitly requested `dry_run`, `no_push`, or `no_reply` behavior that prevents resolution.
+Keep a thread open only when it still needs reviewer, maintainer, or product input, its fix is unpublished, verification is missing for a material change, or the selected mode prevents resolution.
 
 When resolving a thread, add a concise reply first only if it provides useful context, such as what changed, why no code change was needed, why a finding was intentionally deferred, or why the original comment is now outdated. Do not add noisy replies for self-evident fixes unless project norms require them.
 
@@ -105,29 +89,36 @@ Do not treat triage as complete until every incorporated source ID reaches an ex
 - `skipped_by_mode`: `dry_run`, `no_push`, or `no_reply` prevented the external action.
 - `failed_action`: a reply or resolve action was attempted and failed; include the attempted action and failure in the final summary.
 
-In normal mode, build and execute a platform action queue only after code fixes are verified, committed, pushed, and confirmed on the remote PR head:
+For code-dependent threads, satisfy the Publication Gate before replying or resolving. Then execute the applicable action:
 
-- `reply_then_resolve`: use for handled threads where the reviewer needs context before resolution.
-- `resolve_only`: use for self-evident fixes and already-addressed or outdated threads where an extra reply would add noise.
-- `reply_leave_open`: use only for clarification requests, blocked work, or intentionally open follow-ups.
-- `reply_only`: use for PR-level comments or summaries that cannot be resolved, only when a short reply adds value.
+- `reply_then_resolve`: handled thread where the reviewer needs context before resolution.
+- `resolve_only`: self-evident fix, already-addressed finding, or outdated thread where an extra reply adds noise.
+- `reply_leave_open`: clarification request, blocked work, or intentional follow-up.
+- `reply_only`: PR-level comment or summary that cannot be resolved, only when a short reply adds value.
 
-For duplicate findings, execute the terminal action for every source thread ID, not only the primary triage record. If one finding is represented by three unresolved inline threads, all three must be resolved or explicitly left open.
+For duplicate findings, execute the terminal action for every source thread ID, not only the primary triage record.
 
 ## GitHub Action Guidance
 
 Use whichever authenticated GitHub-capable interface is available and reliable, preferably `gh` or GitHub MCP. Prefer interfaces that expose review-thread resolution state. For GitHub inline review threads, use the thread node ID and the GraphQL `resolveReviewThread` mutation, or an equivalent GitHub MCP resolve-thread tool, rather than assuming that a reply resolves the conversation.
 
-A reliable publication and resolution pattern is:
+### Publication Gate
 
-1. After verification, commit every in-scope code change unless `dry_run` is set.
-2. Push the relevant commits to the PR head unless `dry_run` or `no_push` is set. A successful local commit is not a publish result.
-3. Re-fetch the PR head or remote branch and confirm the pushed commit is present before resolving code-dependent threads.
-4. Re-fetch review threads and comments immediately before platform actions.
-5. Reply to the thread when the action queue says a reply is needed.
-6. Resolve the review thread by node ID when the terminal state should be `resolved`.
-7. Re-fetch unresolved review threads after the action queue completes.
-8. Retry any expected-to-be-resolved thread that is still unresolved once; if it still remains unresolved, mark it `failed_action` instead of claiming completion.
+After a verified in-scope code change, unless `dry_run` or `no_push` is set:
+
+1. Commit all in-scope tracked edits.
+2. Push the relevant commits to the PR head branch.
+3. Re-fetch the PR head or remote branch and confirm the pushed commit is present or is an ancestor of the current head.
+
+Do not finish or resolve code-dependent threads until this gate succeeds. If commit, push, or remote confirmation fails, retry once when safe, continue independent platform actions, and report the blocker. `no_reply` does not bypass this gate.
+
+### Thread Actions
+
+1. Re-fetch review threads and comments immediately before acting.
+2. Reply when the action queue requires context.
+3. Resolve handled review threads by node ID.
+4. Re-fetch unresolved review threads after the queue completes.
+5. Retry any expected-to-be-resolved thread that remains unresolved once; otherwise mark it `failed_action`.
 
 Example GraphQL mutation shape:
 
@@ -164,17 +155,15 @@ flowchart TD
   J --> L
   K --> L
   L -->|yes and dry_run| M[Report triage only]
-  L -->|yes and no_push| N[Keep local and report unpublished state]
-  L -->|yes and publish allowed| P[Commit all in-scope changes]
+  L -->|yes and no_push| N[Keep unpublished code-dependent threads open]
+  L -->|yes and publish allowed| P[Run Publication Gate]
   L -->|no| T{Platform actions allowed?}
-  P --> U[Push PR head branch]
-  U --> V[Confirm remote PR head contains pushed commit]
-  V --> T
+  N --> T
+  P --> T
   T -->|no_reply or dry_run| O[Report suggested platform actions]
-  T -->|yes| R[Execute reply/resolve action queue]
+  T -->|yes| R[Execute independent/applicable platform actions]
   R --> S[Re-fetch threads and retry unresolved handled threads once]
   M --> Q[Final summary]
-  N --> Q
   O --> Q
   S --> Q
 ```
@@ -187,33 +176,25 @@ flowchart TD
    - For bot reviews, prioritize inline comments and incorporate summary findings only when they add distinct actionable context.
 
 2. **Classify each triage record**
-   - **Fix**: Valid requested change; make the smallest focused edit when not in `dry_run`.
-   - **Answer**: No code change needed; prepare a concise explanation.
-   - **Clarify**: Ambiguous, conflicting, or missing context; reply with the question and leave unresolved.
-   - **Already addressed**: Current code already satisfies it; prepare evidence.
-   - **Outdated**: Commented code or issue no longer exists; prepare evidence.
-   - **Defer / Won't fix**: Valid concern intentionally not changed now; document a specific reason.
+   - **Fix**: valid requested change; make the smallest focused edit when not in `dry_run`.
+   - **Answer**: no code change needed; prepare a concise explanation.
+   - **Clarify**: ambiguous, conflicting, or missing context; reply with the question and leave unresolved.
+   - **Already addressed**: current code already satisfies it; prepare evidence.
+   - **Outdated**: commented code or issue no longer exists; prepare evidence.
+   - **Defer / Won't fix**: valid concern intentionally not changed now; document a specific reason.
 
-3. **Act according to the classification and mode**
-   - Keep edits scoped to the review feedback.
-   - Follow reviewer-provided fix instructions literally when they are still applicable; deviate only when the current code proves the instruction is stale or unsafe.
-   - In `dry_run`, stop at triage, proposed fixes, suggested replies, and verification plan.
-   - In `no_push`, local edits are allowed, but do not push or resolve threads whose fix is only local. Reply or resolve non-code, already-addressed, or outdated threads only when the action does not depend on unpushed work and `no_reply` is not set.
-   - In `no_reply`, still commit and push changed code unless `dry_run` or `no_push` is also set; skip only replies, reviews, and thread resolution and report the suggested platform actions instead.
-   - Otherwise, after verification, commit every in-scope code change, push it to the PR head, confirm the remote PR head contains the pushed commit, then execute the platform action queue for every incorporated source ID.
+3. **Act according to classification and mode**
+   - Keep edits scoped to the review feedback and follow still-applicable reviewer fix instructions.
+   - `dry_run`: stop at triage, proposed fixes, suggested replies, and verification plan.
+   - `no_push`: edit and verify locally; keep code-dependent threads open, but continue independent platform actions unless `no_reply` is also set.
+   - `no_reply`: skip platform replies/resolution only; run the Publication Gate for code changes unless another mode disables publication.
+   - Otherwise, run the Publication Gate when needed, then execute the platform action queue.
 
-4. **Verify before claiming completion**
-   - For fixes, run appropriate checks or explain why they could not run.
-   - Re-inspect the updated diff and comment context to confirm the concern is resolved.
-   - When publication is allowed, confirm there are no in-scope uncommitted changes, all new in-scope commits were pushed, and the remote PR head contains the pushed commit before resolving dependent threads.
-   - Re-fetch review threads after reply/resolve actions and confirm all expected-to-be-resolved thread IDs are resolved.
-   - Do not mark a thread resolved if it still needs reviewer, maintainer, or product input.
-   - If commit, push, remote-head verification, resolve, or reply fails, retry once when safe; then report the failed step and affected source IDs rather than claiming completion.
-
-5. **Finish**
-   - Normal mode: finish only after in-scope changes are committed, pushed, confirmed on the PR head, useful platform replies/actions are completed, all handled threads are resolved by default, and the final unresolved set is reconciled.
-   - `no_reply`: finish only after publishable code changes are committed, pushed, and confirmed on the PR head; report the replies/resolution actions that were intentionally skipped.
-   - `no_push` or `dry_run`: report the local or proposed state and the exact remaining publish/reply/resolution actions a human could take.
+4. **Verify and finish**
+   - Run appropriate checks for fixes or explain why they could not run, then re-inspect the diff and comment context.
+   - Re-fetch review threads after platform actions and confirm expected terminal states.
+   - Retry safe failed actions once; report remaining blockers instead of claiming completion.
+   - Finish only when the Publication Gate is satisfied or explicitly skipped/blocked and every incorporated source ID has a terminal state under the Platform Action Contract.
 
 ## Reply Guidance
 
@@ -227,11 +208,9 @@ flowchart TD
 ## Final Summary Checklist
 
 - Mode used: `normal`, `dry_run`, `no_push`, or `no_reply`
-- Counts by disposition: fixed, answered, clarified/left open, already addressed, outdated, deferred/won't-fix
-- Counts by platform terminal state: resolved, replied-left-open, not-resolvable, skipped-by-mode, failed-action
-- Threads resolved, intentionally left open, already resolved, or resolution actions skipped by mode
-- Any expected-to-be-resolved thread that remained unresolved after retry
+- Counts by disposition and platform terminal state
+- Threads resolved, intentionally left open, already resolved, or skipped by mode
 - Verification run or planned
-- In-scope commit SHA(s), push result, and remote PR-head confirmation, or the explicit mode/blocker that prevented publication
+- Publication Gate result: commit SHA(s) and remote confirmation, or the mode/blocker that prevented publication
 - Any in-scope uncommitted or unpushed work that remains
 - Remaining open items and who needs to respond
