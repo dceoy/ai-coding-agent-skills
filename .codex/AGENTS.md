@@ -20,7 +20,7 @@ Use the main agent directly for simple questions and narrow, deterministic edits
 
 For non-trivial implementation tasks:
 
-1. Invoke `planner` in a separate context with effective read-only permission and obtain a decision-complete contract covering objective, scope, interfaces, constraints, and verification. Accept the contract when native dispatch returns the requested planner result unless runtime evidence explicitly reports a fallback, incompatible override, or writable permission.
+1. Invoke `planner` in a separate context with effective read-only permission and obtain a decision-complete contract covering objective, scope, interfaces, constraints, and verification. Accept the contract when native dispatch returns the requested planner result unless runtime evidence explicitly reports a fallback, incompatible override, writable permission, or inherited context contrary to `fork_turns: "none"`.
 2. Resolve material architectural, product, security, compatibility, or data-model decisions before implementation. Do not invent requirements.
 3. Pass the approved contract to a top-level implementation session configured with `model_reasoning_effort = "xhigh"`; otherwise restart with `xhigh` or report `unsupported`. Implement the approved contract directly in that session. Do not delegate implementation to a worker subagent.
 4. Inspect the actual changes, preserve unrelated work, and run the relevant verification from the planner contract.
