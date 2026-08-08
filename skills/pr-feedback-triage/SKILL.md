@@ -87,7 +87,7 @@ Do not treat triage as complete until every incorporated source ID reaches an ex
 - `replied_left_open`: a reply or question was posted and the thread is intentionally left unresolved.
 - `not_resolvable`: the source is a PR-level summary comment or copied comment that has no platform-level resolve action; post a brief reply only when useful.
 - `skipped_by_mode`: `dry_run`, `no_push`, or `no_reply` prevented the external action.
-- `failed_action`: a reply or resolve action was attempted and failed; include the attempted action and failure in the final summary.
+- `failed_action`: a publication, reply, or resolve action was attempted and failed; include the attempted action and failure in the final summary.
 
 For code-dependent threads, satisfy the Publication Gate before replying or resolving. Then execute the applicable action:
 
