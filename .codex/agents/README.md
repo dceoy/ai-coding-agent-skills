@@ -15,14 +15,14 @@ Use the main agent directly for simple questions and narrow, deterministic edits
 
 For non-trivial implementation:
 
-1. Invoke `planner` in a separate context with effective read-only permission. Accept its contract unless runtime evidence explicitly reports a fallback, incompatible override, or writable permission; missing runtime telemetry alone is not a failure.
+1. Invoke `planner` in a separate context with effective read-only permission. Accept its contract unless runtime evidence explicitly reports a fallback, incompatible override, writable permission, or inherited context contrary to `fork_turns: "none"`; missing runtime telemetry alone is not a failure.
 2. Resolve material open decisions and approve the plan.
 3. Pass the approved contract to a top-level implementation session configured with `model_reasoning_effort = "xhigh"`; otherwise restart with `xhigh` or report `unsupported`. Implement the plan directly in that session.
 4. Inspect the actual changes and run the planned verification.
 5. Invoke `advisor` in a fresh context with effective read-only permission, passing the planner contract, changed files or diff, implementation decisions, and verification results. Accept its verdict unless runtime evidence explicitly contradicts the configured role, model, reasoning effort, read-only permission, or fresh-context request.
 6. Apply bounded `fix-first` findings in the main agent. For `rethink`, return to `planner` and approve a revised contract before reimplementation. An explicitly justified `unsupported` verdict blocks completion. Repeat verification and fresh review until `VERDICT: ship`.
 
-The planner and advisor TOMLs configure `model_reasoning_effort = "xhigh"` and read-only defaults. The top-level implementation session must be configured with `model_reasoning_effort = "xhigh"` separately, and runtime overrides must not weaken final-review isolation. Absence of parent-visible runtime attestation by itself must not stop the workflow.
+The planner and advisor TOML files configure `model_reasoning_effort = "xhigh"` and read-only defaults. The top-level implementation session must be configured with `model_reasoning_effort = "xhigh"` separately, and runtime overrides must not weaken final-review isolation. Absence of parent-visible runtime attestation by itself must not stop the workflow.
 
 ## User-wide installation
 
@@ -62,7 +62,7 @@ Start a fresh Codex session after installation and verify that native `planner` 
 ### Planning and implementation phase
 
 ```text
-Use native planner with fork_turns set to none in a separate effectively read-only context, and supply the task-specific context explicitly. Produce a decision-complete plan for this task. Treat the installed planner definition as authoritative for gpt-5.6-sol, xhigh, and read-only defaults unless the runtime explicitly reports a fallback or incompatible override. Do not require parent-visible configuration attestation. Resolve any blocking questions, then pass the approved contract to a top-level main-agent session configured with model_reasoning_effort = "xhigh". Do not delegate implementation to worker subagents. Run the planned verification and prepare the planner contract, actual changed files or diff, implementation decisions, and verification results for the mandatory final-review phase below. Do not report completion yet.
+Use native planner with fork_turns set to none in a separate effectively read-only context, and supply the task-specific context explicitly. Produce a decision-complete plan for this task. Treat the installed planner definition as authoritative for gpt-5.6-sol, xhigh, and read-only defaults unless the runtime explicitly reports a fallback, incompatible override, writable permission, or inherited context contrary to fork_turns set to none. Do not require parent-visible configuration attestation. Resolve any blocking questions, then pass the approved contract to a top-level main-agent session configured with model_reasoning_effort = "xhigh". Do not delegate implementation to worker subagents. Run the planned verification and prepare the planner contract, actual changed files or diff, implementation decisions, and verification results for the mandatory final-review phase below. Do not report completion yet.
 ```
 
 ### Mandatory final review
