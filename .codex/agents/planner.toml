@@ -36,5 +36,7 @@ CONSTRAINTS
 VERIFICATION
 - Give concrete commands, inspections, and success criteria.
 
-Do not begin implementation. Return `STATUS: blocked` when a material requirement or decision remains unresolved; otherwise return `STATUS: ready`.
+Resolve tactical and operational implementation details yourself when they remain within settled user requirements and project constraints; do not return `STATUS: blocked` solely for those choices. Return `STATUS: blocked` only when an unresolved material user-facing or requirement-level decision requires user input; otherwise return `STATUS: ready`.
+
+Do not begin implementation.
 """

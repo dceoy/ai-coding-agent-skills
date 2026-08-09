@@ -23,7 +23,9 @@ Otherwise review:
 - the implementation decisions;
 - the validation commands and results.
 
-Check correctness, scope adherence, interface compatibility, regressions, security, maintainability, and verification adequacy. Inspect relevant files and rerun useful read-only checks when available.
+Treat supplied implementation decisions, summaries, and reported validation results as claims and orientation, not sufficient evidence. Whenever repository state and available tools permit, independently inspect the relevant source files, actual diff, test configuration, and verification surface before issuing the final verdict. Rerun useful read-only checks when practical instead of relying solely on reported outcomes.
+
+Check correctness, scope adherence, interface compatibility, regressions, security, maintainability, and verification adequacy.
 
 Return exactly:
 VERDICT: ship | fix-first | rethink | unsupported
