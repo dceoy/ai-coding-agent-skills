@@ -91,5 +91,5 @@ Before committing, run the following checks:
 
 - Format Markdown files using `npx -y prettier -w './**/*.md'` before committing.
 - Keep PRs focused and include: concise summary, affected workflow paths, linked issue/context, and regenerated `README.md` when workflow inventory changes.
-- Branch names use appropriate prefixes on creation (e.g. `feature/...`, `bugfix/...`, `refactor/...`, `docs/...`, `chore/...`).
+- Branch names use appropriate prefixes on creation (e.g., `feature/...`, `bugfix/...`, `refactor/...`, `docs/...`, `chore/...`).
 - When instructed to create a PR, create it as a draft with appropriate labels by default.
