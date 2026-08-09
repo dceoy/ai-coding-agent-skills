@@ -16,7 +16,7 @@ Claude Code
 Opus planning → Sonnet implementation → Opus advisor/review
 
 Codex
-Sol planning → top-level main implementation (Terra-class) → Sol advisor
+Sol planning → top-level main implementation (Terra-class, not a worker role) → Sol advisor
 ```
 
 The steady-state authority split is:
