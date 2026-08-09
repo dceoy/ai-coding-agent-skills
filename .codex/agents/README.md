@@ -27,7 +27,7 @@ implementation authority  → top-level main agent
 review authority          → Sol advisor
 ```
 
-Keeping implementation in the conversation-owning main agent preserves user intent, repository observations, implementation discoveries, and partially accumulated task context without another write-capable handoff. The former `worker_luna` and `worker_terra` roles were therefore removed intentionally and should not be restored by default.
+Keeping implementation ownership in the top-level main-agent path avoids an additional write-capable subagent handoff and preserves a single implementation authority. The top-level implementation session may still be restarted or reconfigured to satisfy the required `xhigh` reasoning effort; when that happens, the approved planner contract remains the implementation contract. The former `worker_luna` and `worker_terra` roles were therefore removed intentionally and should not be restored by default.
 
 If future measurements justify parallelism, prefer bounded read-only investigation roles such as dependency, test, security, or compatibility scouts. Do not introduce write-capable implementation workers into the default architecture unless empirical results show that the added orchestration and context-transfer cost is worthwhile.
 
