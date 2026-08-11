@@ -43,33 +43,41 @@ Normalize a GitHub PR URL to the canonical form:
 OWNER/REPO#NUMBER
 ```
 
-The normalized target must contain only the repository owner, repository name, and a positive pull request
-number. Reject ambiguous targets, multiple PRs, query strings used as extra instructions, or arbitrary text
-that cannot be reduced unambiguously to one canonical target.
+Before constructing or running any Bash command, require the normalized target to match this pattern
+exactly:
+
+```regex
+^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*$
+```
+
+Reject any non-matching target. In particular, never pass raw user-supplied text, query strings, whitespace,
+newlines, shell metacharacters, or additional instructions into Bash. Reject ambiguous targets and multiple
+PRs rather than trying to recover a target heuristically.
 
 Do not fetch the pull request with `gh`, GitHub APIs, a local checkout, or another tool. Do not attach local
 files to Oracle. The ChatGPT GitHub app is the only source of PR context for this skill.
 
 ## Execution
 
-Construct the prompt mechanically from the normalized target using this fixed template:
+Construct the prompt mechanically from the validated canonical target using this fixed template:
 
 ```text
 @GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible. Use a top-level review summary only for cross-cutting findings or findings that cannot be placed inline.
 ```
 
-Run Oracle with browser mode and an explicit model and reasoning setting:
+Substitute the validated canonical target directly into the single-quoted prompt literal; do not interpolate
+an unvalidated shell variable or use `eval`.
 
 ```bash
 oracle \
   --engine browser \
   --model gpt-5.6-sol \
   --browser-thinking-time high \
-  -p "@GitHub Review ${target}. Prioritize inline review comments on the relevant changed lines whenever possible. Use a top-level review summary only for cross-cutting findings or findings that cannot be placed inline."
+  -p '@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible. Use a top-level review summary only for cross-cutting findings or findings that cannot be placed inline.'
 ```
 
-Keep the prompt template exact apart from substituting the canonical target. Do not append repository
-context, user prose, local diff content, or other instructions.
+Keep the prompt template exact apart from substituting the validated canonical target. Do not append
+repository context, user prose, local diff content, or other instructions.
 
 ## Failure Policy
 
