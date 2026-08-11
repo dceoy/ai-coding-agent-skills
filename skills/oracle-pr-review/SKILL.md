@@ -1,6 +1,6 @@
 ---
 name: oracle-pr-review
-description: Review a GitHub pull request in ChatGPT through Oracle browser mode by invoking the connected GitHub app with a fixed @GitHub Review prompt that prioritizes inline review comments. Use when the user explicitly wants a PR reviewed by ChatGPT via Oracle rather than by the current agent; if no PR target is supplied, detect the pull request for the current branch automatically.
+description: Review a GitHub pull request in ChatGPT through Oracle browser mode by invoking the connected GitHub app with a fixed, title-prefixed @GitHub Review prompt that prioritizes inline review comments. Use when the user explicitly wants a PR reviewed by ChatGPT via Oracle rather than by the current agent; if no PR target is supplied, detect the pull request for the current branch automatically.
 allowed-tools: Bash(gh:*), Bash(oracle:*), Bash(which:*)
 ---
 
@@ -92,21 +92,24 @@ local files to Oracle. The ChatGPT GitHub app is the only source of PR review co
 
 ## Execution
 
-Construct the prompt mechanically from the validated canonical target using this fixed template:
+Construct the prompt mechanically from the validated canonical target using this fixed template. Keep the
+`PR Review:` title hint as the first line so the ChatGPT thread can be named from the PR identity:
 
 ```text
+PR Review: OWNER/REPO#NUMBER
 @GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible.
 ```
 
-Substitute the validated canonical target directly into the single-quoted prompt literal; do not interpolate
-an unvalidated shell variable or use `eval`.
+Substitute the same validated canonical target into both occurrences. Do not interpolate an unvalidated shell
+variable or use `eval`.
 
 ```bash
 oracle \
   --engine browser \
   --model gpt-5.6-sol \
   --browser-thinking-time high \
-  -p '@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible.'
+  -p 'PR Review: OWNER/REPO#NUMBER
+@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible.'
 ```
 
 Do not add `--remote-host` or `--remote-token` when the corresponding environment variables are configured;
