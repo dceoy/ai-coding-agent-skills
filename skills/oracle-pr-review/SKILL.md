@@ -80,10 +80,10 @@ Reject any non-matching target. In particular, never pass raw user-supplied text
 strings, whitespace, newlines, shell metacharacters, or additional instructions into the Oracle prompt.
 Reject ambiguous targets and multiple PRs rather than trying to recover a target heuristically.
 
-`gh` is permitted only for resolving PR identity when the user omitted the target. Do not use `gh` to fetch
-or inspect the pull request diff, changed files, comments, reviews, checks, or repository contents. Do not use
-GitHub APIs, a local checkout, or another tool to gather review context. Do not attach local files to Oracle.
-The ChatGPT GitHub app is the only source of PR review context for this skill.
+`gh` is permitted only for resolving PR identity when the user omitted owner, repository, and PR number. Do
+not use `gh` to fetch or inspect the pull request diff, changed files, comments, reviews, checks, or repository
+contents. Do not use GitHub APIs, a local checkout, or another tool to gather review context. Do not attach
+local files to Oracle. The ChatGPT GitHub app is the only source of PR review context for this skill.
 
 ## Execution
 
