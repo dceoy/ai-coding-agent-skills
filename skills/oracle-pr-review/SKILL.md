@@ -35,18 +35,23 @@ review path.
 ## Remote Browser Service
 
 Oracle natively reads `ORACLE_REMOTE_HOST` and `ORACLE_REMOTE_TOKEN` for browser remote-service routing.
-When both are configured in the environment, keep the normal Oracle invocation unchanged and let Oracle
-route it to the remote `oracle serve` host. Do not copy the token into `--remote-token`, print it, or include
-it in the review prompt or logs.
+Use the remote browser service only when both variables are configured. Keep the normal Oracle invocation
+unchanged and let Oracle route it to the remote `oracle serve` host. Do not copy the token into
+`--remote-token`, print it, or include it in the review prompt or logs.
 
 ```bash
 export ORACLE_REMOTE_HOST='oracle-host.example:9473'
 export ORACLE_REMOTE_TOKEN='<secret>'
 ```
 
-If no remote service is configured, Oracle browser mode uses its normal local browser path. Treat an invalid,
-unreachable, unauthorized, or partially configured remote service as an Oracle failure; do not silently
-fall back to another review path.
+Before invoking Oracle, inspect only whether these variables are set, without printing their values:
+
+- If both are unset, use Oracle's normal local browser path.
+- If both are set, use Oracle's native remote-service routing.
+- If exactly one is set, report the partial remote configuration and stop rather than invoking Oracle.
+
+Treat an invalid, unreachable, or unauthorized configured remote service as an Oracle failure; do not
+silently fall back to the local browser path or another review path.
 
 ## Target Resolution
 
@@ -90,7 +95,7 @@ local files to Oracle. The ChatGPT GitHub app is the only source of PR review co
 Construct the prompt mechanically from the validated canonical target using this fixed template:
 
 ```text
-@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible. Use a top-level review summary only for cross-cutting findings or findings that cannot be placed inline.
+@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible.
 ```
 
 Substitute the validated canonical target directly into the single-quoted prompt literal; do not interpolate
@@ -101,7 +106,7 @@ oracle \
   --engine browser \
   --model gpt-5.6-sol \
   --browser-thinking-time high \
-  -p '@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible. Use a top-level review summary only for cross-cutting findings or findings that cannot be placed inline.'
+  -p '@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible.'
 ```
 
 Do not add `--remote-host` or `--remote-token` when the corresponding environment variables are configured;
@@ -114,7 +119,9 @@ Fail closed when any required part of the intended path cannot be established:
 
 - Do not fall back to Oracle API mode.
 - Do not fall back to another model when `gpt-5.6-sol` cannot be selected.
-- Do not fall back from a configured but failing remote browser service to a different review path.
+- Do not invoke Oracle when exactly one of `ORACLE_REMOTE_HOST` or `ORACLE_REMOTE_TOKEN` is configured.
+- Do not fall back from a configured but failing remote browser service to the local browser path or another
+  review path.
 - Do not choose another PR when automatic current-branch target detection fails.
 - Do not fall back to `gh`/GitHub API review-context retrieval, local diff review, or the current agent's own
   review.
