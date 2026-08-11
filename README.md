@@ -99,8 +99,8 @@ Install and authenticate the required CLI tools before running skills:
 - **Oracle CLI** - For the `oracle-pr-review` skill
   - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode and connect the GitHub app with access to the target repository
-  - Optional remote browser service: set both `ORACLE_REMOTE_HOST` and `ORACLE_REMOTE_TOKEN`; when both are absent, Oracle uses its local browser path, and a one-variable partial configuration is rejected
-  - Automatic target detection: install and authenticate `gh`; when owner, repository, and PR number are omitted, the skill resolves all three from the pull request associated with the current branch using PR identity metadata only
+  - Remote browser routing is optional and uses Oracle's native configuration; without a configured remote host, Oracle uses its local browser path
+  - Automatic target detection requires authenticated `gh` when no PR target is supplied
 
 ## Usage notes
 
