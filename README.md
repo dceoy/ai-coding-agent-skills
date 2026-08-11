@@ -100,7 +100,7 @@ Install and authenticate the required CLI tools before running skills:
   - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode and connect the GitHub app with access to the target repository
   - Optional remote browser service: export `ORACLE_REMOTE_HOST` and `ORACLE_REMOTE_TOKEN`; Oracle consumes them natively without placing the token on the command line
-  - Automatic target detection: install and authenticate `gh`; when no PR target is supplied, the skill resolves the pull request associated with the current branch using PR identity metadata only
+  - Automatic target detection: install and authenticate `gh`; when owner, repository, and PR number are omitted, the skill resolves all three from the pull request associated with the current branch using PR identity metadata only
 
 ## Usage notes
 
