@@ -41,12 +41,6 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `pr-review` - Autonomous CI/GitHub PR review that posts concise, high-confidence findings by default
 - `security-guidance` - Security-focused review of code changes, diffs, commits, and pull requests
 
-### AI Tools
-
-- `codex` - Use OpenAI Codex from AI coding agents for code reviews, adversarial reviews, and task delegation
-- `oracle-issue-plan` - Generate a decision-complete pull request implementation plan for one GitHub issue through ChatGPT's connected GitHub app using Oracle browser mode
-- `oracle-pr-review` - Review one GitHub PR through ChatGPT's connected GitHub app using Oracle browser mode; auto-detect the current branch PR when no target is supplied
-
 ### Skill Management
 
 - `claude-agent-converter` - Convert Claude Code agents to portable skills
@@ -93,15 +87,9 @@ Install and authenticate the required CLI tools before running skills:
 - **Claude Code** - For `.claude/` agents and skills
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
-- **Codex CLI / Codex plugin** - For the `codex` skill
-  - Full Claude Code integration: install `openai/codex-plugin-cc` and run `/codex:setup`
-  - Standalone / generic agent usage: install `@openai/codex` and run `codex login`
-  - Plugin-managed operations (status/result/cancel/transfer) require the Claude Code plugin context
-- **Oracle CLI** - For the `oracle-issue-plan` and `oracle-pr-review` skills
-  - Install: `npm install -g @steipete/oracle`
-  - ChatGPT: sign in for Oracle browser mode and connect the GitHub app with access to the target repository
-  - Remote browser routing is optional and uses Oracle's native configuration; without a configured remote host, Oracle uses its local browser path
-  - Automatic PR target detection for `oracle-pr-review` requires authenticated `gh` when no PR target is supplied
+- **Codex CLI** - For `.agents/skills/` and `.codex/agents/`
+  - Install: `npm install -g @openai/codex`
+  - Auth: run `codex login`
 
 ## Usage notes
 
@@ -129,7 +117,6 @@ Install and authenticate the required CLI tools before running skills:
 - Re-run the tool's auth command:
   - Claude Code: Follow onboarding flow
   - Codex CLI: run `codex login`
-  - Codex Claude Code plugin: run `/codex:setup`
 - Verify active subscription or API key
 
 **Symlink issues**
