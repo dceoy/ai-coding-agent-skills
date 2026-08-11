@@ -1,7 +1,7 @@
 ---
 name: oracle-pr-review
-description: Review a GitHub pull request in ChatGPT through Oracle browser mode by invoking the connected GitHub app with a fixed @GitHub Review prompt that prioritizes inline review comments. Use when the user explicitly wants a PR reviewed by ChatGPT via Oracle rather than by the current agent.
-allowed-tools: Bash(oracle:*), Bash(which:*)
+description: Review a GitHub pull request in ChatGPT through Oracle browser mode by invoking the connected GitHub app with a fixed @GitHub Review prompt that prioritizes inline review comments. Use when the user explicitly wants a PR reviewed by ChatGPT via Oracle rather than by the current agent; if no PR target is supplied, detect the pull request for the current branch automatically.
+allowed-tools: Bash(gh:*), Bash(oracle:*), Bash(which:*)
 ---
 
 # Oracle PR Review
@@ -20,6 +20,8 @@ Before running the review, require all of the following:
 - The ChatGPT GitHub app is connected and authorized for the target repository in the ChatGPT session used
   by the browser host.
 - The ChatGPT account exposes `GPT-5.6 Sol` to Oracle browser mode.
+- When the user does not supply a PR target, `gh` is installed, authenticated, and running in a repository
+  context whose current branch has an associated pull request.
 
 Check Oracle availability with:
 
@@ -46,34 +48,41 @@ If no remote service is configured, Oracle browser mode uses its normal local br
 unreachable, unauthorized, or partially configured remote service as an Oracle failure; do not silently
 fall back to another review path.
 
-## Input
+## Target Resolution
 
-Accept either of these forms for exactly one pull request:
+Resolve exactly one pull request using this precedence:
 
-```text
-OWNER/REPO#NUMBER
-https://github.com/OWNER/REPO/pull/NUMBER
-```
+1. If the user supplies `OWNER/REPO#NUMBER`, use it.
+2. If the user supplies `https://github.com/OWNER/REPO/pull/NUMBER`, normalize it to
+   `OWNER/REPO#NUMBER`.
+3. If the user supplies no pull request target, detect the pull request associated with the current branch:
 
-Normalize a GitHub PR URL to the canonical form:
+   ```bash
+   gh pr view --json url --jq .url
+   ```
 
-```text
-OWNER/REPO#NUMBER
-```
+   Treat the command output only as PR identity metadata. Normalize the returned GitHub PR URL to
+   `OWNER/REPO#NUMBER`.
 
-Before constructing or running any Bash command, require the normalized target to match this pattern
-exactly:
+Do not guess from issue text, branch names, commit messages, recent pull requests, or repository history. If
+`gh pr view` cannot resolve exactly one pull request for the current branch, report that target detection
+failed and stop rather than reviewing a different PR.
+
+Before constructing or running any Oracle command, require the resolved canonical target to match this
+pattern exactly:
 
 ```regex
 ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*$
 ```
 
-Reject any non-matching target. In particular, never pass raw user-supplied text, query strings, whitespace,
-newlines, shell metacharacters, or additional instructions into Bash. Reject ambiguous targets and multiple
-PRs rather than trying to recover a target heuristically.
+Reject any non-matching target. In particular, never pass raw user-supplied text, raw `gh` output, query
+strings, whitespace, newlines, shell metacharacters, or additional instructions into the Oracle prompt.
+Reject ambiguous targets and multiple PRs rather than trying to recover a target heuristically.
 
-Do not fetch the pull request with `gh`, GitHub APIs, a local checkout, or another tool. Do not attach local
-files to Oracle. The ChatGPT GitHub app is the only source of PR context for this skill.
+`gh` is permitted only for resolving PR identity when the user omitted the target. Do not use `gh` to fetch
+or inspect the pull request diff, changed files, comments, reviews, checks, or repository contents. Do not use
+GitHub APIs, a local checkout, or another tool to gather review context. Do not attach local files to Oracle.
+The ChatGPT GitHub app is the only source of PR review context for this skill.
 
 ## Execution
 
@@ -105,7 +114,9 @@ Fail closed when any required part of the intended path cannot be established:
 - Do not fall back to Oracle API mode.
 - Do not fall back to another model when `gpt-5.6-sol` cannot be selected.
 - Do not fall back from a configured but failing remote browser service to a different review path.
-- Do not fall back to `gh`, GitHub API retrieval, local diff review, or the current agent's own review.
+- Do not choose another PR when automatic current-branch target detection fails.
+- Do not fall back to `gh`/GitHub API review-context retrieval, local diff review, or the current agent's own
+  review.
 - Do not retry with a modified prompt if ChatGPT treats `@GitHub` as plain text or cannot access the GitHub
   app or target repository.
 
