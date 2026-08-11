@@ -44,7 +44,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 ### AI Tools
 
 - `codex` - Use OpenAI Codex from AI coding agents for code reviews, adversarial reviews, and task delegation
-- `oracle-pr-review` - Review one GitHub PR through ChatGPT's connected GitHub app using Oracle browser mode
+- `oracle-pr-review` - Review one GitHub PR through ChatGPT's connected GitHub app using Oracle browser mode; auto-detect the current branch PR when no target is supplied
 
 ### Skill Management
 
@@ -100,6 +100,7 @@ Install and authenticate the required CLI tools before running skills:
   - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode and connect the GitHub app with access to the target repository
   - Optional remote browser service: export `ORACLE_REMOTE_HOST` and `ORACLE_REMOTE_TOKEN`; Oracle consumes them natively without placing the token on the command line
+  - Automatic target detection: install and authenticate `gh`; when no PR target is supplied, the skill resolves the pull request associated with the current branch using PR identity metadata only
 
 ## Usage notes
 
