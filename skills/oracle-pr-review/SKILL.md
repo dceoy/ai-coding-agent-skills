@@ -1,6 +1,6 @@
 ---
 name: oracle-pr-review
-description: Review a GitHub pull request in ChatGPT through Oracle browser mode by invoking the connected GitHub app with an exact @GitHub Review OWNER/REPO#NUMBER prompt. Use when the user explicitly wants a PR reviewed by ChatGPT via Oracle rather than by the current agent.
+description: Review a GitHub pull request in ChatGPT through Oracle browser mode by invoking the connected GitHub app with a fixed @GitHub Review prompt that prioritizes inline review comments. Use when the user explicitly wants a PR reviewed by ChatGPT via Oracle rather than by the current agent.
 allowed-tools: Bash(oracle:*), Bash(which:*)
 ---
 
@@ -52,10 +52,10 @@ files to Oracle. The ChatGPT GitHub app is the only source of PR context for thi
 
 ## Execution
 
-Construct the prompt mechanically from the normalized target:
+Construct the prompt mechanically from the normalized target using this fixed template:
 
 ```text
-@GitHub Review OWNER/REPO#NUMBER
+@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible. Use a top-level review summary only for cross-cutting findings or findings that cannot be placed inline.
 ```
 
 Run Oracle with browser mode and an explicit model and reasoning setting:
@@ -64,12 +64,12 @@ Run Oracle with browser mode and an explicit model and reasoning setting:
 oracle \
   --engine browser \
   --model gpt-5.6-sol \
-  --browser-thinking-time extra-high \
-  -p "@GitHub Review ${target}"
+  --browser-thinking-time high \
+  -p "@GitHub Review ${target}. Prioritize inline review comments on the relevant changed lines whenever possible. Use a top-level review summary only for cross-cutting findings or findings that cannot be placed inline."
 ```
 
-Keep the prompt exact. Do not append review criteria, repository context, user prose, local diff content, or
-other instructions after the canonical target.
+Keep the prompt template exact apart from substituting the canonical target. Do not append repository
+context, user prose, local diff content, or other instructions.
 
 ## Failure Policy
 
