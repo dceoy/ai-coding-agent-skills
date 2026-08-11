@@ -62,15 +62,15 @@ Treat Oracle routing or authentication failures as failures rather than switchin
 
 ## Run
 
-Substitute the validated canonical target into both `OWNER/REPO#NUMBER` occurrences and run exactly:
+Substitute the validated canonical target into the `OWNER/REPO#NUMBER` occurrence and run exactly:
 
 ```bash
 oracle \
   --engine browser \
   --model gpt-5.6-sol \
   --browser-thinking-time high \
-  -p 'Review: OWNER/REPO#NUMBER
-@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible.'
+  -p '# PR: OWNER/REPO#NUMBER
+@GitHub Review this pull request, prioritizing inline review comments on the relevant changed lines whenever possible.'
 ```
 
 Do not interpolate an unvalidated shell variable, use `eval`, or append repository context or user prose.
