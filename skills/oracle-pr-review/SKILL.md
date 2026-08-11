@@ -7,16 +7,18 @@ allowed-tools: Bash(oracle:*), Bash(which:*)
 # Oracle PR Review
 
 Use Oracle CLI browser mode to ask ChatGPT's connected GitHub app to review exactly one GitHub pull request.
-This skill is intentionally a thin adapter: Oracle owns ChatGPT browser automation, and the GitHub app in
-ChatGPT owns repository access and review context.
+This skill is intentionally a thin adapter: Oracle owns ChatGPT browser automation and remote-host routing,
+and the GitHub app in ChatGPT owns repository access and review context.
 
 ## Prerequisites
 
 Before running the review, require all of the following:
 
 - `oracle` is installed and available in `PATH`.
-- Oracle browser mode can use an authenticated ChatGPT session.
-- The ChatGPT GitHub app is connected and authorized for the target repository.
+- Oracle browser mode can reach an authenticated ChatGPT session, either locally or through a configured
+  Oracle remote browser service.
+- The ChatGPT GitHub app is connected and authorized for the target repository in the ChatGPT session used
+  by the browser host.
 - The ChatGPT account exposes `GPT-5.6 Sol` to Oracle browser mode.
 
 Check Oracle availability with:
@@ -27,6 +29,22 @@ which oracle
 
 If Oracle is unavailable, report that prerequisite failure and stop. Do not silently substitute another
 review path.
+
+## Remote Browser Service
+
+Oracle natively reads `ORACLE_REMOTE_HOST` and `ORACLE_REMOTE_TOKEN` for browser remote-service routing.
+When both are configured in the environment, keep the normal Oracle invocation unchanged and let Oracle
+route it to the remote `oracle serve` host. Do not copy the token into `--remote-token`, print it, or include
+it in the review prompt or logs.
+
+```bash
+export ORACLE_REMOTE_HOST='oracle-host.example:9473'
+export ORACLE_REMOTE_TOKEN='<secret>'
+```
+
+If no remote service is configured, Oracle browser mode uses its normal local browser path. Treat an invalid,
+unreachable, unauthorized, or partially configured remote service as an Oracle failure; do not silently
+fall back to another review path.
 
 ## Input
 
@@ -76,8 +94,9 @@ oracle \
   -p '@GitHub Review OWNER/REPO#NUMBER. Prioritize inline review comments on the relevant changed lines whenever possible. Use a top-level review summary only for cross-cutting findings or findings that cannot be placed inline.'
 ```
 
-Keep the prompt template exact apart from substituting the validated canonical target. Do not append
-repository context, user prose, local diff content, or other instructions.
+Do not add `--remote-host` or `--remote-token` when the corresponding environment variables are configured;
+Oracle resolves them natively. Keep the prompt template exact apart from substituting the validated canonical
+target. Do not append repository context, user prose, local diff content, or other instructions.
 
 ## Failure Policy
 
@@ -85,6 +104,7 @@ Fail closed when any required part of the intended path cannot be established:
 
 - Do not fall back to Oracle API mode.
 - Do not fall back to another model when `gpt-5.6-sol` cannot be selected.
+- Do not fall back from a configured but failing remote browser service to a different review path.
 - Do not fall back to `gh`, GitHub API retrieval, local diff review, or the current agent's own review.
 - Do not retry with a modified prompt if ChatGPT treats `@GitHub` as plain text or cannot access the GitHub
   app or target repository.
