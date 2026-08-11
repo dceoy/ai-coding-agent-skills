@@ -99,6 +99,7 @@ Install and authenticate the required CLI tools before running skills:
 - **Oracle CLI** - For the `oracle-pr-review` skill
   - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode and connect the GitHub app with access to the target repository
+  - Optional remote browser service: export `ORACLE_REMOTE_HOST` and `ORACLE_REMOTE_TOKEN`; Oracle consumes them natively without placing the token on the command line
 
 ## Usage notes
 
