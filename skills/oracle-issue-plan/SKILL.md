@@ -64,7 +64,7 @@ oracle \
   --model gpt-5.6-sol \
   --browser-thinking-time high \
   -p '# Issue: OWNER/REPO#NUMBER
-@GitHub Analyze this issue and repository, then produce a decision-complete implementation plan for a coding agent to resolve it in one pull request.'
+@GitHub Analyze this issue, then produce a decision-complete implementation plan for a coding agent to resolve it in one pull request.'
 ```
 
 Do not interpolate an unvalidated shell variable, use `eval`, or append repository context or user prose.
