@@ -55,7 +55,8 @@ Resolve exactly one pull request using this precedence:
 1. If the user supplies `OWNER/REPO#NUMBER`, use it.
 2. If the user supplies `https://github.com/OWNER/REPO/pull/NUMBER`, normalize it to
    `OWNER/REPO#NUMBER`.
-3. If the user supplies no pull request target, detect the pull request associated with the current branch:
+3. If the user supplies no owner, repository, or pull request number, detect all three from the pull request
+   associated with the current branch:
 
    ```bash
    gh pr view --json url --jq .url
