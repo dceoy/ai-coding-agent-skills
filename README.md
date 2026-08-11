@@ -44,6 +44,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 ### AI Tools
 
 - `codex` - Use OpenAI Codex from AI coding agents for code reviews, adversarial reviews, and task delegation
+- `oracle-issue-plan` - Generate a decision-complete pull request implementation plan for one GitHub issue through ChatGPT's connected GitHub app using Oracle browser mode
 - `oracle-pr-review` - Review one GitHub PR through ChatGPT's connected GitHub app using Oracle browser mode; auto-detect the current branch PR when no target is supplied
 
 ### Skill Management
@@ -96,11 +97,11 @@ Install and authenticate the required CLI tools before running skills:
   - Full Claude Code integration: install `openai/codex-plugin-cc` and run `/codex:setup`
   - Standalone / generic agent usage: install `@openai/codex` and run `codex login`
   - Plugin-managed operations (status/result/cancel/transfer) require the Claude Code plugin context
-- **Oracle CLI** - For the `oracle-pr-review` skill
+- **Oracle CLI** - For the `oracle-issue-plan` and `oracle-pr-review` skills
   - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode and connect the GitHub app with access to the target repository
   - Remote browser routing is optional and uses Oracle's native configuration; without a configured remote host, Oracle uses its local browser path
-  - Automatic target detection requires authenticated `gh` when no PR target is supplied
+  - Automatic PR target detection for `oracle-pr-review` requires authenticated `gh` when no PR target is supplied
 
 ## Usage notes
 
