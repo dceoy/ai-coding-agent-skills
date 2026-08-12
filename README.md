@@ -38,6 +38,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `code-review` - Comprehensive multi-agent code review for pull requests
 - `code-simplifier` - Simplify and refine code for clarity and maintainability
 - `pr-feedback-triage` - Triage and resolve pull request review feedback
+- `pr-loop` - Portable Issue-to-PR and iterative PR review/fix loop using the active runtime's own native independent-subagent mechanism, with no Oracle or `.codex/agents` dependency
 - `pr-review` - Autonomous CI/GitHub PR review that posts concise, high-confidence findings by default
 - `security-guidance` - Security-focused review of code changes, diffs, commits, and pull requests
 
