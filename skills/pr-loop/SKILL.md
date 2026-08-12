@@ -323,8 +323,8 @@ loop forever either. A head change resets this counter, since it consumes the re
     redispatch's result so this same delta is never rediscovered on the next reconciliation.
 
     If the head is unchanged, the feedback snapshot reconciles as above, and every `source_id` of every feedback item
-    from this round has reached a terminal state (`resolved`, `replied_left_open`, `not_resolvable`,
-    `awaiting_re_review`, or `skipped_by_mode`), finish; report every `not_resolvable` source, every
+    from this round has reached a completion-eligible state (`resolved`, `replied_left_open`, `not_resolvable`,
+    or `skipped_by_mode`), finish; report every `not_resolvable` source, every
     `awaiting_re_review` source, and every `skipped_by_mode` source, rather than treating any of them as the same
     thing. Only a `failed_action` source, an open `clarify`, a non-terminal `defer`, a non-terminal `won't fix`, or
     any `awaiting_re_review` source blocks finishing — a
