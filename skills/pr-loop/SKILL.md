@@ -167,8 +167,9 @@ completed review round; never dispatch `review` again against a head already rev
 12. Re-fetch the head after acting.
 13. If the head changed because a fix was pushed, start a new attempt at step 2 on the new head (subject to the
     attempt limit).
-14. If the head is unchanged and no remaining feedback needs a fix, reply, or resolution, finish successfully. Never
-    re-review that unchanged head.
+14. If the head is unchanged and every item from this round has reached a terminal state — resolved,
+    `replied_left_open`, or `skipped_by_mode` under an active Execution Constraint — finish; report any
+    `skipped_by_mode` items rather than treating them as a blocker. Never re-review that unchanged head.
 
 ```mermaid
 flowchart TD
@@ -194,9 +195,10 @@ Stop without fabricating progress on any of:
 - the chosen review-attempt limit;
 - a required phase reporting `unsupported` because the active runtime exposes no independent-subagent mechanism for
   it;
-- a `clarify`, `defer`, or `won't fix` disposition once the applicable reply or thread action for it has been
-  attempted, leaving a clarification thread open when reviewer input is still required rather than stopping before
-  attempting that action;
+- a `clarify` disposition, or a `defer`/`won't fix` disposition left open rather than resolved, once its reply has
+  been posted — leave that thread open pending reviewer/maintainer input rather than stopping before the reply is
+  attempted; a `defer`/`won't fix` disposition that was actually resolved is a completed terminal state, not a
+  blocker, and does not by itself prevent finishing successfully;
 - an unpublished or unverified fix, a failed publication/reply/resolution, or an authentication/permission failure
   while acting on validated advice;
 - QA failure that cannot be resolved within the implementation step it belongs to.
