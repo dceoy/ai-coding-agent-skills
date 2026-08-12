@@ -140,12 +140,15 @@ completed review round; never dispatch `review` again against a head already rev
    restart at step 2 on the new head; this still counts as one attempt.
 5. Otherwise, deduplicate findings by root cause, drop stale/speculative/low-confidence findings, and validate the
    remainder against the exact reviewed diff.
-6. If arbitration produced no findings, treat this round as clean: skip publication (or, when project convention
-   favors a visible clean-review confirmation, post a concise one-line "no issues found" note) and go directly to
-   step 7. Otherwise, unless `dry_run` or `no_reply` is set, publish the arbitrated findings to GitHub — inline
-   comments when safely anchorable to the reviewed head, otherwise one concise top-level summary — then verify
-   publication by re-fetching and locating the posted artifact; exit status alone is not sufficient. Retain the
-   validated arbitrated findings locally regardless of whether this step published them.
+6. If arbitration produced no findings and project convention does not call for a visible clean-review note, skip
+   publication entirely and go directly to step 7. Otherwise, immediately before this step's GitHub publication
+   (inline comments, a top-level findings summary, or a clean-review note), re-fetch the head and compare it to the
+   exact SHA reviewed in step 2. If it no longer matches, discard the round without publishing anything derived from
+   the stale SHA and restart at step 2 on the new head; this still counts as one attempt. Otherwise, unless `dry_run`
+   or `no_reply` is set, publish — inline comments when safely anchorable to the reviewed head, otherwise one concise
+   top-level summary or clean-review note — then verify publication by re-fetching and locating the posted artifact;
+   exit status alone is not sufficient. Retain the validated arbitrated findings locally regardless of whether this
+   step published them.
 7. Dispatch one fresh `feedback-analysis` subagent over the current review threads/comments, including this round's
    arbitrated findings: the published artifact in normal posting mode, the retained local findings when `dry_run`
    or `no_reply` suppressed publication, or none when this round contributed no new findings. If there are no
@@ -157,11 +160,17 @@ completed review round; never dispatch `review` again against a head already rev
    Execution Constraint, then act on each:
    - `fix`: unless `dry_run` is set, implement the smallest valid change, run relevant QA, commit, and — unless
      `no_push` is set — push.
-   - `already addressed` / `outdated`: verify current evidence before treating the thread as resolvable.
+   - `already addressed` / `outdated`: verify current evidence before treating the source as resolvable.
    - `answer`: prepare the validated concise reply.
-   - `clarify`: prepare the question; the thread stays open pending reviewer input.
+   - `clarify`: prepare the question; the source stays open pending reviewer input.
    - `defer` / `won't fix`: prepare the reason; resolve only if it represents a genuinely terminal project decision,
      otherwise leave it open.
+
+   A feedback source with no review-thread resolve action available to it (for example a PR-level comment rather
+   than an inline review thread) cannot reach `resolved`. For such a source, act on the disposition as above —
+   posting a reply when one is useful, none otherwise — without attempting to resolve it, and record its terminal
+   state as `not_resolvable` once any applicable reply has been handled.
+
 10. Apply the publication gate: before replying to or resolving any code-dependent thread, re-fetch the PR head and
     confirm the pushed fix commit is the current head or an ancestor of it. When `dry_run` or `no_push` is set, no
     push happened by design; leave the thread open and report its terminal state as `skipped_by_mode`, not a
@@ -169,16 +178,17 @@ completed review round; never dispatch `review` again against a head already rev
     that do not depend on a pushed fix (`answer`, `already addressed`, `outdated`, `clarify`, `defer`, `won't fix`)
     are not subject to this gate; act on each independently once validated against the current head and thread
     context.
-11. Unless `dry_run` or `no_reply` is set, post the applicable reply and resolve or leave open each thread per its
-    disposition and the publication gate. When `dry_run` or `no_reply` suppresses this step, retain the suggested
-    reply/resolution, leave the thread open, and report its terminal state as `skipped_by_mode`.
+11. Unless `dry_run` or `no_reply` is set, post the applicable reply, and resolve, leave open, or record
+    `not_resolvable` for each source per its disposition, the publication gate, and step 9's no-resolve-action
+    handling. When `dry_run` or `no_reply` suppresses this step, retain the suggested reply/resolution, leave the
+    source open, and report its terminal state as `skipped_by_mode`.
 12. Re-fetch the head after acting.
 13. If the head changed because a fix was pushed, start a new attempt at step 2 on the new head (subject to the
     attempt limit).
-14. If the head is unchanged and every feedback item's thread from this round has reached a terminal state
-    (`resolved`, `replied_left_open`, or `skipped_by_mode`), finish; report every `skipped_by_mode` thread rather
-    than treating it as a blocker. Only a `failed_action` thread or an open `clarify`/non-terminal `defer` blocks
-    finishing. Never re-review that unchanged head.
+14. If the head is unchanged and every feedback item's source from this round has reached a terminal state
+    (`resolved`, `replied_left_open`, `not_resolvable`, or `skipped_by_mode`), finish; report every `skipped_by_mode`
+    or `not_resolvable` source rather than treating it as a blocker. Only a `failed_action` source or an open
+    `clarify`/non-terminal `defer` blocks finishing. Never re-review that unchanged head.
 
 ```mermaid
 flowchart TD
@@ -204,16 +214,17 @@ Stop without fabricating progress on any of:
 - the chosen review-attempt limit;
 - a required phase reporting `unsupported` because the active runtime exposes no independent-subagent mechanism for
   it;
-- a `clarify` disposition, or a `defer`/`won't fix` disposition left open rather than resolved, once its reply has
-  been posted — leave that thread open pending reviewer/maintainer input rather than stopping before the reply is
-  attempted; a `defer`/`won't fix` disposition that was actually resolved is a completed terminal state, not a
-  blocker, and does not by itself prevent finishing successfully;
+- a `clarify` disposition, or a `defer`/`won't fix` disposition left open rather than resolved or marked
+  `not_resolvable`, once its reply has been posted — leave that source open pending reviewer/maintainer input rather
+  than stopping before the reply is attempted; a `defer`/`won't fix` disposition that reached `resolved` or
+  `not_resolvable` is a completed terminal state, not a blocker, and does not by itself prevent finishing
+  successfully;
 - an unpublished or unverified fix, a failed publication/reply/resolution, or an authentication/permission failure
   while acting on validated advice;
 - QA failure that cannot be resolved within the implementation step it belongs to.
 
 Finish successfully only when a review/feedback-analysis round completes with the PR head unchanged and no actionable
-feedback — no `fix` disposition and no thread still requiring reviewer input, publication, or resolution — remains.
+feedback — no `fix` disposition and no source still requiring reviewer input, publication, or resolution — remains.
 
 ## Non-Goals
 
@@ -230,6 +241,6 @@ Report, without repeating full findings or plans verbatim:
 - Mode: normal, or the active `dry_run`/`no_push`/`no_reply` constraints.
 - Issues implemented (if Issue-started) and the resulting PR URL.
 - Review attempts run, the final reviewed head SHA, and whether it changed since the last round.
-- Disposition counts and each thread's terminal state (`resolved`, `replied_left_open`, `skipped_by_mode`, or
-  `failed_action`).
+- Disposition counts and each feedback source's terminal state (`resolved`, `replied_left_open`, `not_resolvable`,
+  `skipped_by_mode`, or `failed_action`).
 - Any blocker that stopped the loop before completion.
