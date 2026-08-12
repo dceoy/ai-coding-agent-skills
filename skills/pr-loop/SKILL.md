@@ -60,8 +60,10 @@ Accept these optional caller constraints, equivalent in effect to the retired tr
   `no_push` is also set.
 
 A constraint disables only the actions it names. Never treat code-dependent feedback as resolved when the active
-constraint disables the fix's publication, reply, or resolution; leave the affected thread open and report it as
-incomplete rather than fabricating completion.
+constraint disables the fix's publication, reply, or resolution; leave the affected thread open and report its
+terminal state as `skipped_by_mode` rather than fabricating completion or treating the suppression itself as a
+blocker. A constraint intentionally leaving work undone is not the same failure as an attempted action that did not
+succeed.
 
 ## Logical Subagent Roles and Context Packets
 
@@ -157,19 +159,22 @@ completed review round; never dispatch `review` again against a head already rev
    - `defer` / `won't fix`: prepare the reason; resolve only if it represents a genuinely terminal project decision,
      otherwise leave it open.
 10. Apply the publication gate: before replying to or resolving any code-dependent thread, re-fetch the PR head and
-    confirm the pushed fix commit is the current head or an ancestor of it. If that confirmation fails, leave the
-    thread open and treat it as a blocker instead of resolving it. Dispositions that do not depend on a pushed fix
-    (`answer`, `already addressed`, `outdated`, `clarify`, `defer`, `won't fix`) are not subject to this gate; act on
-    each independently once validated against the current head and thread context.
+    confirm the pushed fix commit is the current head or an ancestor of it. When `dry_run` or `no_push` is set, no
+    push happened by design; leave the thread open and report its terminal state as `skipped_by_mode`, not a
+    blocker. Otherwise, if that confirmation fails, leave the thread open and report `failed_action`. Dispositions
+    that do not depend on a pushed fix (`answer`, `already addressed`, `outdated`, `clarify`, `defer`, `won't fix`)
+    are not subject to this gate; act on each independently once validated against the current head and thread
+    context.
 11. Unless `dry_run` or `no_reply` is set, post the applicable reply and resolve or leave open each thread per its
-    disposition and the publication gate. When either suppresses this step, retain the suggested reply/resolution
-    and report it, leaving the thread open.
+    disposition and the publication gate. When `dry_run` or `no_reply` suppresses this step, retain the suggested
+    reply/resolution, leave the thread open, and report its terminal state as `skipped_by_mode`.
 12. Re-fetch the head after acting.
 13. If the head changed because a fix was pushed, start a new attempt at step 2 on the new head (subject to the
     attempt limit).
-14. If the head is unchanged and every item from this round has reached a terminal state — resolved,
-    `replied_left_open`, or `skipped_by_mode` under an active Execution Constraint — finish; report any
-    `skipped_by_mode` items rather than treating them as a blocker. Never re-review that unchanged head.
+14. If the head is unchanged and every feedback item's thread from this round has reached a terminal state
+    (`resolved`, `replied_left_open`, or `skipped_by_mode`), finish; report every `skipped_by_mode` thread rather
+    than treating it as a blocker. Only a `failed_action` thread or an open `clarify`/non-terminal `defer` blocks
+    finishing. Never re-review that unchanged head.
 
 ```mermaid
 flowchart TD
