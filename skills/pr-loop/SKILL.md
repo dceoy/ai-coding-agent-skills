@@ -160,13 +160,16 @@ completed review round; never dispatch `review` again against a head already rev
    no fix, reply, or resolution based on it — and restart at step 2 on the new head.
 9. Otherwise, validate the dispositions against the current head, repository, feedback scope, and any active
    Execution Constraint, then act on each:
-   - `fix`: unless `dry_run` is set, first verify the local worktree is bound to the recorded PR head repository/ref
-     — local `HEAD` matches the exact SHA recorded in step 2, with no unrelated tracked/staged changes or unpushed
-     commits already present. If it is not, safely synchronize it (fetch/checkout the recorded head) without
-     discarding pre-existing work; if that cannot be done safely (dirty or diverged worktree, no push access to the
-     head repository/ref), stop before editing and report a blocker rather than mutating the wrong branch. Once
-     bound, implement the smallest valid change, run relevant QA, commit, and — unless `no_push` is set — push
-     explicitly to the recorded head repository/ref.
+   - `fix`: collect every `fix` disposition from this round into one batch instead of committing/pushing each
+     individually — pushing one would advance HEAD past the SHA the remaining dispositions were analyzed against
+     and break their bind precondition below. Unless `dry_run` is set, first verify the local worktree is bound to
+     the recorded PR head repository/ref — local `HEAD` matches the exact SHA recorded in step 2, with no unrelated
+     tracked/staged changes or unpushed commits already present. If it is not, safely synchronize it (fetch/checkout
+     the recorded head) without discarding pre-existing work; if that cannot be done safely (dirty or diverged
+     worktree, no push access to the head repository/ref), stop before editing and report a blocker rather than
+     mutating the wrong branch. Once bound, implement every fix in the batch against that same recorded head, run QA
+     over the combined change (stop as a blocker rather than partially committing if two fixes in the batch
+     conflict), then make exactly one commit and — unless `no_push` is set — one push for the whole batch.
    - `already addressed` / `outdated`: verify current evidence before treating the source as resolvable.
    - `answer`: prepare the validated concise reply.
    - `clarify`: prepare the question; the source stays open pending reviewer input.
