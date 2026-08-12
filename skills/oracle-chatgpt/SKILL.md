@@ -41,16 +41,27 @@ Stop if a required prerequisite is unavailable.
 
 Accept exactly one prompt from the caller.
 
-Preserve the prompt content. Do not prepend, append, summarize, reinterpret, escape into executable shell text, or
-otherwise semantically augment it. Do not attach repository files or other context by default.
+Do not semantically modify the prompt: do not prepend, append, summarize, reinterpret, escape into executable shell
+text, or otherwise augment its content. Do not attach repository files or other context by default.
 
 Treat quotes, newlines, backticks, command substitutions such as `$()`, variable syntax such as `$HOME`, and other
 shell-significant characters as prompt data only.
+
+Oracle's `-p -` stdin transport (see Prompt Transport) trims leading/trailing whitespace from the prompt and rejects
+a prompt that is empty after trimming; that trimming is Oracle's behavior, not a semantic modification this skill
+introduces. Do not compensate for it by rewriting the prompt or switching to another transport — a whitespace-only
+prompt fails under Failure and Output like any other Oracle rejection.
 
 ## Prompt Transport
 
 Pass the prompt to Oracle through stdin with `-p -`. Do not place arbitrary prompt text directly in a shell command,
 use `eval`, or construct an `echo`, `printf`, heredoc, or similar shell expression from the prompt.
+
+`-p -` is a shell-safe transport for arbitrary multiline, quote-, and shell-metacharacter-containing prompt data, but
+it is not byte-exact: Oracle trims outer (leading/trailing) whitespace from stdin before use and rejects the prompt
+if nothing remains after trimming. Internal newlines and all other prompt content pass through unchanged. Do not add
+a wrapper, alternate CLI flag, or other transport to preserve outer whitespace; accept Oracle's trimming behavior as
+part of this transport.
 
 Prefer the runtime's direct stdin/data channel when it can supply the prompt bytes to the Oracle process without shell
 interpolation.
