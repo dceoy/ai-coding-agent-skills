@@ -132,8 +132,9 @@ retargeting, or bypassing the constraints above.
 4. If `STATUS: ready`, validate the plan against the requested Issue set's repository and combined scope before
    acting on it.
 5. Unless `dry_run` is set, before any edit, resolve the intended base branch and record its exact base SHA, then
-   check the local worktree: if it carries unrelated tracked/staged changes or unpushed commits, stop before
-   editing rather than risk mixing them into this Issue's work. Otherwise create an appropriately prefixed branch
+   check the local worktree: if it carries unrelated tracked/staged changes, non-ignored untracked paths, or unpushed
+   commits, stop before editing rather than risk mixing them into this Issue's work. Ignored untracked files do not
+   block this check. Otherwise create an appropriately prefixed branch
    (e.g. `feature/...`, `bugfix/...`) from that exact base SHA — never from whatever branch/HEAD the loop happened
    to start on — and verify it starts there before editing. `no_push` still requires this local branch and the
    commit in the next step; it only suppresses the push/PR step after that.
@@ -212,7 +213,8 @@ loop forever either. A head change resets this counter, since it consumes the re
      individually — pushing one would advance HEAD past the SHA the remaining dispositions were analyzed against
      and break their bind precondition below. Unless `dry_run` is set, first verify the local worktree is bound to
      the recorded PR head repository/ref — local `HEAD` matches the exact SHA recorded in step 2, with no unrelated
-     tracked/staged changes or unpushed commits already present. If it is not, safely synchronize it (fetch/checkout
+     tracked/staged changes, non-ignored untracked paths, or unpushed commits already present. Ignored untracked files
+     do not block this check. If it is not, safely synchronize it (fetch/checkout
      the recorded head) without discarding pre-existing work; if that cannot be done safely (dirty or diverged
      worktree, or — unless `no_push` is set — no push access to the head repository/ref), stop before editing and
      report a blocker rather than mutating the wrong branch. `no_push` requires only safe fetch/checkout access and
