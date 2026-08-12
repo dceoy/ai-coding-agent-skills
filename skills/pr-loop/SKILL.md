@@ -149,14 +149,16 @@ For an existing-PR request, skip straight to the PR Review Loop on the requested
 Choose a finite review-attempt limit before starting; use the caller's explicit limit if given, otherwise default to 5. Count an attempt whenever `review` subagents are dispatched, including a round later discarded because the head
 moved, so a continuously moving head cannot loop forever. Track the set of head SHAs already carried through a
 completed review round; never dispatch `review` again against a head already reviewed. Separately, track a
-same-head feedback-refresh count, capped at that same review-attempt limit; it counts every step 14 redispatch of
-`feedback-analysis` on an unchanged head and never resets while the head stays unchanged, so a continuously updating
-feedback stream on one head cannot loop forever either. A head change resets this counter, since it consumes the
-review-attempt budget instead.
+same-head feedback-refresh count, capped at that same review-attempt limit; it counts every same-head redispatch of
+`feedback-analysis` triggered by the pre-action reconciliation in step 8 or the pre-completion reconciliation in step
+14, and never resets while the head stays unchanged, so a continuously updating feedback stream on one head cannot
+loop forever either. A head change resets this counter, since it consumes the review-attempt budget instead.
 
 1. Resolve the exact PR (`OWNER/REPO#NUMBER`); resolve an omitted target from the current branch's associated PR.
    Record its head repository and head ref alongside the PR number; every fix commit and push in this loop targets
-   that exact head repository/ref, never an implicit upstream inferred from wherever the loop happened to start.
+   that exact head repository/ref, never an implicit upstream inferred from wherever the loop happened to start. Also
+   initialize an empty run-level `run_mode_skips` ledger; unlike per-head feedback baselines, this ledger survives
+   head changes and review-attempt transitions for the lifetime of the loop.
 2. Record the exact current head SHA.
 3. Dispatch the three `review` subagents against that exact head.
 4. Re-fetch the head. If it changed while `review` was running, discard the whole round without acting on it and
@@ -179,10 +181,25 @@ review-attempt budget instead.
    `no_reply` suppressed publication, the retained local findings as `finding:<head-sha>:<ordinal>` sources tied to
    the head recorded in step 2, or none when this round contributed no new findings. If there are no current
    feedback sources of any kind and this round contributed no new findings, skip straight to step 12 with nothing to
-   analyze. Record the exact snapshot given to this dispatch as the current head's `analyzed_feedback_baseline`, and
-   start a fresh, empty `own_mutations_since_baseline` ledger for it.
+   analyze. Record the exact snapshot given to this dispatch as the current head's `analyzed_feedback_baseline`, split
+   into a refreshable GitHub-backed portion (threads, comments, and reviews) and an immutable local-finding portion.
+   Once this round's `finding:<head-sha>:<ordinal>` sources are recorded, retain that exact set for the lifetime of
+   this unchanged head: do not regenerate, renumber, or remove it during a same-head refresh. A head change starts a
+   new attempt and therefore a new baseline, so findings from the old head are not carried forward. Start a fresh,
+   empty `own_mutations_since_baseline` ledger for the baseline.
 8. Re-fetch the head immediately after `feedback-analysis` returns. If it changed, discard the analysis completely —
-   no fix, reply, or resolution based on it — and restart at step 2 on the new head.
+   no fix, reply, or resolution based on it — and restart at step 2 on the new head. Otherwise, before validating or
+   acting on any disposition, re-fetch the complete GitHub-backed feedback snapshot using the same identity,
+   persisted-state, and content-fingerprint definition as step 14. Compare it with the GitHub-backed portion of
+   `analyzed_feedback_baseline`; the immutable local-finding portion is not part of this comparison. At this point
+   `own_mutations_since_baseline` is empty, so any delta is external feedback that makes the analysis stale. If the
+   snapshot differs, perform no repository or GitHub mutation from that analysis. If the same-head feedback-refresh
+   count is already at the review-attempt limit, stop and report the unreconciled snapshot delta as a blocker.
+   Otherwise increment the count, redispatch `feedback-analysis` over the fresh GitHub-backed snapshot plus the
+   retained local findings, and after it returns re-fetch the head: if it changed, discard the analysis and restart at
+   step 2; otherwise promote only the fresh GitHub-backed portion to `analyzed_feedback_baseline`, retain the
+   local-finding portion unchanged, reset `own_mutations_since_baseline` to empty, and repeat this pre-action
+   reconciliation. Proceed only when the feedback snapshot is unchanged.
 9. Otherwise, validate the dispositions against the current head, repository, feedback scope, and any active
    Execution Constraint, then act on each item, applying that item's single disposition independently to every one
    of its `source_ids`:
@@ -223,6 +240,10 @@ review-attempt budget instead.
    it exists only because `dry_run` or `no_reply` suppressed this round's publication. Apply its item's disposition
    for local implementation purposes only (for example, still implementing an accepted `fix` when `no_reply` alone
    is set), and record its terminal state directly as `skipped_by_mode` rather than `resolved` or `not_resolvable`.
+   Whenever any source is assigned `skipped_by_mode` because `dry_run`, `no_push`, or `no_reply` suppresses its fix,
+   publication, reply, or resolution, append a `run_mode_skips` entry containing the source ID, originating head SHA,
+   disposition, suppressing mode, suppressed action, and terminal state. Preserve this entry even after the source's
+   head-scoped baseline is discarded.
 
 10. Apply the publication gate: record the exact SHA produced by this round's fix batch push (if any) as the
     validated post-fix head. Before replying to or resolving any code-dependent source, re-fetch the PR head and
@@ -253,26 +274,30 @@ review-attempt budget instead.
 12. Re-fetch the head after acting.
 13. If the head changed at all since the SHA recorded in step 2 — whether from this round's own pushed fix batch or
     from any other push that landed while this round was acting — start a new attempt at step 2 on the new head
-    (subject to the attempt limit). Which party pushed is irrelevant to this check.
+    (subject to the attempt limit). Which party pushed is irrelevant to this check. Do not clear `run_mode_skips` when
+    starting that attempt; it is run-level state, unlike the previous head's local findings and feedback baseline.
 14. Otherwise, before declaring completion, re-fetch every current feedback source's identity and disposition-
-    relevant state as a fresh snapshot — inline thread IDs/resolution state plus, per thread, its comment IDs and a
-    content fingerprint (a body digest or `updated_at`) for each; PR-level comment IDs/content; and review
-    IDs/persisted state/dismissal/supersession plus each review's own body content fingerprint — and reconcile it
-    against `analyzed_feedback_baseline` plus `own_mutations_since_baseline` (not against a fixed reference to
-    step 7's original snapshot, since a prior redispatch on this same head may have already promoted a later
-    baseline). If the only differences from that baseline are the recorded mutations in the ledger, proceed to the
+    relevant state as a fresh GitHub-backed snapshot — inline thread IDs/resolution state plus, per thread, its
+    comment IDs and a content fingerprint (a body digest or `updated_at`) for each; PR-level comment IDs/content; and
+    review IDs/persisted state/dismissal/supersession plus each review's own body content fingerprint — and reconcile
+    it against the GitHub-backed portion of `analyzed_feedback_baseline` plus `own_mutations_since_baseline` (not
+    against a fixed reference to step 7's original snapshot, since a prior redispatch on this same head may have
+    already promoted a later baseline). Keep the unchanged head's immutable local `finding:` portion separate from
+    this refresh and include it in every same-head `feedback-analysis` redispatch and terminal-state check. If the
+    only differences from the GitHub-backed baseline are the recorded mutations in the ledger, proceed to the
     terminal-state check below. If any other new or changed source or state exists — new inline feedback, a new
     PR-level comment, a new or changed review submission, or a changed content fingerprint on an existing thread's
     comments or a review body (a new or edited comment inside an existing thread, or an edited review body, without
     any change to thread/review ID or persisted state) — do not finish; if the same-head feedback-refresh count is
     already at the review-attempt limit, stop and report the unreconciled snapshot delta as a blocker instead of
     redispatching. Otherwise increment that count and re-dispatch `feedback-analysis` for this same unchanged head
-    over the fresh snapshot (this does not redispatch `review` or consume the review-attempt budget, since the head
-    has not moved). Immediately after that redispatch returns, re-fetch the head (step 8's check): if it changed,
-    discard the analysis and restart at step 2 on the new head without promoting the baseline; otherwise promote
-    that fresh snapshot to be the new `analyzed_feedback_baseline`, reset `own_mutations_since_baseline` to empty,
-    and continue from step 9 with the redispatch's result so this same delta is never rediscovered on the next
-    reconciliation.
+    over the fresh GitHub-backed snapshot plus the retained local findings (this does not redispatch `review` or
+    consume the review-attempt budget, since the head has not moved). Immediately after that redispatch returns,
+    re-fetch the head (step 8's check): if it changed, discard the analysis and restart at step 2 on the new head
+    without promoting the baseline; otherwise promote only the fresh GitHub-backed portion to the new
+    `analyzed_feedback_baseline`, retain the local-finding portion unchanged, reset
+    `own_mutations_since_baseline` to empty, and continue from step 8's pre-action feedback reconciliation with the
+    redispatch's result so this same delta is never rediscovered on the next reconciliation.
 
     If the head is unchanged, the feedback snapshot reconciles as above, and every `source_id` of every feedback item
     from this round has reached a terminal state (`resolved`, `replied_left_open`, `not_resolvable`,
@@ -281,27 +306,33 @@ review-attempt budget instead.
     thing. Only a `failed_action` source, an open `clarify`, a non-terminal `defer` left as `replied_left_open`, a
     non-terminal `won't fix` left as `replied_left_open`, or any `awaiting_re_review` source blocks finishing — a
     `replied_left_open` terminal state alone does not mean completion; it must be paired with its item's disposition
-    to judge terminality. If any source reached `skipped_by_mode`, the outcome is `completed_with_skips`, not
-    `success` — an active constraint left real work undone even though the loop terminated deterministically.
+    to judge terminality. If `run_mode_skips` is non-empty, the outcome is `completed_with_skips`, not `success` — an
+    active constraint left real work undone even if the source was from an earlier head and the current round is clean.
     Otherwise the outcome is `success`. Never re-review (re-dispatch `review` against) that unchanged head.
 
 ```mermaid
 flowchart TD
-  A[Resolve PR, record head SHA] --> B[Dispatch 3 review subagents]
+  A[Resolve PR, record head SHA; initialize sticky run_mode_skips ledger] --> B[Dispatch 3 review subagents]
   B --> C{Head changed during review?}
   C -->|yes| A
   C -->|no| D[Main agent arbitrates findings, publishing unless dry_run/no_reply]
   D --> E[Dispatch feedback-analysis subagent]
   E --> F{Head changed during analysis?}
   F -->|yes| A
-  F -->|no| G[Main agent validates dispositions and acts: fix + QA + publish, then reply/resolve behind the publication gate]
+  F -->|no| P{Fresh feedback snapshot matches analyzed GitHub baseline?}
+  P -->|no, refresh budget remaining| Q[Redispatch feedback-analysis on same head with preserved local findings; promote fresh GitHub snapshot if head stays unchanged]
+  P -->|no, refresh budget exhausted| K
+  Q --> F
+  P -->|yes| G[Main agent validates dispositions and acts: fix + QA + publish, then reply/resolve behind the publication gate]
   G --> H{Head changed after acting?}
   H -->|yes| A
   H -->|no| L{Fresh feedback snapshot matches analyzed_feedback_baseline plus own_mutations_since_baseline?}
-  L -->|no, refresh budget remaining| M[Redispatch feedback-analysis on same head; promote fresh snapshot to new baseline if head still unchanged]
-  M --> G
+  L -->|no, refresh budget remaining| M[Redispatch feedback-analysis on same head; promote fresh GitHub snapshot and retain local findings if head still unchanged]
+  M --> F
   L -->|no, refresh budget exhausted| K
-  L -->|yes, nothing actionable left| I[Finish: success, or completed_with_skips if any source is skipped_by_mode]
+  L -->|yes, nothing actionable left| I{run_mode_skips empty?}
+  I -->|yes| S[Finish: success]
+  I -->|no| T[Finish: completed_with_skips]
   G --> J{Blocker: unresolved clarify/defer/won't fix, awaiting_re_review, publication failure, unsupported phase?}
   J -->|yes| K[Stop and report]
 ```
@@ -337,9 +368,10 @@ The loop reaches exactly one of two successful outcomes, never the generic "succ
   reconciled per step 14, and no actionable feedback — no `fix` disposition, no `awaiting_re_review` source, and no
   source still requiring reviewer input, publication, or resolution — remains.
 - `completed_with_skips`: that same round completes with the head unchanged and every remaining source terminal, but
-  at least one source is `skipped_by_mode` because an active `dry_run`/`no_push`/`no_reply` constraint intentionally
-  left its fix, publication, reply, or resolution undone. This is a deterministic stop, not a blocker, but it must
-  not be reported as `success` or as "no actionable feedback remains".
+  `run_mode_skips` contains at least one source because an active `dry_run`/`no_push`/`no_reply` constraint
+  intentionally left its fix, publication, reply, or resolution undone. The ledger may contain a source from an
+  earlier head or review attempt. This is a deterministic stop, not a blocker, but it must not be reported as
+  `success` or as "no actionable feedback remains".
 
 Any other case — a blocker above, or a round that neither reaches all-terminal sources nor exhausts the review-attempt
 limit — is `stopped` and must not be reported as either successful outcome.
@@ -361,6 +393,8 @@ Report, without repeating full findings or plans verbatim:
 - Issues implemented (if Issue-started) and the resulting PR URL.
 - Review attempts run, the final reviewed head SHA, and whether it changed since the last round.
 - Same-head feedback refreshes run against the final head, out of the feedback-refresh limit.
+- Every `run_mode_skips` entry, including its originating head, disposition, suppressing mode, suppressed action,
+  and terminal state.
 - Disposition counts and, per distinct feedback item, the terminal state (`resolved`, `replied_left_open`,
   `not_resolvable`, `awaiting_re_review`, `skipped_by_mode`, or `failed_action`) of every one of its `source_ids`
   (inline thread, PR-level comment, review submission, or unpublished local `finding:`).
