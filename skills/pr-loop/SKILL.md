@@ -148,7 +148,11 @@ For an existing-PR request, skip straight to the PR Review Loop on the requested
 
 Choose a finite review-attempt limit before starting; use the caller's explicit limit if given, otherwise default to 5. Count an attempt whenever `review` subagents are dispatched, including a round later discarded because the head
 moved, so a continuously moving head cannot loop forever. Track the set of head SHAs already carried through a
-completed review round; never dispatch `review` again against a head already reviewed.
+completed review round; never dispatch `review` again against a head already reviewed. Separately, track a
+same-head feedback-refresh count, capped at that same review-attempt limit; it counts every step 14 redispatch of
+`feedback-analysis` on an unchanged head and never resets while the head stays unchanged, so a continuously updating
+feedback stream on one head cannot loop forever either. A head change resets this counter, since it consumes the
+review-attempt budget instead.
 
 1. Resolve the exact PR (`OWNER/REPO#NUMBER`); resolve an omitted target from the current branch's associated PR.
    Record its head repository and head ref alongside the PR number; every fix commit and push in this loop targets
@@ -204,13 +208,15 @@ completed review round; never dispatch `review` again against a head already rev
    submission/body, as opposed to an inline review thread) cannot reach `resolved`. For such a source, act on the
    disposition as above — posting a reply when one is useful, none otherwise — without attempting to resolve it,
    and record its terminal state as `not_resolvable` once any applicable reply has been handled — except a review
-   submission whose persisted state is `CHANGES_REQUESTED` and that has not since been superseded by a later review
-   from the same reviewer (an `APPROVED` review, a further `CHANGES_REQUESTED` review, or an explicit dismissal) or
-   made inapplicable by a genuinely terminal `defer`/`won't fix` project decision; a mere later `COMMENTED` review
-   from that reviewer does not supersede it. Regardless of that item's disposition, such an active, unsuperseded
-   `CHANGES_REQUESTED` review cannot reach `not_resolvable`; record its terminal state as `awaiting_re_review`
-   instead. Do not perform reviewer-state mutation (dismissal, re-request) to clear it — only the reviewer's own
-   subsequent review, or a terminal `defer`/`won't fix` decision, supersedes it.
+   submission whose persisted GitHub state is `CHANGES_REQUESTED` and that has not since been superseded, purely as
+   a matter of GitHub-persisted reviewer state, by a later review from the same reviewer (an `APPROVED` review, a
+   further `CHANGES_REQUESTED` review, whose own source then carries the active state forward, or an explicit
+   dismissal already reflected on GitHub); a mere later `COMMENTED` review from that reviewer does not supersede it,
+   and neither does this item's own `fix`/`already addressed`/`defer`/`won't fix` disposition — a project-level
+   disposition never overrides GitHub's actual persisted reviewer state. Regardless of that item's disposition, such
+   an active, unsuperseded `CHANGES_REQUESTED` review cannot reach `not_resolvable`; record its terminal state as
+   `awaiting_re_review` instead. Do not perform reviewer-state mutation (dismissal, re-request) to clear it — only a
+   change to GitHub's own persisted reviewer state supersedes it.
 
    A `finding:<head-sha>:<ordinal>` source has no GitHub artifact and therefore no reply or resolve action at all;
    it exists only because `dry_run` or `no_reply` suppressed this round's publication. Apply its item's disposition
@@ -251,9 +257,11 @@ completed review round; never dispatch `review` again against a head already rev
     this round's own recorded reply/resolution/publication mutations from steps 9–11. If the only differences from
     the step-7 snapshot are this round's own recorded mutations, proceed to the terminal-state check below. If any
     other new or changed source or state exists — new inline feedback, a new PR-level comment, a new or changed
-    review submission — do not finish; re-dispatch `feedback-analysis` for this same unchanged head over the fresh
-    snapshot (this does not redispatch `review`, since the head has not moved) and continue from step 8 with its
-    result.
+    review submission — do not finish; if the same-head feedback-refresh count is already at the review-attempt
+    limit, stop and report the unreconciled snapshot delta as a blocker instead of redispatching. Otherwise increment
+    that count, re-dispatch `feedback-analysis` for this same unchanged head over the fresh snapshot (this does not
+    redispatch `review` or consume the review-attempt budget, since the head has not moved) and continue from step 8
+    with its result.
 
     If the head is unchanged, the feedback snapshot reconciles as above, and every `source_id` of every feedback item
     from this round has reached a terminal state (`resolved`, `replied_left_open`, `not_resolvable`,
@@ -279,7 +287,8 @@ flowchart TD
   G --> H{Head changed after acting?}
   H -->|yes| A
   H -->|no| L{Fresh feedback snapshot matches step 7 plus this round's own mutations?}
-  L -->|no, new/changed feedback| E
+  L -->|no, refresh budget remaining| E
+  L -->|no, refresh budget exhausted| K
   L -->|yes, nothing actionable left| I[Finish: success, or completed_with_skips if any source is skipped_by_mode]
   G --> J{Blocker: unresolved clarify/defer/won't fix, awaiting_re_review, publication failure, unsupported phase?}
   J -->|yes| K[Stop and report]
@@ -290,6 +299,7 @@ flowchart TD
 Stop without fabricating progress on any of:
 
 - the chosen review-attempt limit;
+- the same-head feedback-refresh limit, with an unreconciled feedback-snapshot delta still outstanding on that head;
 - a required phase reporting `unsupported` because the active runtime exposes no independent-subagent mechanism for
   it;
 - a `clarify` disposition, or a `defer`/`won't fix` disposition left open rather than resolved or marked
@@ -298,9 +308,10 @@ Stop without fabricating progress on any of:
   `not_resolvable` is a completed terminal state, not a blocker, and does not by itself prevent finishing
   successfully;
 - any source left at `awaiting_re_review` — an active, unsuperseded `CHANGES_REQUESTED` review submission is a
-  blocking reviewer decision regardless of this round's disposition for it, and stays a blocker until the reviewer
-  supersedes it or a genuinely terminal `defer`/`won't fix` project decision applies; do not dismiss or otherwise
-  mutate reviewer state to clear it;
+  blocking reviewer decision regardless of this round's disposition for it (`fix`, `already addressed`, `defer`, or
+  `won't fix` alike), and stays a blocker until GitHub's own persisted reviewer state actually supersedes or
+  dismisses it; a project-level disposition never supersedes it, and this loop never dismisses or otherwise mutates
+  reviewer state to clear it;
 - an unpublished or unverified fix, a failed publication/reply/resolution, or an authentication/permission failure
   while acting on validated advice;
 - a `fix` disposition whose local worktree cannot be safely bound to the recorded PR head repository/ref (dirty or
@@ -337,6 +348,7 @@ Report, without repeating full findings or plans verbatim:
 - Mode: normal, or the active `dry_run`/`no_push`/`no_reply` constraints.
 - Issues implemented (if Issue-started) and the resulting PR URL.
 - Review attempts run, the final reviewed head SHA, and whether it changed since the last round.
+- Same-head feedback refreshes run against the final head, out of the feedback-refresh limit.
 - Disposition counts and, per distinct feedback item, the terminal state (`resolved`, `replied_left_open`,
   `not_resolvable`, `awaiting_re_review`, `skipped_by_mode`, or `failed_action`) of every one of its `source_ids`
   (inline thread, PR-level comment, review submission, or unpublished local `finding:`).
