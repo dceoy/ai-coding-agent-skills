@@ -161,8 +161,9 @@ completed review round; never dispatch `review` again against a head already rev
     thread open and treat it as a blocker instead of resolving it. Dispositions that do not depend on a pushed fix
     (`answer`, `already addressed`, `outdated`, `clarify`, `defer`, `won't fix`) are not subject to this gate; act on
     each independently once validated against the current head and thread context.
-11. Unless `no_reply` is set, post the applicable reply and resolve or leave open each thread per its disposition and
-    the publication gate.
+11. Unless `dry_run` or `no_reply` is set, post the applicable reply and resolve or leave open each thread per its
+    disposition and the publication gate. When either suppresses this step, retain the suggested reply/resolution
+    and report it, leaving the thread open.
 12. Re-fetch the head after acting.
 13. If the head changed because a fix was pushed, start a new attempt at step 2 on the new head (subject to the
     attempt limit).
