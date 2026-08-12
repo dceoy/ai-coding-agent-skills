@@ -147,8 +147,9 @@ For an existing-PR request, skip straight to the PR Review Loop on the requested
 ## PR Review Loop
 
 Choose a finite review-attempt limit before starting; use the caller's explicit limit if given, otherwise default to 5. Count an attempt whenever `review` subagents are dispatched, including a round later discarded because the head
-moved, so a continuously moving head cannot loop forever. Track the set of head SHAs already carried through a
-completed review round; never dispatch `review` again against a head already reviewed. Separately, track a
+moved, so a continuously moving head cannot loop forever. Do not dispatch `review` again while the current head is
+unchanged from the completed review round already carried through; if the head moves away and later returns to an
+earlier reviewed SHA, treat that return as a new review attempt. Separately, track a
 same-head feedback-refresh count, capped at that same review-attempt limit; it counts every same-head redispatch of
 `feedback-analysis` triggered by the pre-action reconciliation in step 8 or the pre-completion reconciliation in step
 14, and never resets while the head stays unchanged, so a continuously updating feedback stream on one head cannot
@@ -180,8 +181,10 @@ loop forever either. A head change resets this counter, since it consumes the re
    artifact as its normal `thread:`/`comment:`/`review:` source in normal posting mode, or, when `dry_run` or
    `no_reply` suppressed publication, the retained local findings as `finding:<head-sha>:<ordinal>` sources tied to
    the head recorded in step 2, or none when this round contributed no new findings. If there are no current
-   feedback sources of any kind and this round contributed no new findings, skip straight to step 12 with nothing to
-   analyze. Record the exact snapshot given to this dispatch as the current head's `analyzed_feedback_baseline`, split
+   feedback sources of any kind and this round contributed no new findings, initialize an empty GitHub-backed
+   `analyzed_feedback_baseline`, an empty immutable local-finding portion, and an empty
+   `own_mutations_since_baseline` ledger for the current head, then skip straight to step 12 with nothing to analyze.
+   Otherwise, record the exact snapshot given to this dispatch as the current head's `analyzed_feedback_baseline`, split
    into a refreshable GitHub-backed portion (threads, comments, and reviews) and an immutable local-finding portion.
    Once this round's `finding:<head-sha>:<ordinal>` sources are recorded, retain that exact set for the lifetime of
    this unchanged head: do not regenerate, renumber, or remove it during a same-head refresh. A head change starts a
