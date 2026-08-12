@@ -163,7 +163,7 @@ description: Complete description including what the skill does and when to use 
 
 When an agent has multiple modes (common pattern: ask, exec, review, search):
 
-**Option A: Separate Skills (Recommended)**
+### Option A: Separate Skills (Recommended)
 
 Create one skill per mode:
 
@@ -178,7 +178,7 @@ Benefits:
 - Appropriate constraints per skill.
 - Easier to discover and use.
 
-**Option B: Single Skill with Modes**
+### Option B: Single Skill with Modes
 
 Keep as one skill if modes are tightly coupled:
 

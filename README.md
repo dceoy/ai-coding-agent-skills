@@ -63,7 +63,7 @@ See [.codex/agents/README.md](./.codex/agents/README.md) for installation and us
 
 ## Structure
 
-```
+```text
 .
 ├── skills/                  # Shared skill directories (source of truth)
 ├── .agents/
@@ -100,26 +100,26 @@ Install and authenticate the required CLI tools before running skills:
 
 ## Troubleshooting
 
-**Skill not found**
+### Skill not found
 
 - Confirm the skill directory exists in the expected runtime location
 - Check that skill name matches exactly (case-sensitive)
 - Verify the `SKILL.md` documentation is present
 
-**CLI not in PATH**
+### CLI not in PATH
 
 - Ensure the tool is installed and accessible: `which <tool-name>`
 - Add the tool's bin directory to your shell PATH
 - Restart your terminal after installation
 
-**Authentication errors**
+### Authentication errors
 
 - Re-run the tool's auth command:
   - Claude Code: Follow onboarding flow
   - Codex CLI: run `codex login`
 - Verify active subscription or API key
 
-**Symlink issues**
+### Symlink issues
 
 - Skill directories are shared from `skills/` via `.agents/skills` and `.claude/skills`
 - If broken, recreate the symlink or ensure `skills/` exists
