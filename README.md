@@ -41,6 +41,10 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `pr-review` - Autonomous CI/GitHub PR review that posts concise, high-confidence findings by default
 - `security-guidance` - Security-focused review of code changes, diffs, commits, and pull requests
 
+### AI Tools
+
+- `oracle-chatgpt` - Send one arbitrary prompt to ChatGPT through Oracle browser mode and return the captured response without reinterpretation
+
 ### Skill Management
 
 - `claude-agent-converter` - Convert Claude Code agents to portable skills
@@ -90,6 +94,10 @@ Install and authenticate the required CLI tools before running skills:
 - **Codex CLI** - For `.agents/skills/` and `.codex/agents/`
   - Install: `npm install -g @openai/codex`
   - Auth: run `codex login`
+- **Oracle CLI** - For `oracle-chatgpt`
+  - Install: `npm install -g @steipete/oracle`
+  - ChatGPT: sign in for Oracle browser mode
+  - Remote browser routing is optional and uses Oracle's native configuration
 
 ## Usage notes
 
