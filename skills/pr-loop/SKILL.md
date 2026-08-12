@@ -252,12 +252,16 @@ review-attempt budget instead.
     from any other push that landed while this round was acting — start a new attempt at step 2 on the new head
     (subject to the attempt limit). Which party pushed is irrelevant to this check.
 14. Otherwise, before declaring completion, re-fetch every current feedback source's identity and disposition-
-    relevant state — inline thread IDs/resolution state, PR-level comment IDs/content, and review IDs/persisted
-    state/dismissal/supersession — as a fresh snapshot, and reconcile it against the snapshot step 7 analyzed plus
+    relevant state as a fresh snapshot — inline thread IDs/resolution state plus, per thread, its comment IDs and a
+    content fingerprint (a body digest or `updated_at`) for each; PR-level comment IDs/content; and review
+    IDs/persisted state/dismissal/supersession plus each review's own body content fingerprint — and reconcile it
+    against the snapshot step 7 analyzed plus
     this round's own recorded reply/resolution/publication mutations from steps 9–11. If the only differences from
     the step-7 snapshot are this round's own recorded mutations, proceed to the terminal-state check below. If any
     other new or changed source or state exists — new inline feedback, a new PR-level comment, a new or changed
-    review submission — do not finish; if the same-head feedback-refresh count is already at the review-attempt
+    review submission, or a changed content fingerprint on an existing thread's comments or a review body (a new or
+    edited comment inside an existing thread, or an edited review body, without any change to thread/review ID or
+    persisted state) — do not finish; if the same-head feedback-refresh count is already at the review-attempt
     limit, stop and report the unreconciled snapshot delta as a blocker instead of redispatching. Otherwise increment
     that count, re-dispatch `feedback-analysis` for this same unchanged head over the fresh snapshot (this does not
     redispatch `review` or consume the review-attempt budget, since the head has not moved) and continue from step 8
