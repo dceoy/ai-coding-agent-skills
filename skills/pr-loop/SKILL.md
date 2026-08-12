@@ -134,6 +134,8 @@ moved, so a continuously moving head cannot loop forever. Track the set of head 
 completed review round; never dispatch `review` again against a head already reviewed.
 
 1. Resolve the exact PR (`OWNER/REPO#NUMBER`); resolve an omitted target from the current branch's associated PR.
+   Record its head repository and head ref alongside the PR number; every fix commit and push in this loop targets
+   that exact head repository/ref, never an implicit upstream inferred from wherever the loop happened to start.
 2. Record the exact current head SHA.
 3. Dispatch the three `review` subagents against that exact head.
 4. Re-fetch the head. If it changed while `review` was running, discard the whole round without acting on it and
@@ -158,8 +160,13 @@ completed review round; never dispatch `review` again against a head already rev
    no fix, reply, or resolution based on it — and restart at step 2 on the new head.
 9. Otherwise, validate the dispositions against the current head, repository, feedback scope, and any active
    Execution Constraint, then act on each:
-   - `fix`: unless `dry_run` is set, implement the smallest valid change, run relevant QA, commit, and — unless
-     `no_push` is set — push.
+   - `fix`: unless `dry_run` is set, first verify the local worktree is bound to the recorded PR head repository/ref
+     — local `HEAD` matches the exact SHA recorded in step 2, with no unrelated tracked/staged changes or unpushed
+     commits already present. If it is not, safely synchronize it (fetch/checkout the recorded head) without
+     discarding pre-existing work; if that cannot be done safely (dirty or diverged worktree, no push access to the
+     head repository/ref), stop before editing and report a blocker rather than mutating the wrong branch. Once
+     bound, implement the smallest valid change, run relevant QA, commit, and — unless `no_push` is set — push
+     explicitly to the recorded head repository/ref.
    - `already addressed` / `outdated`: verify current evidence before treating the source as resolvable.
    - `answer`: prepare the validated concise reply.
    - `clarify`: prepare the question; the source stays open pending reviewer input.
@@ -186,9 +193,11 @@ completed review round; never dispatch `review` again against a head already rev
 13. If the head changed because a fix was pushed, start a new attempt at step 2 on the new head (subject to the
     attempt limit).
 14. If the head is unchanged and every feedback item's source from this round has reached a terminal state
-    (`resolved`, `replied_left_open`, `not_resolvable`, or `skipped_by_mode`), finish; report every `skipped_by_mode`
-    or `not_resolvable` source rather than treating it as a blocker. Only a `failed_action` source or an open
-    `clarify`/non-terminal `defer` blocks finishing. Never re-review that unchanged head.
+    (`resolved`, `replied_left_open`, `not_resolvable`, or `skipped_by_mode`), finish; report every `not_resolvable`
+    source, and every `skipped_by_mode` source, rather than treating either as a blocker. Only a `failed_action`
+    source or an open `clarify`/non-terminal `defer` blocks finishing. If any source reached `skipped_by_mode`, the
+    outcome is `completed_with_skips`, not `success` — an active constraint left real work undone even though the
+    loop terminated deterministically. Otherwise the outcome is `success`. Never re-review that unchanged head.
 
 ```mermaid
 flowchart TD
@@ -202,7 +211,7 @@ flowchart TD
   F -->|no| G[Main agent validates dispositions and acts: fix + QA + publish, then reply/resolve behind the publication gate]
   G --> H{Head changed after acting?}
   H -->|yes, fix published| A
-  H -->|no, nothing actionable left| I[Finish]
+  H -->|no, nothing actionable left| I[Finish: success, or completed_with_skips if any source is skipped_by_mode]
   G --> J{Blocker: unresolved clarify/defer, publication failure, unsupported phase?}
   J -->|yes| K[Stop and report]
 ```
@@ -221,10 +230,21 @@ Stop without fabricating progress on any of:
   successfully;
 - an unpublished or unverified fix, a failed publication/reply/resolution, or an authentication/permission failure
   while acting on validated advice;
+- a `fix` disposition whose local worktree/push target cannot be safely bound to the recorded PR head repository/ref
+  (dirty or diverged worktree, no push access) — stop before editing rather than mutating the wrong branch;
 - QA failure that cannot be resolved within the implementation step it belongs to.
 
-Finish successfully only when a review/feedback-analysis round completes with the PR head unchanged and no actionable
-feedback — no `fix` disposition and no source still requiring reviewer input, publication, or resolution — remains.
+The loop reaches exactly one of two successful outcomes, never the generic "success" label alone:
+
+- `success`: a review/feedback-analysis round completes with the PR head unchanged and no actionable feedback — no
+  `fix` disposition and no source still requiring reviewer input, publication, or resolution — remains.
+- `completed_with_skips`: that same round completes with the head unchanged and every remaining source terminal, but
+  at least one source is `skipped_by_mode` because an active `dry_run`/`no_push`/`no_reply` constraint intentionally
+  left its fix, publication, reply, or resolution undone. This is a deterministic stop, not a blocker, but it must
+  not be reported as `success` or as "no actionable feedback remains".
+
+Any other case — a blocker above, or a round that neither reaches all-terminal sources nor exhausts the review-attempt
+limit — is `stopped` and must not be reported as either successful outcome.
 
 ## Non-Goals
 
@@ -238,9 +258,11 @@ feedback — no `fix` disposition and no source still requiring reviewer input, 
 
 Report, without repeating full findings or plans verbatim:
 
+- Outcome: `success`, `completed_with_skips`, or `stopped`, per the Stop Conditions definitions above.
 - Mode: normal, or the active `dry_run`/`no_push`/`no_reply` constraints.
 - Issues implemented (if Issue-started) and the resulting PR URL.
 - Review attempts run, the final reviewed head SHA, and whether it changed since the last round.
 - Disposition counts and each feedback source's terminal state (`resolved`, `replied_left_open`, `not_resolvable`,
   `skipped_by_mode`, or `failed_action`).
+- For `completed_with_skips`, every `skipped_by_mode` source and the constraint that suppressed its action.
 - Any blocker that stopped the loop before completion.
