@@ -243,7 +243,10 @@ loop forever either. A head change resets this counter, since it consumes the re
    Whenever any source is assigned `skipped_by_mode` because `dry_run`, `no_push`, or `no_reply` suppresses its fix,
    publication, reply, or resolution, append a `run_mode_skips` entry containing the source ID, originating head SHA,
    disposition, suppressing mode, suppressed action, and terminal state. Preserve this entry even after the source's
-   head-scoped baseline is discarded.
+   head-scoped baseline is discarded. This mode-suppression accounting does not override GitHub reviewer state: an
+   active, unsuperseded `CHANGES_REQUESTED` review source remains `awaiting_re_review` even when `dry_run` or
+   `no_reply` suppresses its reply or other action. Record the suppressed action in `run_mode_skips` with terminal
+   state `awaiting_re_review`; do not convert that source to `skipped_by_mode`.
 
 10. Apply the publication gate: record the exact SHA produced by this round's fix batch push (if any) as the
     validated post-fix head. Before replying to or resolving any code-dependent source, re-fetch the PR head and
@@ -262,7 +265,17 @@ loop forever either. A head change resets this counter, since it consumes the re
     head and confirm it still equals the head their evidence was validated against in step 9 (or, if this round also
     pushed a fix batch, the post-push head that evidence was re-validated against). If the head no longer matches —
     an external push landed after validation — do not reply or resolve; discard this analysis and restart at step 2
-    on the new head.
+    on the new head. Immediately before any step-11 reply, resolution, or other GitHub mutation, perform a final
+    feedback-reconciliation gate using the same snapshot identity and content-fingerprint definition as step 8 and
+    step 14. Compare the fresh GitHub-backed snapshot with `analyzed_feedback_baseline` plus
+    `own_mutations_since_baseline`. If the snapshot has any external delta, perform no step-11 mutation from the
+    stale dispositions. Consume the bounded same-head refresh budget and redispatch `feedback-analysis` over the fresh
+    GitHub snapshot plus retained local findings; after it returns, re-check the head and, if unchanged, promote only
+    the fresh GitHub-backed baseline, reset the mutation ledger, and repeat the pre-action reconciliation. If the head
+    changed, discard the stale analysis and restart at step 2. If the refresh budget is exhausted, stop with the
+    unreconciled delta as a blocker. Differences represented by `own_mutations_since_baseline` are not external
+    deltas. This gate is required even when step 8 was clean because implementation and QA in step 9 can leave a
+    window for feedback changes before step 11.
 
 11. Unless `dry_run` or `no_reply` is set, post the applicable reply, and resolve, leave open, record
     `not_resolvable`, or record `awaiting_re_review` for every `source_id` per its item's disposition, the
@@ -270,7 +283,9 @@ loop forever either. A head change resets this counter, since it consumes the re
     out above. Append every reply, resolution, and publication performed in this step (and this round's fix-batch
     publication from step 6, if any) to `own_mutations_since_baseline`. When `dry_run` or `no_reply` suppresses this
     step, retain the suggested reply/resolution, leave every affected source open, and report its terminal state as
-    `skipped_by_mode`.
+    `skipped_by_mode`. For an active, unsuperseded `CHANGES_REQUESTED` review source, preserve
+    `awaiting_re_review` instead and record only the suppressed action in `run_mode_skips`; that reviewer-state
+    blocker takes precedence over mode-suppressed terminal accounting.
 12. Re-fetch the head after acting.
 13. If the head changed at all since the SHA recorded in step 2 — whether from this round's own pushed fix batch or
     from any other push that landed while this round was acting — start a new attempt at step 2 on the new head
@@ -323,8 +338,12 @@ flowchart TD
   P -->|no, refresh budget remaining| Q[Redispatch feedback-analysis on same head with preserved local findings; promote fresh GitHub snapshot if head stays unchanged]
   P -->|no, refresh budget exhausted| K
   Q --> F
-  P -->|yes| G[Main agent validates dispositions and acts: fix + QA + publish, then reply/resolve behind the publication gate]
-  G --> H{Head changed after acting?}
+  P -->|yes| G[Main agent validates dispositions and acts: fix + QA + publish]
+  G --> R{Final feedback snapshot fresh before GitHub mutation?}
+  R -->|no, refresh budget remaining| Q
+  R -->|no, refresh budget exhausted| K
+  R -->|yes| U[Reply/resolve behind publication and reviewer-state gates]
+  U --> H{Head changed after acting?}
   H -->|yes| A
   H -->|no| L{Fresh feedback snapshot matches analyzed_feedback_baseline plus own_mutations_since_baseline?}
   L -->|no, refresh budget remaining| M[Redispatch feedback-analysis on same head; promote fresh GitHub snapshot and retain local findings if head still unchanged]
