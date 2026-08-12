@@ -62,8 +62,10 @@ Accept these optional caller constraints, equivalent in effect to the retired tr
 A constraint disables only the actions it names. Never treat code-dependent feedback as resolved when the active
 constraint disables the fix's publication, reply, or resolution; leave the affected thread open and report its
 terminal state as `skipped_by_mode` rather than fabricating completion or treating the suppression itself as a
-blocker. A constraint intentionally leaving work undone is not the same failure as an attempted action that did not
-succeed.
+blocker. The exception is an active, unsuperseded `CHANGES_REQUESTED` review source: preserve its
+`awaiting_re_review` reviewer-state blocker under every constraint, and record the suppressed action separately in
+`run_mode_skips`. A constraint intentionally leaving work undone is not the same failure as an attempted action that
+did not succeed.
 
 ## Logical Subagent Roles and Context Packets
 
@@ -252,15 +254,18 @@ loop forever either. A head change resets this counter, since it consumes the re
    publication, reply, or resolution, append a `run_mode_skips` entry containing the source ID, originating head SHA,
    disposition, suppressing mode, suppressed action, and terminal state. Preserve this entry even after the source's
    head-scoped baseline is discarded. This mode-suppression accounting does not override GitHub reviewer state: an
-   active, unsuperseded `CHANGES_REQUESTED` review source remains `awaiting_re_review` even when `dry_run` or
-   `no_reply` suppresses its reply or other action. Record the suppressed action in `run_mode_skips` with terminal
-   state `awaiting_re_review`; do not convert that source to `skipped_by_mode`.
+   active, unsuperseded `CHANGES_REQUESTED` review source remains `awaiting_re_review` even when `dry_run`,
+   `no_push`, or `no_reply` suppresses its fix publication, reply, or other action. Record the suppressed action in
+   `run_mode_skips` with terminal state `awaiting_re_review`; do not convert that source to `skipped_by_mode`.
 
 10. Apply the publication gate: record the exact SHA produced by this round's fix batch push (if any) as the
     validated post-fix head. Before replying to or resolving any code-dependent source, re-fetch the PR head and
     confirm it is exactly that validated post-fix head — an ancestor relationship is not sufficient, since a later
     commit could revert or alter the fix while remaining a descendant. When `dry_run` or `no_push` is set, no push
-    happened by design; leave the source open and report its terminal state as `skipped_by_mode`, not a blocker.
+    happened by design; leave an ordinary code-dependent source open and report its terminal state as
+    `skipped_by_mode`, not a blocker. For an active, unsuperseded `CHANGES_REQUESTED` review source, preserve
+    `awaiting_re_review` instead and record the suppressed action in `run_mode_skips`; that reviewer-state blocker
+    takes precedence over mode-suppressed terminal accounting.
     Otherwise, if the current head does not exactly match the validated post-fix head, do not reply or resolve;
     discard this analysis and restart at step 2 on the new head rather than reporting `failed_action` for a mere
     subsequent push — reserve `failed_action` for an actual publication/reply/resolution attempt that errors.
