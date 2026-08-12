@@ -140,13 +140,17 @@ completed review round; never dispatch `review` again against a head already rev
    restart at step 2 on the new head; this still counts as one attempt.
 5. Otherwise, deduplicate findings by root cause, drop stale/speculative/low-confidence findings, and validate the
    remainder against the exact reviewed diff.
-6. Unless `dry_run` or `no_reply` is set, publish the arbitrated findings to GitHub — inline comments when safely
-   anchorable to the reviewed head, otherwise one concise top-level summary — then verify publication by re-fetching
-   and locating the posted artifact; exit status alone is not sufficient. Retain the validated arbitrated findings
-   locally regardless of whether this step published them.
+6. If arbitration produced no findings, treat this round as clean: skip publication (or, when project convention
+   favors a visible clean-review confirmation, post a concise one-line "no issues found" note) and go directly to
+   step 7. Otherwise, unless `dry_run` or `no_reply` is set, publish the arbitrated findings to GitHub — inline
+   comments when safely anchorable to the reviewed head, otherwise one concise top-level summary — then verify
+   publication by re-fetching and locating the posted artifact; exit status alone is not sufficient. Retain the
+   validated arbitrated findings locally regardless of whether this step published them.
 7. Dispatch one fresh `feedback-analysis` subagent over the current review threads/comments, including this round's
-   arbitrated findings: the published artifact in normal posting mode, or the retained local findings when
-   `dry_run` or `no_reply` suppressed publication.
+   arbitrated findings: the published artifact in normal posting mode, the retained local findings when `dry_run`
+   or `no_reply` suppressed publication, or none when this round contributed no new findings. If there are no
+   current review threads/comments at all and this round contributed no new findings, skip straight to step 12
+   with nothing to analyze.
 8. Re-fetch the head immediately after `feedback-analysis` returns. If it changed, discard the analysis completely —
    no fix, reply, or resolution based on it — and restart at step 2 on the new head.
 9. Otherwise, validate the dispositions against the current head, repository, feedback scope, and any active
