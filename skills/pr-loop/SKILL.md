@@ -179,7 +179,8 @@ review-attempt budget instead.
    `no_reply` suppressed publication, the retained local findings as `finding:<head-sha>:<ordinal>` sources tied to
    the head recorded in step 2, or none when this round contributed no new findings. If there are no current
    feedback sources of any kind and this round contributed no new findings, skip straight to step 12 with nothing to
-   analyze.
+   analyze. Record the exact snapshot given to this dispatch as the current head's `analyzed_feedback_baseline`, and
+   start a fresh, empty `own_mutations_since_baseline` ledger for it.
 8. Re-fetch the head immediately after `feedback-analysis` returns. If it changed, discard the analysis completely —
    no fix, reply, or resolution based on it — and restart at step 2 on the new head.
 9. Otherwise, validate the dispositions against the current head, repository, feedback scope, and any active
@@ -245,8 +246,10 @@ review-attempt budget instead.
 11. Unless `dry_run` or `no_reply` is set, post the applicable reply, and resolve, leave open, record
     `not_resolvable`, or record `awaiting_re_review` for every `source_id` per its item's disposition, the
     publication gate or code-state re-check above, step 9's no-resolve-action handling, and the active-review carve
-    out above. When `dry_run` or `no_reply` suppresses this step, retain the suggested reply/resolution, leave every
-    affected source open, and report its terminal state as `skipped_by_mode`.
+    out above. Append every reply, resolution, and publication performed in this step (and this round's fix-batch
+    publication from step 6, if any) to `own_mutations_since_baseline`. When `dry_run` or `no_reply` suppresses this
+    step, retain the suggested reply/resolution, leave every affected source open, and report its terminal state as
+    `skipped_by_mode`.
 12. Re-fetch the head after acting.
 13. If the head changed at all since the SHA recorded in step 2 — whether from this round's own pushed fix batch or
     from any other push that landed while this round was acting — start a new attempt at step 2 on the new head
@@ -255,17 +258,21 @@ review-attempt budget instead.
     relevant state as a fresh snapshot — inline thread IDs/resolution state plus, per thread, its comment IDs and a
     content fingerprint (a body digest or `updated_at`) for each; PR-level comment IDs/content; and review
     IDs/persisted state/dismissal/supersession plus each review's own body content fingerprint — and reconcile it
-    against the snapshot step 7 analyzed plus
-    this round's own recorded reply/resolution/publication mutations from steps 9–11. If the only differences from
-    the step-7 snapshot are this round's own recorded mutations, proceed to the terminal-state check below. If any
-    other new or changed source or state exists — new inline feedback, a new PR-level comment, a new or changed
-    review submission, or a changed content fingerprint on an existing thread's comments or a review body (a new or
-    edited comment inside an existing thread, or an edited review body, without any change to thread/review ID or
-    persisted state) — do not finish; if the same-head feedback-refresh count is already at the review-attempt
-    limit, stop and report the unreconciled snapshot delta as a blocker instead of redispatching. Otherwise increment
-    that count, re-dispatch `feedback-analysis` for this same unchanged head over the fresh snapshot (this does not
-    redispatch `review` or consume the review-attempt budget, since the head has not moved) and continue from step 8
-    with its result.
+    against `analyzed_feedback_baseline` plus `own_mutations_since_baseline` (not against a fixed reference to
+    step 7's original snapshot, since a prior redispatch on this same head may have already promoted a later
+    baseline). If the only differences from that baseline are the recorded mutations in the ledger, proceed to the
+    terminal-state check below. If any other new or changed source or state exists — new inline feedback, a new
+    PR-level comment, a new or changed review submission, or a changed content fingerprint on an existing thread's
+    comments or a review body (a new or edited comment inside an existing thread, or an edited review body, without
+    any change to thread/review ID or persisted state) — do not finish; if the same-head feedback-refresh count is
+    already at the review-attempt limit, stop and report the unreconciled snapshot delta as a blocker instead of
+    redispatching. Otherwise increment that count and re-dispatch `feedback-analysis` for this same unchanged head
+    over the fresh snapshot (this does not redispatch `review` or consume the review-attempt budget, since the head
+    has not moved). Immediately after that redispatch returns, re-fetch the head (step 8's check): if it changed,
+    discard the analysis and restart at step 2 on the new head without promoting the baseline; otherwise promote
+    that fresh snapshot to be the new `analyzed_feedback_baseline`, reset `own_mutations_since_baseline` to empty,
+    and continue from step 9 with the redispatch's result so this same delta is never rediscovered on the next
+    reconciliation.
 
     If the head is unchanged, the feedback snapshot reconciles as above, and every `source_id` of every feedback item
     from this round has reached a terminal state (`resolved`, `replied_left_open`, `not_resolvable`,
@@ -290,8 +297,9 @@ flowchart TD
   F -->|no| G[Main agent validates dispositions and acts: fix + QA + publish, then reply/resolve behind the publication gate]
   G --> H{Head changed after acting?}
   H -->|yes| A
-  H -->|no| L{Fresh feedback snapshot matches step 7 plus this round's own mutations?}
-  L -->|no, refresh budget remaining| E
+  H -->|no| L{Fresh feedback snapshot matches analyzed_feedback_baseline plus own_mutations_since_baseline?}
+  L -->|no, refresh budget remaining| M[Redispatch feedback-analysis on same head; promote fresh snapshot to new baseline if head still unchanged]
+  M --> G
   L -->|no, refresh budget exhausted| K
   L -->|yes, nothing actionable left| I[Finish: success, or completed_with_skips if any source is skipped_by_mode]
   G --> J{Blocker: unresolved clarify/defer/won't fix, awaiting_re_review, publication failure, unsupported phase?}
