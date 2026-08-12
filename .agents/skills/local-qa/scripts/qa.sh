@@ -16,6 +16,7 @@ uv run pytest
 
 # Markdown
 npx -y prettier --write './**/*.md'
+npx -y markdownlint-cli2 --fix './**/*.md'
 
 # GitHub Actions
 zizmor --fix=safe .github/workflows

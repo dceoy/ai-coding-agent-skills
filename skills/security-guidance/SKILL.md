@@ -45,9 +45,11 @@ Agents must execute the workflow explicitly unless their runtime provides equiva
 
 3. **Run fast local pattern checks**
    - When this skill directory is available on disk, run the bundled scanner against the repository under review:
+
      ```bash
      python3 scripts/security_pattern_scan.py --repo /path/to/repo --changed --include-untracked --pretty
      ```
+
    - Search the diff and touched files for dangerous APIs and risky configuration changes.
    - Treat hits as review leads, not findings. Confirm attacker control, reachability, and impact before reporting.
    - Prefer repository-provided security, lint, static analysis, or test commands when documented and appropriate. Keep checks targeted unless the user requested a full validation pass.
