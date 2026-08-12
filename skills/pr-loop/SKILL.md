@@ -1,7 +1,6 @@
 ---
 name: pr-loop
 description: Implement one or more same-repository GitHub Issues into a pull request, or review and fix an existing pull request, iterating until no actionable feedback remains. Uses fresh, independent, read-only subagents for planning, review, and feedback analysis through the active coding-agent runtime's own native subagent mechanism. Portable across Claude Code, Codex CLI, Cursor CLI, and other runtimes exposing a suitable independent-subagent capability; has no Oracle/ChatGPT, fixed-agent, fixed-model, or `.codex/agents` dependency. Use for requests to implement an Issue through to a reviewed PR, or to review, fix, resolve, improve, or finalize an existing pull request.
-allowed-tools: Bash(git:*), Bash(gh:*), mcp__github__*, Read, Grep, Glob, Edit, MultiEdit, Write
 ---
 
 # PR Loop
@@ -216,9 +215,10 @@ loop forever either. A head change resets this counter, since it consumes the re
    step 2; otherwise promote only the fresh GitHub-backed portion to `analyzed_feedback_baseline`, retain the
    local-finding portion unchanged, reset `own_mutations_since_baseline` to empty, and repeat this pre-action
    reconciliation. Proceed only when the feedback snapshot is unchanged.
-9. Otherwise, validate the dispositions against the current head, repository, feedback scope, and any active
-   Execution Constraint, then act on each item, applying that item's single disposition independently to every one
-   of its item-scoped `source_ids` while retaining each source's parent artifact for platform actions:
+9. Otherwise, initialize `expected_head` to the step-2 attempt SHA, then validate the dispositions against the
+   current head, repository, feedback scope, and any active Execution Constraint, and act on each item, applying
+   that item's single disposition independently to every one of its item-scoped `source_ids` while retaining each
+   source's parent artifact for platform actions:
    - `fix`: collect every `fix` disposition from this round into one batch instead of committing/pushing each
      individually — pushing one would advance HEAD past the SHA the remaining dispositions were analyzed against
      and break their bind precondition below. Unless `dry_run` is set, first verify the local worktree is bound to
@@ -231,7 +231,9 @@ loop forever either. A head change resets this counter, since it consumes the re
      the bind itself; it must not require push access, since it never pushes. Once bound, implement every fix in the
      batch against that same recorded head, run QA over the combined change (stop as a blocker rather than partially
      committing if two fixes in the batch conflict), then make exactly one commit and — unless `no_push` is set —
-     one push for the whole batch.
+     one push for the whole batch. After a successful push, re-fetch and validate the exact post-fix SHA, record it as
+     `validated_post_fix_head`, and set `expected_head` to that SHA. Under `dry_run`/`no_push`, no remote head moves
+     and `expected_head` remains the attempt SHA.
    - `already addressed` / `outdated`: verify current evidence before treating each contributing source as
      resolvable; record the exact head SHA this evidence was validated against for use in step 11's re-check.
    - `answer`: prepare the validated concise reply.
@@ -266,17 +268,18 @@ loop forever either. A head change resets this counter, since it consumes the re
    `no_push`, or `no_reply` suppresses its fix publication, reply, or other action. Record the suppressed action in
    `run_mode_skips` with terminal state `awaiting_re_review`; do not convert that source to `skipped_by_mode`.
 
-10. Apply the publication gate: record the exact SHA produced by this round's fix batch push (if any) as the
-    validated post-fix head. Before replying to or resolving any code-dependent source, re-fetch the PR head and
-    confirm it is exactly that validated post-fix head — an ancestor relationship is not sufficient, since a later
-    commit could revert or alter the fix while remaining a descendant. When `dry_run` or `no_push` is set, no push
-    happened by design; leave an ordinary code-dependent source open and report its terminal state as
-    `skipped_by_mode`, not a blocker. For an active, unsuperseded `CHANGES_REQUESTED` review source, preserve
+10. Apply the publication gate: use the `expected_head` established in step 9, which is the step-2 attempt SHA
+    unless this round's fix batch was successfully pushed and validated. Before replying to or resolving any
+    code-dependent source, re-fetch the PR head and confirm it is exactly `expected_head` — an ancestor relationship
+    is not sufficient, since a later commit could revert or alter the fix while remaining a descendant. When
+    `dry_run` or `no_push` is set, no push happened by design; leave an ordinary code-dependent source open and
+    report its terminal state as `skipped_by_mode`, not a blocker. For an active, unsuperseded `CHANGES_REQUESTED`
+    review source, preserve
     `awaiting_re_review` instead and record the suppressed action in `run_mode_skips`; that reviewer-state blocker
     takes precedence over mode-suppressed terminal accounting.
-    Otherwise, if the current head does not exactly match the validated post-fix head, do not reply or resolve;
-    discard this analysis and restart at step 2 on the new head rather than reporting `failed_action` for a mere
-    subsequent push — reserve `failed_action` for an actual publication/reply/resolution attempt that errors.
+    Otherwise, if the current head does not exactly match `expected_head`, do not reply or resolve; discard this
+    analysis and restart at step 2 on the new head rather than reporting `failed_action` for a mere subsequent push —
+    reserve `failed_action` for an actual publication/reply/resolution attempt that errors.
     `already addressed` and `outdated` do not depend on this round's pushed fix, but they are still code-state
     dependent — apply the separate re-check below to them instead of this gate. `answer`, `clarify`, `defer`, and
     `won't fix` depend on neither and are not subject to either check; act on each independently once validated
@@ -288,11 +291,13 @@ loop forever either. A head change resets this counter, since it consumes the re
     an external push landed after validation — do not reply or resolve; discard this analysis and restart at step 2
     on the new head. Immediately before any step-11 reply, resolution, or other GitHub mutation, perform a final
     feedback-reconciliation gate using the same snapshot identity and content-fingerprint definition as step 8 and
-    step 14. First re-fetch the current PR head and compare it with the exact SHA recorded in step 2. If the head
-    changed, perform no step-11 mutation from this analysis, discard the head-scoped baseline and findings, and
-    restart at step 2 without consuming the same-head feedback-refresh budget; do not treat the moved head as a
-    same-head refresh even if the feedback snapshot is also different. Only when the head is unchanged should the
-    fresh GitHub-backed snapshot be compared with `analyzed_feedback_baseline` plus
+    step 14. First re-fetch the current PR head and compare it with `expected_head`. If it differs, perform no
+    step-11 mutation from this analysis, discard the head-scoped baseline and findings, and restart at step 2
+    without consuming the same-head feedback-refresh budget. If `expected_head` is the validated post-fix head and
+    the fresh feedback snapshot has an external delta, likewise perform no step-11 mutation and restart at step 2;
+    do not treat feedback added after a fix push as a same-head refresh on an unreviewed head. Only when the head
+    equals `expected_head` and no post-fix external delta exists should the fresh GitHub-backed snapshot be compared
+    with `analyzed_feedback_baseline` plus
     `own_mutations_since_baseline`. If the snapshot has any external delta, perform no step-11 mutation from the
     stale dispositions. Consume the bounded same-head refresh budget and redispatch `feedback-analysis` over the fresh
     GitHub snapshot plus retained local findings; after it returns, re-check the head and, if unchanged, promote only
