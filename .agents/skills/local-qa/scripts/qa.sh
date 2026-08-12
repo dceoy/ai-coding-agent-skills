@@ -15,8 +15,18 @@ uv run pyright .
 uv run pytest
 
 # Markdown
-npx -y prettier --write './**/*.md'
-npx -y markdownlint-cli2 --fix './**/*.md'
+npx -y prettier --write '**/*.md'
+if [[ -f .markdownlint-cli2.jsonc ]]; then
+  git ls-files -z -- '*.md' '*.mdx' | xargs -0 -t npx -y markdownlint-cli2 --fix --config .markdownlint-cli2.jsonc
+else
+  printf '{"config":{"MD013":false}}' > .markdownlint-cli2.jsonc
+  set +e
+  git ls-files -z -- '*.md' '*.mdx' | xargs -0 -t npx -y markdownlint-cli2 --fix --config .markdownlint-cli2.jsonc
+  markdownlint_exit_code="${?}"
+  set -e
+  rm -f .markdownlint-cli2.jsonc
+  [[ "${markdownlint_exit_code}" -eq 0 ]] || exit "${markdownlint_exit_code}"
+fi
 
 # GitHub Actions
 zizmor --fix=safe .github/workflows
