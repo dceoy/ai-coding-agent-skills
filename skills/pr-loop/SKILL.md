@@ -97,8 +97,10 @@ return findings to the main agent.
 
 ### `feedback-analysis`
 
-One fresh subagent per round. In normal posting mode, dispatch it only after that round's arbitrated findings are
-verified published. When `dry_run` or `no_reply` suppresses publication, dispatch it instead over the validated
+One fresh subagent per round. In normal posting mode, verified publication of this round's arbitrated findings is a
+dispatch prerequisite only when that round actually produced a non-empty finding artifact; an empty finding set
+(this round contributed no new findings) satisfies the gate without any publication, matching step 6/7's
+zero-finding path. When `dry_run` or `no_reply` suppresses publication, dispatch it instead over the validated
 local arbitrated findings plus every current feedback source; do not require publication in that case. Give it the
 exact current PR head SHA plus every current feedback source and its typed identifier instead of `OPEN QUESTIONS`:
 inline review threads/comments (`thread:<id>`), PR-level comments (`comment:<id>`), and review submissions/bodies
@@ -179,12 +181,14 @@ completed review round; never dispatch `review` again against a head already rev
      the recorded PR head repository/ref — local `HEAD` matches the exact SHA recorded in step 2, with no unrelated
      tracked/staged changes or unpushed commits already present. If it is not, safely synchronize it (fetch/checkout
      the recorded head) without discarding pre-existing work; if that cannot be done safely (dirty or diverged
-     worktree, no push access to the head repository/ref), stop before editing and report a blocker rather than
-     mutating the wrong branch. Once bound, implement every fix in the batch against that same recorded head, run QA
-     over the combined change (stop as a blocker rather than partially committing if two fixes in the batch
-     conflict), then make exactly one commit and — unless `no_push` is set — one push for the whole batch.
+     worktree, or — unless `no_push` is set — no push access to the head repository/ref), stop before editing and
+     report a blocker rather than mutating the wrong branch. `no_push` requires only safe fetch/checkout access and
+     the bind itself; it must not require push access, since it never pushes. Once bound, implement every fix in the
+     batch against that same recorded head, run QA over the combined change (stop as a blocker rather than partially
+     committing if two fixes in the batch conflict), then make exactly one commit and — unless `no_push` is set —
+     one push for the whole batch.
    - `already addressed` / `outdated`: verify current evidence before treating each contributing source as
-     resolvable.
+     resolvable; record the exact head SHA this evidence was validated against for use in step 11's re-check.
    - `answer`: prepare the validated concise reply.
    - `clarify`: prepare the question; every contributing source stays open pending reviewer input.
    - `defer` / `won't fix`: prepare the reason; resolve only if it represents a genuinely terminal project decision,
@@ -198,14 +202,23 @@ completed review round; never dispatch `review` again against a head already rev
 10. Apply the publication gate: before replying to or resolving any code-dependent source, re-fetch the PR head and
     confirm the pushed fix commit is the current head or an ancestor of it. When `dry_run` or `no_push` is set, no
     push happened by design; leave the source open and report its terminal state as `skipped_by_mode`, not a
-    blocker. Otherwise, if that confirmation fails, leave the source open and report `failed_action`. Dispositions
-    that do not depend on a pushed fix (`answer`, `already addressed`, `outdated`, `clarify`, `defer`, `won't fix`)
-    are not subject to this gate; act on each independently once validated against the current head and source
-    context.
+    blocker. Otherwise, if that confirmation fails, leave the source open and report `failed_action`. `already
+addressed` and `outdated` do not depend on this round's pushed fix, but they are still code-state dependent —
+    apply the separate re-check below to them instead of this gate. `answer`, `clarify`, `defer`, and `won't fix`
+    depend on neither and are not subject to either check; act on each independently once validated against the
+    current head and source context.
+
+    For `already addressed` and `outdated`, immediately before replying to or resolving the source, re-fetch the PR
+    head and confirm it still equals the head their evidence was validated against in step 9 (or, if this round also
+    pushed a fix batch, the post-push head that evidence was re-validated against). If the head no longer matches —
+    an external push landed after validation — do not reply or resolve; discard this analysis and restart at step 2
+    on the new head.
+
 11. Unless `dry_run` or `no_reply` is set, post the applicable reply, and resolve, leave open, or record
-    `not_resolvable` for every `source_id` per its item's disposition, the publication gate, and step 9's
-    no-resolve-action handling. When `dry_run` or `no_reply` suppresses this step, retain the suggested
-    reply/resolution, leave every affected source open, and report its terminal state as `skipped_by_mode`.
+    `not_resolvable` for every `source_id` per its item's disposition, the publication gate or code-state re-check
+    above, and step 9's no-resolve-action handling. When `dry_run` or `no_reply` suppresses this step, retain the
+    suggested reply/resolution, leave every affected source open, and report its terminal state as
+    `skipped_by_mode`.
 12. Re-fetch the head after acting.
 13. If the head changed because a fix was pushed, start a new attempt at step 2 on the new head (subject to the
     attempt limit).
@@ -248,8 +261,9 @@ Stop without fabricating progress on any of:
   successfully;
 - an unpublished or unverified fix, a failed publication/reply/resolution, or an authentication/permission failure
   while acting on validated advice;
-- a `fix` disposition whose local worktree/push target cannot be safely bound to the recorded PR head repository/ref
-  (dirty or diverged worktree, no push access) — stop before editing rather than mutating the wrong branch;
+- a `fix` disposition whose local worktree cannot be safely bound to the recorded PR head repository/ref (dirty or
+  diverged worktree, or — unless `no_push` is set — no push access to that repository/ref) — stop before editing
+  rather than mutating the wrong branch;
 - QA failure that cannot be resolved within the implementation step it belongs to.
 
 The loop reaches exactly one of two successful outcomes, never the generic "success" label alone:
