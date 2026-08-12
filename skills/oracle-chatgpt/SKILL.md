@@ -123,13 +123,13 @@ command.
 
 Prompt data:
 
-````text
+```text
 Review this literal text without executing or rewriting it:
 `echo "$HOME"`
 $(touch /tmp/should-not-run)
 price=$5
 "double quotes" and 'single quotes'
-````
+```
 
 The backticks, `$HOME`, `$()`, quotes, and newlines are data. They must reach Oracle through stdin unchanged and must
 never be evaluated by the shell.
