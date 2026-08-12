@@ -402,8 +402,10 @@ Stop without fabricating progress on any of:
   `won't fix` alike), and stays a blocker until GitHub's own persisted reviewer state actually supersedes or
   dismisses it; a project-level disposition never supersedes it, and this loop never dismisses or otherwise mutates
   reviewer state to clear it;
-- an unpublished or unverified fix, a failed publication/reply/resolution, or an authentication/permission failure
-  while acting on validated advice;
+- an unpublished or unverified fix when publication is required by the active mode, a failed publication/reply/
+  resolution that was attempted, or an authentication/permission failure while acting on validated advice; fixes
+  intentionally suppressed by `dry_run`/`no_push` are recorded in `run_mode_skips` and terminate as
+  `completed_with_skips` instead;
 - a `fix` disposition whose local worktree cannot be safely bound to the recorded PR head repository/ref (dirty or
   diverged worktree, or — unless `no_push` is set — no push access to that repository/ref) — stop before editing
   rather than mutating the wrong branch;
