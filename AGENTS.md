@@ -6,6 +6,8 @@ This is a single-source skill library shared across AI coding runtimes. The `ski
 
 ## Native named-agent dispatch
 
+This section is Codex's default routing for non-trivial implementation work when no portable skill defines its own orchestration. A portable skill such as `pr-loop` follows its own `SKILL.md` contract instead; see [Portable native-subagent contract](#portable-native-subagent-contract) below.
+
 `planner` and `advisor` must be invoked through Codex's native multi-agent tools. Do not invoke them through `codex exec`, nested Codex CLI processes, shell wrappers, copied prompts, generic agents, or simulations.
 
 Invoke each role with `fork_turns: "none"` and pass its task-specific context explicitly; do not rely on inherited conversation history.
@@ -32,9 +34,15 @@ Keep settled decisions separate from open questions. The planner must not have t
 
 For every `planner` or `advisor` invocation in a Git worktree, immediately before dispatch record a Git-visible baseline: `HEAD` when it exists (otherwise an explicit unborn-`HEAD` sentinel), index diff, tracked worktree diff, and every non-ignored untracked path with a content digest. Compare the same state immediately after return. Any persistent Git-visible mutation introduced during the invocation invalidates the result; preserve changes that already existed in the baseline. If available runtime output or telemetry explicitly shows a mutating action, including a transient edit that was restored before return, invalidate the result even when the post-dispatch baseline matches. Ignored and generated files are intentionally outside the persistent-state comparison. If the workspace is not a Git worktree, require an effective read-only sandbox; do not accept a writable effective sandbox without this guard. This guard establishes persistent Git-visible state integrity; it does not prove that a writable runtime performed no transient writes. The named agents remain behaviorally read-only and must not intentionally edit files. Do not describe this guard as runtime-enforced read-only or mutation-free execution.
 
+## Portable native-subagent contract
+
+A portable skill such as `skills/pr-loop/SKILL.md` may use whichever native mechanism the active coding-agent runtime provides for launching a fresh, independent, read-only subagent (for example Claude Code's subagent/Task launch mechanism, a native Codex multi-agent dispatch with no inherited turns, or Cursor's equivalent independent-agent mechanism). Such a skill must not require `.codex/agents`, `planner.toml`, `advisor.toml`, a fixed agent name, a fixed model, or a fixed provider; it expresses planning, review, and feedback-analysis as logical roles, not named agents. Do not launch `codex`, `claude`, `cursor-agent`, or another coding-agent CLI as a subprocess to emulate an unavailable native subagent, and do not perform an advisory phase directly in the main agent's own context in place of a real independent subagent. When the active runtime exposes no suitable native mechanism for a required phase, the skill must report that phase as `unsupported` rather than silently downgrading it. Implementation, QA, and all Git/GitHub mutations remain owned by the top-level main agent in every case.
+
+The Codex-specific `planner`/`advisor` routing above, and the project-scoped definitions under `.codex/agents/`, are one optional, Codex-specific implementation of a native-subagent mechanism. They are not required by, and must stay separate from, any portable skill's own execution contract.
+
 ## Model routing
 
-This section applies only to the top-level main agent. The named `planner` and `advisor` agents follow their own definitions and must not spawn or delegate to another subagent.
+This section applies only to the top-level main agent when no portable skill defines its own orchestration. A portable skill such as `pr-loop` follows its own `SKILL.md` contract instead; its planning, review, and feedback-analysis roles must not be routed through the named `planner` and `advisor` agents below. The named `planner` and `advisor` agents follow their own definitions and must not spawn or delegate to another subagent.
 
 Use the main agent directly for simple questions and narrow, deterministic edits when planning overhead is not justified.
 
