@@ -34,7 +34,7 @@ For every `planner` or `advisor` invocation in a Git worktree, immediately befor
 
 ## Model routing
 
-This section applies only to the top-level main agent. The named `planner` and `advisor` agents follow their own definitions and must not spawn or delegate to another subagent.
+This section applies only to the top-level main agent when no portable skill defines its own orchestration. A portable skill such as `pr-loop` follows its own `SKILL.md` contract instead; its planning, review, and feedback-analysis roles must not be routed through the named `planner` and `advisor` agents below. The named `planner` and `advisor` agents follow their own definitions and must not spawn or delegate to another subagent.
 
 Use the main agent directly for simple questions and narrow, deterministic edits when planning overhead is not justified.
 
