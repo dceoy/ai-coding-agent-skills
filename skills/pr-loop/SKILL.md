@@ -104,9 +104,10 @@ lens: `correctness`, `tests/docs`, and `security/performance`. Running them conc
 fresh contexts per lens are mandatory. Give each the PR diff/changed files at that head instead of `OPEN QUESTIONS`.
 Require every candidate finding to include lens, severity (`critical`, `high`, `medium`, `low`), confidence, file/line
 when safely identifiable, concrete impact, and remediation direction. When evaluating maintainability, apply KISS,
-DRY, and YAGNI to concrete issues: flag actual duplication, unnecessary complexity, or functionality and flexibility
-without a current requirement; prefer existing code and the smallest coherent solution, and avoid style-only
-simplification suggestions. Subagents must not publish anything; they only return findings to the main agent.
+DRY, and YAGNI to concrete issues: flag actual duplication, unnecessary complexity, or speculative functionality,
+flexibility, abstractions, compatibility layers, extension points, or infrastructure without a current requirement;
+prefer existing code and the smallest coherent solution, and avoid style-only simplification suggestions. Subagents
+must not publish anything; they only return findings to the main agent.
 
 ### `feedback-analysis`
 
