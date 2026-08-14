@@ -170,7 +170,7 @@ For an existing-PR request, skip straight to the PR Review Loop on the requested
 
 ## PR Review Loop
 
-Choose a finite review-attempt limit before starting; use the caller's explicit limit if given, otherwise default to 5. Count an attempt whenever `review` subagents are dispatched, including a round later discarded because the head
+Use the caller's explicit review-attempt limit if given; otherwise treat the review-attempt limit as unbounded and do not invent one. Count an attempt whenever `review` subagents are dispatched, including a round later discarded because the head
 moved, so a continuously moving head cannot loop forever. Do not dispatch `review` again while the current head is
 unchanged from the completed review round already carried through; if the head moves away and later returns to an
 earlier reviewed SHA, treat that return as a new review attempt. Separately, track a
