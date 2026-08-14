@@ -451,8 +451,9 @@ The loop reaches exactly one of two successful outcomes, never the generic "succ
   earlier head or review attempt. This is a deterministic stop, not a blocker, but it must not be reported as
   `success` or as "no actionable feedback remains".
 
-Any other case — a blocker above, or a round that neither reaches all-terminal sources nor reaches a caller-specified
-review-attempt limit — is `stopped` and must not be reported as either successful outcome.
+A run is `stopped` only when one of the Stop Conditions above is reached; ordinary non-terminal rounds continue
+through the PR Review Loop until they reach a successful outcome or an actual stop condition. A stopped run must not
+be reported as either successful outcome.
 
 ## Non-Goals
 
