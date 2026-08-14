@@ -170,14 +170,15 @@ For an existing-PR request, skip straight to the PR Review Loop on the requested
 
 ## PR Review Loop
 
-Use the caller's explicit review-attempt limit if given; otherwise treat the review-attempt limit as unbounded and do not invent one. Count an attempt whenever `review` subagents are dispatched, including a round later discarded because the head
-moved, so a continuously moving head cannot loop forever. Do not dispatch `review` again while the current head is
-unchanged from the completed review round already carried through; if the head moves away and later returns to an
-earlier reviewed SHA, treat that return as a new review attempt. Separately, track a
-same-head feedback-refresh count, capped at that same review-attempt limit; it counts every same-head redispatch of
-`feedback-analysis` triggered by the pre-action reconciliation in step 8 or the pre-completion reconciliation in step
-14, and never resets while the head stays unchanged, so a continuously updating feedback stream on one head cannot
-loop forever either. A head change resets this counter, since it consumes the review-attempt budget instead.
+Use the caller's explicit review-attempt limit if given; otherwise treat the review-attempt limit as unbounded and do
+not invent one. Count an attempt whenever `review` subagents are dispatched, including a round later discarded
+because the head moved. When the limit is finite, this bounds a continuously moving head. Do not dispatch `review`
+again while the current head is unchanged from the completed review round already carried through; if the head moves
+away and later returns to an earlier reviewed SHA, treat that return as a new review attempt. Separately, track a
+same-head feedback-refresh count, capped at that same review-attempt limit; when the limit is unbounded, the count is
+telemetry only. It counts every same-head redispatch of `feedback-analysis` triggered by the pre-action reconciliation
+in step 8 or the pre-completion reconciliation in step 14, and never resets while the head stays unchanged. A head
+change resets this counter, since it consumes the review-attempt budget instead.
 
 1. Resolve the exact PR (`OWNER/REPO#NUMBER`); resolve an omitted target from the current branch's associated PR.
    Record its head repository and head ref alongside the PR number; every fix commit and push in this loop targets
