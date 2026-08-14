@@ -43,6 +43,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 ### AI Tools
 
 - `oracle-chatgpt` - Send one arbitrary prompt to ChatGPT through Oracle browser mode and return the captured response without reinterpretation
+- `x-timeline` - Read authenticated X timelines through agent-browser without engagement actions
 
 ### Skill Management
 
