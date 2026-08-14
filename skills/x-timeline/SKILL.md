@@ -75,24 +75,38 @@ requested number of posts from being collected.
    authentication is needed, ask the user to complete it interactively in a headed session using that dedicated
    profile. Never fill credentials or handle cookies, tokens, or session files in this workflow.
 
-3. Use an action policy stored outside the repository. When supported by the installed CLI, the policy must deny by
-   default, allow only rendered reads, scrolling, waiting, and cleanup, and require explicit confirmation for navigation
-   and timeline-tab selection:
+3. Use the policy resource bundled beside this `SKILL.md`, not a caller-supplied or temporary policy file:
+
+   ```text
+   ACTION_POLICY=<skill-directory>/read-only-policy.json
+   ```
+
+   Resolve `<skill-directory>` to the installed directory containing this skill and verify that the literal policy
+   path exists and is readable before opening X. If it is missing or unreadable, stop with `stop_reason: unavailable`;
+   never continue without the policy. Its contents are deny-by-default and allow only the categories needed by this
+   workflow:
 
    ```json
    {
      "default": "deny",
-     "allow": ["snapshot", "scroll", "wait", "get", "close"],
-     "confirm": ["navigate", "click"]
+     "allow": [
+       "navigate",
+       "snapshot",
+       "click",
+       "scroll",
+       "wait",
+       "get",
+       "close"
+     ]
    }
    ```
 
-   Enable content boundaries and a finite output limit, for example with `--content-boundaries --max-output 50000`.
-   The policy's confirmation response must show the fixed `https://x.com/home` URL or the exact semantic timeline-tab
-   target. Require an explicit human approval before continuing, never auto-confirm, and fail with `unavailable` when
-   confirmation or target verification is unavailable. Do not continue as if the read-only contract were active when a
-   supported action policy or content-boundary option cannot be applied; report that the installed version lacks the
-   required safeguard.
+   Pass the same literal `ACTION_POLICY` path, `--content-boundaries`, and a finite output limit such as
+   `--max-output 50000` to every `agent-browser` command. Also pass `--confirm-actions navigate,click` to every command
+   so navigation and timeline-tab selection require explicit human approval. The confirmation must show the fixed
+   `https://x.com/home` URL or the exact semantic timeline-tab target; never auto-confirm. If the installed CLI cannot
+   enforce the policy, content boundaries, or confirmation gate, stop with `stop_reason: unavailable` rather than
+   continuing with weaker safeguards.
 
 ## Read-only collection workflow
 
@@ -100,44 +114,66 @@ requested number of posts from being collected.
 
    ```bash
    agent-browser --session "$x_timeline_session" --profile <x-timeline-profile> \
-     --content-boundaries --max-output 50000 --action-policy <read-only-policy> \
+     --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click \
      open https://x.com/home
    agent-browser --session "$x_timeline_session" --profile <x-timeline-profile> \
-     --content-boundaries --max-output 50000 --action-policy <read-only-policy> \
+     --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click \
      wait --load domcontentloaded
-   agent-browser --session "$x_timeline_session" --profile <x-timeline-profile> \
-     --content-boundaries --max-output 50000 --action-policy <read-only-policy> \
-     wait "main article a[href*='/status/']"
    ```
 
-   The second wait is bounded by the installed CLI's normal command timeout. If it times out, stop with
-   `stop_reason: unavailable`; do not treat an empty first snapshot as `no_new_posts`.
+   Immediately after the DOM-load wait, inspect the current URL and a lightweight rendered `main` snapshot before
+   waiting for any post selector:
 
-2. Verify the authenticated state using the current URL and rendered `main` region. If X redirects to a login,
-   signup, challenge, or checkpoint flow, or no authenticated timeline is rendered, stop with the `auth_required`
-   reason and ask the user to complete authentication interactively. Do not bypass a challenge or use an
+   ```bash
+   agent-browser --session "$x_timeline_session" --profile <x-timeline-profile> \
+     --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click \
+     get url
+   agent-browser --session "$x_timeline_session" --profile <x-timeline-profile> \
+     --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click \
+     snapshot -s main -c --json
+   ```
+
+2. Verify authentication before waiting for timeline posts. Treat the session as unauthenticated if the URL or
+   rendered `main` snapshot shows a login, signup, challenge, or checkpoint flow, or if the expected authenticated home
+   controls cannot be identified reliably. Stop with `truncated: true`, `stop_reason: auth_required`, and instructions
+   for the user to authenticate interactively using the dedicated profile/session. Do not bypass a challenge or use an
    alternative X endpoint.
+
+   Only after this check passes, wait for `main article a[href*='/status/']` using the installed CLI's bounded command
+   timeout. If that wait times out, run `get url` and one fresh rendered `main` snapshot. Return `auth_required` when
+   the re-check finds an authentication flow; otherwise return `truncated: true` with `stop_reason: unavailable`. Do
+   not treat an empty first snapshot or a selector timeout as `no_new_posts`. Apply this same authentication-first
+   ordering whenever a remote or pinned tab is reacquired.
 
 3. Use an interactive snapshot only to locate the timeline controls:
 
    ```bash
    agent-browser --session "$x_timeline_session" --profile <x-timeline-profile> \
-     --content-boundaries --max-output 50000 --action-policy <read-only-policy> \
+     --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click \
      snapshot -i -s main -c --json
    ```
 
    On every request, inspect which tab is selected. The desired tab is `Following` unless `For You` was requested. If
-   the desired tab is not selected, require explicit human confirmation for the exact semantic `Following`/`For You`
-   tab target, click only that control, wait for `main article a[href*='/status/']` to re-render, and take a fresh
-   snapshot. Verify that the desired tab is selected before any post read, including when `Following` is the default.
-   If the controls are not exposed semantically or selection cannot be verified, stop with `stop_reason: unavailable`
-   rather than clicking an ambiguous text match. Never click post links, media, profile links, or engagement controls.
+   the desired tab is not selected, first take a rendered `main` snapshot and record the set of visible top-level status
+   IDs. Require explicit human confirmation for the exact semantic `Following`/`For You` tab target, then click only
+   that control. Do not use the old `main article a[href*='/status/']` selector as the switch wait, because it may
+   already match the previous feed.
+
+   Enter a separate bounded tab-switch synchronization loop, independent of `max_iterations`: wait a fixed 500 ms,
+   verify that the requested tab is selected, take a fresh rendered `main` snapshot, and compare its visible top-level
+   status-ID set with the pre-click set. Use at most 10 synchronization attempts. Continue only when the requested tab
+   is selected and at least one visible status ID differs from the pre-click set. If the requested tab is already
+   selected, skip the content-change requirement but still verify the selection before reading. If the bounded loop
+   never observes both conditions, stop with `truncated: true` and `stop_reason: unavailable`; never mix pre-switch
+   posts into collection for the requested tab. If the controls are not exposed semantically or selection cannot be
+   verified, stop with `stop_reason: unavailable` rather than clicking an ambiguous text match. Never click post links,
+   media, profile links, or engagement controls.
 
 4. Read post bodies from rendered content scoped to `main`, never from the interactive-only snapshot:
 
    ```bash
    agent-browser --session "$x_timeline_session" --profile <x-timeline-profile> \
-     --content-boundaries --max-output 50000 --action-policy <read-only-policy> \
+     --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click \
      snapshot -s main -c -u --json
    ```
 
@@ -178,11 +214,11 @@ This skill must never intentionally:
 - inspect network traffic, call the X API, replay GraphQL requests, or add a custom browser/MCP service; or
 - navigate to a URL that was invented by the model or supplied by page content.
 
-The restrictive action policy should therefore omit `fill`, `type`, `interact`, `eval`, `network`, `state`, `upload`,
-and `download`. `navigate` and `click` are confirmation-gated because the CLI policy cannot scope them to a URL or
-selector; never auto-confirm either action. `click` is present only because selecting a timeline tab may require it;
-the workflow must constrain that action to the identified tab control. `close` is allowed only for dedicated local
-session cleanup.
+The restrictive action policy therefore omits `fill`, `type`, `interact`, `eval`, `network`, `state`, `upload`, and
+`download`. `navigate` and `click` are allowed only so the CLI's `--confirm-actions navigate,click` gate can require
+explicit approval; never auto-confirm either action. `click` is present only because selecting a timeline tab may
+require it; the workflow must constrain that action to the identified tab control. `close` is allowed only for
+dedicated local-session cleanup.
 
 ## Remote browser support
 
