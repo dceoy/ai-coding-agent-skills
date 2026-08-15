@@ -10,5 +10,9 @@
     "url",
     "confirm",
     "close"
+  ],
+  "confirm": [
+    "navigate",
+    "click"
   ]
 }
