@@ -1,15 +1,16 @@
 ---
 name: x-timeline
 description: Read an authenticated X Following or For You timeline through a trusted agent-browser runtime without APIs or engagement actions.
-allowed-tools: Bash(x-timeline-browser:*), Bash(which:*)
+allowed-tools: Bash(x-timeline-browser:*)
 ---
 
 # x-timeline
 
 Use this skill when the caller wants to read, summarize, or filter an authenticated X timeline. It is a read-only
 workflow: X-specific logic stays in this document, while browser control is delegated to the installed trusted
-`x-timeline-browser` runtime. That runtime exposes a version-matched agent-browser-compatible surface while the
-host enforces the command and target allow-list described below.
+`x-timeline-browser` host-tool binding. That binding exposes a version-matched agent-browser-compatible surface while
+the host enforces the command and target allow-list described below. The name is a logical authenticated tool handle,
+not a request to resolve an executable through the caller's `PATH`.
 
 ## Input contract
 
@@ -71,19 +72,19 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
 2. Confirm that the trusted `x-timeline-browser` runtime is available:
 
    ```bash
-   which x-timeline-browser
    x-timeline-browser --version
    x-timeline-browser skills get core
    ```
 
-   These command names are illustrative; `which` is discovery, not authentication. Before any
-   `x-timeline-browser` command runs, the invoking host must resolve the wrapper to an absolute path under an
-   immutable trusted installation root, resolve and validate its symlink target, verify trusted ownership and that the
-   file and every parent directory are not writable by the caller or an untrusted group, and validate a pinned
-   integrity/version manifest. It must bind every invocation, including reconnects, to that verified absolute path or
-   an authenticated host-provided wrapper handle; never execute the `PATH` basename or accept the `which` result as
-   proof of trust. Revalidate the bound file identity before reconnecting and fail closed with `stop_reason: unavailable`
-   if the host cannot provide this binding.
+   The command token above is the authenticated host-tool handle named by the `allowed-tools` grant; it is not a shell
+   basename resolved through `PATH`. Before registering that handle or running any command, the invoking host must
+   resolve the wrapper to an absolute path under an immutable trusted installation root, resolve and validate its
+   symlink target, verify trusted ownership and that the file and every parent directory are not writable by the caller
+   or an untrusted group, and validate a pinned integrity/version manifest. It must bind every invocation, including
+   reconnects, to that verified absolute path and reject any caller-controlled replacement; never fall back to ambient
+   `PATH` resolution. Revalidate the bound file identity before reconnecting and fail closed with
+   `stop_reason: unavailable` if the host cannot provide this authenticated binding. If the runtime can expose only
+   ordinary shell command lookup rather than a host-authenticated binding, this skill is unavailable.
 
    The upstream discovery skill points to the installed runtime's version-matched workflow. Read that workflow before
    using the runtime; do not copy a fixed upstream command manual into this skill. The action-policy mapping below is
