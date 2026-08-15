@@ -193,14 +193,15 @@ change resets this counter, since it consumes the review-attempt budget instead.
 6. Immediately before publishing this round's GitHub review, re-fetch the head and compare it to the exact SHA
    reviewed in step 2. If it no longer matches, discard the round without publishing anything derived from the stale
    SHA and restart at step 2 on the new head; this still counts as one attempt. Otherwise, unless `dry_run` or
-   `no_reply` is set, submit exactly one GitHub pull-request review with action `COMMENT`. Include a non-empty
-   top-level body in every review. Put safely anchorable findings in inline review comments and summarize any
-   remaining unanchorable findings as distinct items in the review body. If there are no actionable findings, state
-   in the review body that no actionable issues were found. Never use `APPROVE` or `REQUEST_CHANGES` for this loop's
-   own review submission. After submission, re-fetch the PR and verify that the `COMMENT` review exists for the exact
-   reviewed head, that every intended inline review comment was published, and that every intended unanchorable
-   finding is present in the persisted review body; exit status alone is not sufficient. A failed, missing, or
-   unverifiable required review publication is a blocker. When `dry_run` or `no_reply`
+   `no_reply` is set, submit exactly one GitHub pull-request review with action `COMMENT` and capture the returned
+   review identifier. Include a non-empty top-level body in every review. Put safely anchorable findings in inline
+   review comments and summarize any remaining unanchorable findings as distinct items in the review body. If there
+   are no actionable findings, state in the review body that no actionable issues were found. Never use `APPROVE` or
+   `REQUEST_CHANGES` for this loop's own review submission. After submission, re-fetch the PR and verify that the
+   specific returned review identifier exists for the exact reviewed head with persisted state `COMMENTED`, that
+   every intended inline review comment was published, and that every intended unanchorable finding is present in
+   that persisted review body; exit status alone is not sufficient. A failed, missing, or unverifiable required
+   review publication is a blocker. When `dry_run` or `no_reply`
    suppresses this required review, append a `run_mode_skips` entry with source ID
    `review-publication:<head-sha>`, disposition `publish_review`, the active suppressing mode, suppressed action
    `submit COMMENT review`, and terminal state `skipped_by_mode`. This synthetic ID is ledger-only and is not a
