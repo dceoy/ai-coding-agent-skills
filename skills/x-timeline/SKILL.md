@@ -76,6 +76,15 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    x-timeline-browser skills get core
    ```
 
+   These command names are illustrative; `which` is discovery, not authentication. Before any
+   `x-timeline-browser` command runs, the invoking host must resolve the wrapper to an absolute path under an
+   immutable trusted installation root, resolve and validate its symlink target, verify trusted ownership and that the
+   file and every parent directory are not writable by the caller or an untrusted group, and validate a pinned
+   integrity/version manifest. It must bind every invocation, including reconnects, to that verified absolute path or
+   an authenticated host-provided wrapper handle; never execute the `PATH` basename or accept the `which` result as
+   proof of trust. Revalidate the bound file identity before reconnecting and fail closed with `stop_reason: unavailable`
+   if the host cannot provide this binding.
+
    The upstream discovery skill points to the installed runtime's version-matched workflow. Read that workflow before
    using the runtime; do not copy a fixed upstream command manual into this skill. The action-policy mapping below is
    version-sensitive: if the installed workflow or native policy checker uses different action names, stop with
