@@ -113,13 +113,14 @@ must not publish anything; they only return findings to the main agent.
 
 One fresh subagent per round. In normal posting mode, verified publication of this round's GitHub `COMMENT` review is
 a dispatch prerequisite even when the arbitrated finding set is empty; the review must always have a non-empty
-top-level body, and an empty finding set must state that no actionable issues were found. When `dry_run` or `no_reply`
-suppresses publication, dispatch it instead over the validated local arbitrated findings plus every current feedback
-source; do not require publication in that case. Give it the exact current PR head SHA plus every current feedback
-source and its typed identifier instead of `OPEN QUESTIONS`: inline review threads/comments (`thread:<id>`), PR-level
-comments (`comment:<id>`), review submissions/bodies (`review:<id>`) — including each review's reviewer, persisted
-state (`CHANGES_REQUESTED`, `COMMENTED`, `APPROVED`, etc.), and submission time, so a later review can be recognized
-as superseding an earlier `CHANGES_REQUESTED` review — and, when `dry_run` or `no_reply` suppressed this round's
+top-level body, and an empty finding set must state that no new actionable findings were found in this review pass
+without implying that existing feedback has been cleared. When `dry_run` or `no_reply` suppresses publication,
+dispatch it instead over the validated local arbitrated findings plus every current feedback source; do not require
+publication in that case. Give it the exact current PR head SHA plus every current feedback source and its typed
+identifier instead of `OPEN QUESTIONS`: inline review threads/comments (`thread:<id>`), PR-level comments
+(`comment:<id>`), review submissions/bodies (`review:<id>`) — including each review's reviewer, persisted state
+(`CHANGES_REQUESTED`, `COMMENTED`, `APPROVED`, etc.), and submission time, so a later review can be recognized as
+superseding an earlier `CHANGES_REQUESTED` review — and, when `dry_run` or `no_reply` suppressed this round's
 publication, this round's validated local findings as `finding:<head-sha>:<ordinal>` sources. A `finding:` source has
 no GitHub artifact and therefore no reply/resolve action of its own; its terminal state is governed entirely by the
 mode-suppression handling in steps 9–11, never `resolved` or `not_resolvable`. A blocking rationale that exists only
@@ -196,17 +197,17 @@ change resets this counter, since it consumes the review-attempt budget instead.
    `no_reply` is set, submit exactly one GitHub pull-request review with action `COMMENT` and capture the returned
    review identifier. Include a non-empty top-level body in every review. Put safely anchorable findings in inline
    review comments and summarize any remaining unanchorable findings as distinct items in the review body. If there
-   are no actionable findings, state in the review body that no actionable issues were found. Never use `APPROVE` or
-   `REQUEST_CHANGES` for this loop's own review submission. After submission, re-fetch the PR and verify that the
-   specific returned review identifier exists for the exact reviewed head with persisted state `COMMENTED`, that
-   every intended inline review comment was published, and that every intended unanchorable finding is present in
-   that persisted review body; exit status alone is not sufficient. A failed, missing, or unverifiable required
-   review publication is a blocker. When `dry_run` or `no_reply`
-   suppresses this required review, append a `run_mode_skips` entry with source ID
-   `review-publication:<head-sha>`, disposition `publish_review`, the active suppressing mode, suppressed action
-   `submit COMMENT review`, and terminal state `skipped_by_mode`. This synthetic ID is ledger-only and is not a
-   feedback source. Retain the validated arbitrated findings locally regardless of whether an active execution
-   constraint suppressed this step's publication.
+   are no actionable findings from this review pass, state in the review body that no new actionable findings were
+   found in this review pass; do not imply that existing feedback has been cleared before `feedback-analysis` runs.
+   Never use `APPROVE` or `REQUEST_CHANGES` for this loop's own review submission. After submission, re-fetch the PR
+   and verify that the specific returned review identifier exists for the exact reviewed head with persisted state
+   `COMMENTED`, that every intended inline review comment was published, and that every intended unanchorable finding
+   is present in that persisted review body; exit status alone is not sufficient. A failed, missing, or unverifiable
+   required review publication is a blocker. When `dry_run` or `no_reply` suppresses this required review, append a
+   `run_mode_skips` entry with source ID `review-publication:<head-sha>`, disposition `publish_review`, the active
+   suppressing mode, suppressed action `submit COMMENT review`, and terminal state `skipped_by_mode`. This synthetic
+   ID is ledger-only and is not a feedback source. Retain the validated arbitrated findings locally regardless of
+   whether an active execution constraint suppressed this step's publication.
 7. Dispatch one fresh `feedback-analysis` subagent over every current feedback source — inline review
    threads/comments, PR-level comments, and review submissions/bodies (including any `CHANGES_REQUESTED` review
    whose blocking rationale lives only in the review body) — plus this round's arbitrated findings: the published
