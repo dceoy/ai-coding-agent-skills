@@ -91,25 +91,35 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    The Bash grant is safe only when this wrapper enforces that host-side allow-list. If it is unavailable, cannot prove
    those controls, or would pass through an unfiltered raw CLI, stop with `stop_reason: unavailable`.
 
-3. Use a browser profile dedicated to X and stored outside the repository. The runtime must select and validate an
-   absolute profile path before starting; a caller-provided `X_TIMELINE_PROFILE` is acceptable only when it is known to
-   be dedicated to X and outside the repository. Derive a dedicated session ID and pass the same session, profile,
-   content-boundary, output-limit, structured-output, confirmation, and action-policy options to every collection command:
+3. Use one of two mutually exclusive browser modes. In local mode, use a browser profile dedicated to X and stored
+   outside the repository. The runtime must select and validate an absolute profile path before starting; a
+   caller-provided `X_TIMELINE_PROFILE` is acceptable only when it is known to be dedicated to X and outside the
+   repository. Pass the same session, local profile, content-boundary, output-limit, structured-output, confirmation,
+   and action-policy options to every local collection command. The command examples in this skill are local-mode
+   examples and must not be used for remote CDP sessions.
+
+   The trusted host must perform the session bootstrap exactly once, before any fresh-shell handoff:
 
    ```bash
-   export x_timeline_profile="<absolute dedicated X profile path outside the repository>"
    export x_timeline_invocation_nonce="<fresh unpredictable nonce supplied by the invoking runtime>"
-   export x_timeline_session="$(x-timeline-browser session id --scope worktree --prefix "x-timeline-$x_timeline_invocation_nonce")"
+   x_timeline_session="$(x-timeline-browser session id --scope worktree --prefix "x-timeline-$x_timeline_invocation_nonce")"
    ```
 
-   Keep this shell alive for the entire workflow. If the runtime starts a fresh shell for each Bash command, repeat the
-   complete initialization block in that shell, including `x_timeline_profile`, `x_timeline_invocation_nonce`,
-   `ACTION_POLICY`, and `x_timeline_session`; never rely on a variable exported by an earlier shell. The invoking
-   runtime must generate the nonce from a cryptographically secure source before this block, never derive it from page
-   or repository content, and never print or persist it. The runtime must reject a reused or already-active session ID;
-   if it cannot make that check, stop with `stop_reason: unavailable`. Reuse the same nonce when repeating the block in
-   a fresh shell so all commands remain on this invocation's dedicated session, but never reuse it in another
-   invocation.
+   Then initialize each local Bash shell with the host-issued value:
+
+   ```bash
+   export x_timeline_profile="<absolute dedicated local X profile path outside the repository>"
+   export x_timeline_invocation_nonce="<the same nonce securely injected by the trusted host>"
+   export x_timeline_session="<opaque session ID supplied by the trusted host>"
+   ```
+
+   Bootstrap the session ID once, before the first browser operation, through the trusted wrapper/host's
+   dedicated-session operation. The host must generate the nonce from a cryptographically secure source, never derive
+   it from page or repository content, never print or persist it, reject a reused or already-active session ID, and
+   retain the resulting opaque ID for this invocation. If the host cannot securely hand that same ID to a fresh Bash
+   shell, stop with `stop_reason: unavailable`. When the runtime starts a fresh shell, repeat only the profile,
+   policy, and other non-session assignments; inject the original `x_timeline_session` value from the trusted host
+   and never rerun session-ID derivation or create a second session. Never reuse the ID in another invocation.
 
    The profile may contain authentication cookies, so never print, inspect, copy, commit, or upload it. If initial
    authentication is needed, ask the user to complete it interactively in a headed session using that dedicated
@@ -127,8 +137,9 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    Overwrite any inherited `ACTION_POLICY` value with this bundled path. Before the first browser command, require
    `x_timeline_skill_dir` to be a non-empty absolute path and require the resulting policy file to exist and be
    readable. If the skill loader cannot provide or validate that path, stop with `stop_reason: unavailable`; never
-   continue with a caller-supplied policy. Repeat these assignments in every fresh shell together with the profile and
-   session assignments above. The native policy checker exact-matches daemon action names, so the bundled allow-list
+   continue with a caller-supplied policy. Repeat these policy assignments in every fresh local shell together with the
+   local profile and the host-injected opaque session value; do not rerun session bootstrap. The native policy checker
+   exact-matches daemon action names, so the bundled allow-list
    uses the raw actions emitted by the documented commands rather than top-level CLI categories:
 
    ```json
@@ -337,30 +348,40 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    Inspect the click response before approval and verify structured success after confirmation. Do not use the old
    `main article a[href*='/status/']` selector as the switch wait, because it may already match the previous feed.
 
-   Enter a separate bounded tab-switch synchronization loop, independent of `max_iterations`: use at most 10
-   attempts across the entire loop and enforce a fixed 30-second deadline from the successful click confirmation.
-   Every wait and snapshot must also use the wrapper's bounded per-command timeout. Before each attempt, require the
-   approved `https://x.com` origin; wait a fixed 500 ms, verify that the requested tab is selected, and inspect a
-   fresh complete rendered `main` snapshot. Record the ordered visible top-level status-ID sequence and, when a
-   switch occurred, validate its trusted post-click feed-provenance record. Continue only after the requested tab is
-   selected on two consecutive attempts, the exact same ordered target sequence is observed on those attempts, and
-   both attempts carry valid post-click provenance. A fresh status ID is not required: Following and For You may
-   legitimately share posts. If an explicit loading or transition indicator is exposed, require it to be clear before
-   an attempt counts as stable; absence of such an indicator is not a failure.
+   Enter a separate bounded tab-switch synchronization loop, independent of `max_iterations`. Start an absolute
+   30-second synchronization deadline immediately before the first synchronization attempt; when a click was needed,
+   this is immediately after successful confirmation, and when the requested tab was already selected, this is before
+   the first selected-state check. Use at most 10 attempts across the entire loop. Pass the remaining deadline budget
+   to every nested readiness/origin/wait/snapshot operation; refuse to start an operation whose bounded timeout could
+   exceed the deadline, and never reset the deadline across a fresh shell or reconnect. Before each attempt, require
+   the approved `https://x.com` origin; wait a fixed 500 ms, verify that the requested tab is selected, and inspect
+   a fresh complete rendered `main` snapshot. Record the ordered visible top-level status-ID sequence and validate
+   a trusted target-binding record for the requested tab. When a switch occurred, also validate its trusted post-click
+   feed-provenance record. Continue only after the requested tab is selected on two consecutive attempts, the exact same
+   ordered target sequence is observed on those attempts, and both attempts carry valid target binding; switched tabs
+   must also carry valid post-click provenance. A fresh status ID is not required: Following and For You may legitimately
+   share posts. If an explicit loading or transition indicator is exposed, require it to be clear before an attempt
+   counts as stable; absence of such an indicator is not a failure.
 
    Discard the entire pre-click snapshot as a collection source. Do not carry a permanent pre-click ID quarantine into
    later reads. Once synchronization succeeds, the final target snapshot and all later target snapshots are
-   authoritative; retain shared and newly appearing IDs and deduplicate them across reads. If the requested tab is
-   already selected, no replacement provenance is required, but still verify it on two consecutive stable attempts
-   before reading. If the selected target, stable sequence, trusted provenance, 10-attempt cap, or 30-second deadline
-   cannot be satisfied, stop with `truncated: true` and
+   authoritative; retain shared and newly appearing IDs and deduplicate them across reads. Save the trusted
+   session-bound target binding established by the final stable snapshot as the expected binding for later reads. If
+   the requested tab is already selected, no replacement provenance is required, but its trusted target binding is still
+   required and it must be verified on two consecutive stable attempts before reading. If the selected target, stable
+   sequence, trusted binding/provenance, 10-attempt cap, or 30-second deadline cannot be satisfied, stop with
+   `truncated: true` and
    `stop_reason: unavailable`; never mix unverified pre-switch DOM into collection for the requested tab.
    If the controls are not exposed semantically or selection cannot be verified, stop with `stop_reason: unavailable`
    rather than clicking an ambiguous text match. Never click post links, media, profile links, or engagement controls.
 
 4. Read post bodies from rendered content scoped to `main`, never from the interactive-only snapshot. Immediately
    before this read and before every later scroll/read cycle, pass the reusable origin/authentication/readiness gate
-   above; require the approved `https://x.com` origin again immediately before taking the post snapshot:
+   above and reassert the requested tab plus a trusted target-binding record for the current snapshot. The record must
+   remain bound to this session and be compatible with the expected binding saved after synchronization; a changed,
+   missing, or unverifiable binding requires discarding the snapshot and rerunning tab synchronization. Require the
+   approved `https://x.com` origin again immediately before taking the post snapshot. Never parse posts until all
+   these checks pass:
 
    ```bash
    x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
@@ -435,8 +456,12 @@ dedicated local-session cleanup.
 
 ## Remote browser support
 
-If a local Chrome cannot be used, attach only through agent-browser's supported CDP/session mechanisms and a dedicated
-X-only remote Chrome/profile. Do not attach to a general-purpose user-owned browser. When sharing a CDP browser,
+Remote CDP mode is mutually exclusive with local mode. Do not set `x_timeline_profile` or pass local `--profile`
+to a remote command. If a local Chrome cannot be used, attach only through agent-browser's supported CDP/session
+mechanisms and a dedicated X-only remote Chrome/profile. The trusted wrapper must expose a separate remote bootstrap
+contract that accepts only an explicit authenticated CDP/session transport and `--pin-tab`, attests the dedicated
+remote browser/profile, and returns the same opaque session ID for the invocation. Do not attach to a general-purpose
+user-owned browser. When sharing a CDP browser,
 initialize the session with an explicit `--pin-tab` option and verify the pinned tab's URL and origin before reading. If
 the dedicated browser, pinned-tab, or origin invariant cannot be verified, stop with `stop_reason: unavailable`.
 
