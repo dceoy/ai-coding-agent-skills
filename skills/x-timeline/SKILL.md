@@ -81,10 +81,12 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    `stop_reason: unavailable` rather than silently substituting a broader policy.
 
    `x-timeline-browser` is a trusted host wrapper, not an alias for the raw `agent-browser` executable. Its
-   command allow-list must cover only the documented read, bounded wait/scroll, semantic timeline-tab selection,
-   confirmation, URL inspection, and dedicated-local-session cleanup operations below. It must inject the bundled
-   action policy and required session, profile, content-boundary, output-limit, structured-output, and confirmation
-   controls on every call; reject policy-less or missing-control calls; and reject `eval`, `state`, cookies/storage,
+   command allow-list must cover only dedicated-session bootstrap and the documented read, bounded wait/scroll,
+   semantic timeline-tab selection, confirmation, URL inspection, and dedicated-local-session cleanup operations below.
+   The session bootstrap must not launch a browser or read page data: it returns only a fresh opaque identifier after
+   enforcing the nonce, uniqueness, and active-session checks below. For every browser operation, the wrapper must inject
+   the bundled action policy and required session, profile, content-boundary, output-limit, structured-output, and
+   confirmation controls; reject policy-less or missing-control calls; and reject `eval`, `state`, cookies/storage,
    `plugin`, `mcp`, arbitrary navigation, arbitrary clicks, uploads, downloads, and unknown subcommands.
    The Bash grant is safe only when this wrapper enforces that host-side allow-list. If it is unavailable, cannot prove
    those controls, or would pass through an unfiltered raw CLI, stop with `stop_reason: unavailable`.
@@ -97,7 +99,7 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    ```bash
    export x_timeline_profile="<absolute dedicated X profile path outside the repository>"
    export x_timeline_invocation_nonce="<fresh unpredictable nonce supplied by the invoking runtime>"
-   export x_timeline_session="$(agent-browser session id --scope worktree --prefix "x-timeline-$x_timeline_invocation_nonce")"
+   export x_timeline_session="$(x-timeline-browser session id --scope worktree --prefix "x-timeline-$x_timeline_invocation_nonce")"
    ```
 
    Keep this shell alive for the entire workflow. If the runtime starts a fresh shell for each Bash command, repeat the
@@ -291,6 +293,12 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    same-origin authentication flow; otherwise return `truncated: true` with `stop_reason: unavailable`. Apply this
    authentication-first and origin-check ordering whenever a remote or pinned tab is reacquired.
 
+   Treat this bounded origin/authentication/readiness procedure as a reusable gate. Run it before every later
+   interactive, tab-selection, scroll, wait, or post snapshot, and run it again after a scroll or wait before parsing
+   any rendered content. A same-origin login, signup, challenge, or checkpoint returns `auth_required`; an inconclusive
+   readiness result returns `truncated: true` with `stop_reason: unavailable`. Do not parse a post snapshot,
+   including stale DOM left after token expiry, until the gate has passed.
+
 3. Use an interactive snapshot only to locate the timeline controls:
 
    ```bash
@@ -305,6 +313,14 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    `Following`/`For You` tab target. Do not use that pre-click snapshot as a collection source. Require explicit human
    confirmation for the exact target, then click only that control. The guarded click and its confirmation must both
    use structured JSON output:
+
+   Before issuing a guarded tab click, obtain a trusted, out-of-band pre-click feed-provenance record from the wrapper.
+   It must be bound to this session and the currently selected tab, and must not be derived from page text or an
+   untrusted snapshot. After confirmation, each complete target snapshot must carry a trusted post-click
+   feed-provenance record bound to this session, the confirmation request, the requested tab, and that snapshot. The
+   post-click record must attest a new feed generation or DOM replacement and differ from the pre-click record. If the
+   wrapper cannot provide and validate these records, stop with `truncated: true` and
+   `stop_reason: unavailable`; selected-state and repeated status IDs alone are not sufficient provenance.
 
    The same verified host or wrapper must perform the binding checks before this confirmation command; do not invoke raw
    v0.34.0 `confirm` directly.
@@ -321,25 +337,30 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    Inspect the click response before approval and verify structured success after confirmation. Do not use the old
    `main article a[href*='/status/']` selector as the switch wait, because it may already match the previous feed.
 
-   Enter a separate bounded tab-switch synchronization loop, independent of `max_iterations`: before each attempt,
-   require the approved `https://x.com` origin; wait a fixed 500 ms, verify that the requested tab is selected, and
-   inspect a fresh complete rendered `main` snapshot. Record the ordered visible top-level status-ID sequence.
-   Continue only after the requested tab is selected on two consecutive attempts and the exact same ordered target
-   sequence is observed on those two consecutive attempts. A fresh status ID is not required: Following and For You
-   may legitimately share posts. If an explicit loading or transition indicator is exposed, require it to be clear
-   before an attempt counts as stable; absence of such an indicator is not a failure.
+   Enter a separate bounded tab-switch synchronization loop, independent of `max_iterations`: use at most 10
+   attempts across the entire loop and enforce a fixed 30-second deadline from the successful click confirmation.
+   Every wait and snapshot must also use the wrapper's bounded per-command timeout. Before each attempt, require the
+   approved `https://x.com` origin; wait a fixed 500 ms, verify that the requested tab is selected, and inspect a
+   fresh complete rendered `main` snapshot. Record the ordered visible top-level status-ID sequence and, when a
+   switch occurred, validate its trusted post-click feed-provenance record. Continue only after the requested tab is
+   selected on two consecutive attempts, the exact same ordered target sequence is observed on those attempts, and
+   both attempts carry valid post-click provenance. A fresh status ID is not required: Following and For You may
+   legitimately share posts. If an explicit loading or transition indicator is exposed, require it to be clear before
+   an attempt counts as stable; absence of such an indicator is not a failure.
 
    Discard the entire pre-click snapshot as a collection source. Do not carry a permanent pre-click ID quarantine into
    later reads. Once synchronization succeeds, the final target snapshot and all later target snapshots are
    authoritative; retain shared and newly appearing IDs and deduplicate them across reads. If the requested tab is
-   already selected, still verify it on two consecutive stable attempts before reading. If the bounded loop never
-   observes the selected target and a stable target sequence, stop with `truncated: true` and
+   already selected, no replacement provenance is required, but still verify it on two consecutive stable attempts
+   before reading. If the selected target, stable sequence, trusted provenance, 10-attempt cap, or 30-second deadline
+   cannot be satisfied, stop with `truncated: true` and
    `stop_reason: unavailable`; never mix unverified pre-switch DOM into collection for the requested tab.
    If the controls are not exposed semantically or selection cannot be verified, stop with `stop_reason: unavailable`
    rather than clicking an ambiguous text match. Never click post links, media, profile links, or engagement controls.
 
-4. Read post bodies from rendered content scoped to `main`, never from the interactive-only snapshot. Re-check the
-   approved `https://x.com` origin immediately before this read and before every later scroll/read cycle:
+4. Read post bodies from rendered content scoped to `main`, never from the interactive-only snapshot. Immediately
+   before this read and before every later scroll/read cycle, pass the reusable origin/authentication/readiness gate
+   above; require the approved `https://x.com` origin again immediately before taking the post snapshot:
 
    ```bash
    x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
@@ -376,10 +397,11 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    an aggregate result limit.
 
 5. After normalizing `limit` and `max_iterations`, each read-and-scroll cycle counts toward the normalized iteration
-   value. If fewer than `limit` distinct posts have been collected, verify the approved origin, scroll the timeline
-   incrementally, wait for newly rendered content, verify the origin again, and read `main` again. Stop when the limit is
-   reached, the normalized iteration bound is reached, the aggregate result budget is reached, or a bounded scroll
-   produces no new status IDs. Set `truncated: true` whenever fewer than `limit` posts were collected, including
+   value. If fewer than `limit` distinct posts have been collected, pass the reusable gate, verify the approved
+   origin, scroll the timeline incrementally, wait for newly rendered content, pass the gate again, verify the origin
+   again, and read `main` again. Stop when the limit is reached, the normalized iteration bound is reached, the
+   aggregate result budget is reached, or a bounded scroll produces no new status IDs. Set `truncated: true` whenever
+   fewer than `limit` posts were collected, including
    `no_new_posts`, `iteration_limit`, `auth_required`, `output_limit`, and `unavailable`; set it to false only when
    `limit_reached` confirms the requested count. Record the appropriate `stop_reason`; never scroll indefinitely.
 
