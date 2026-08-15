@@ -99,10 +99,11 @@ Install and authenticate the required CLI tools before running skills:
   - ChatGPT: sign in for Oracle browser mode
   - Remote browser routing is optional and uses Oracle's native configuration
 - **agent-browser** - For `x-timeline`
-  - Runtime prerequisite: use a version-matched CLI or trusted host/wrapper that independently validates the session,
-    confirmation token, action/category, and exact target.
+  - Runtime prerequisite: install a trusted host/wrapper at the fixed path `/usr/local/libexec/x-timeline-browser`; it
+    must independently validate the session, confirmation token, action/category, and exact target.
   - Raw `agent-browser` v0.34.0 is unsupported, and this repository does not bundle a wrapper. An agent-browser install
-    alone is not sufficient; without the trusted confirmation-capable runtime, `x-timeline` fails closed as unavailable.
+    alone is not sufficient; without the trusted confirmation-capable wrapper at that exact authenticated path,
+    `x-timeline` fails closed as unavailable.
 
 ## Usage notes
 

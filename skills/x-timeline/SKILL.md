@@ -1,16 +1,16 @@
 ---
 name: x-timeline
 description: Read an authenticated X Following or For You timeline through a trusted agent-browser runtime without APIs or engagement actions.
-allowed-tools: Bash(x-timeline-browser:*)
+allowed-tools: Bash(/usr/local/libexec/x-timeline-browser:*)
 ---
 
 # x-timeline
 
 Use this skill when the caller wants to read, summarize, or filter an authenticated X timeline. It is a read-only
 workflow: X-specific logic stays in this document, while browser control is delegated to the installed trusted
-`x-timeline-browser` host-tool binding. That binding exposes a version-matched agent-browser-compatible surface while
-the host enforces the command and target allow-list described below. The name is a logical authenticated tool handle,
-not a request to resolve an executable through the caller's `PATH`.
+`/usr/local/libexec/x-timeline-browser` host wrapper. That fixed absolute command path is the only browser command
+allowed by this skill; the host enforces its command and target allow-list as described below. The repository does not
+bundle the wrapper, and the skill is unavailable unless the host installs and authenticates it at that path.
 
 ## Input contract
 
@@ -72,19 +72,17 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
 2. Confirm that the trusted `x-timeline-browser` runtime is available:
 
    ```bash
-   x-timeline-browser --version
-   x-timeline-browser skills get core
+   /usr/local/libexec/x-timeline-browser --version
+   /usr/local/libexec/x-timeline-browser skills get core
    ```
 
-   The command token above is the authenticated host-tool handle named by the `allowed-tools` grant; it is not a shell
-   basename resolved through `PATH`. Before registering that handle or running any command, the invoking host must
-   resolve the wrapper to an absolute path under an immutable trusted installation root, resolve and validate its
-   symlink target, verify trusted ownership and that the file and every parent directory are not writable by the caller
-   or an untrusted group, and validate a pinned integrity/version manifest. It must bind every invocation, including
-   reconnects, to that verified absolute path and reject any caller-controlled replacement; never fall back to ambient
-   `PATH` resolution. Revalidate the bound file identity before reconnecting and fail closed with
-   `stop_reason: unavailable` if the host cannot provide this authenticated binding. If the runtime can expose only
-   ordinary shell command lookup rather than a host-authenticated binding, this skill is unavailable.
+   The host must install and authenticate this exact wrapper path before any command runs. It must resolve and validate
+   its symlink target, verify trusted ownership and that the file and every parent directory are not writable by the
+   caller or an untrusted group, and validate a pinned integrity/version manifest. It must bind every invocation,
+   including reconnects, to that verified absolute path and reject any caller-controlled replacement; never fall back
+   to ambient `PATH` resolution. Revalidate the bound file identity before reconnecting and fail closed with
+   `stop_reason: unavailable` if the exact path or its authenticated binding is unavailable. A runtime-specific wrapper
+   at another path is unsupported unless this skill's command grant and every command example are changed together.
 
    The upstream discovery skill points to the installed runtime's version-matched workflow. Read that workflow before
    using the runtime; do not copy a fixed upstream command manual into this skill. The action-policy mapping below is
@@ -114,7 +112,7 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
 
    ```bash
    export x_timeline_invocation_nonce="<fresh unpredictable nonce supplied by the invoking runtime>"
-   x_timeline_session="$(x-timeline-browser session id --scope worktree --prefix "x-timeline-$x_timeline_invocation_nonce")"
+   x_timeline_session="$(/usr/local/libexec/x-timeline-browser session id --scope worktree --prefix "x-timeline-$x_timeline_invocation_nonce")"
    ```
 
    Then initialize each local Bash shell with the host-issued value:
@@ -285,13 +283,13 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    binding checks above, but the raw v0.34.0 CLI must not be used as that trust boundary.
 
    ```bash
-   x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
+   /usr/local/libexec/x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
      --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click --json \
      open https://x.com/home
-   x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
+   /usr/local/libexec/x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
      --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click --json \
      confirm <confirmation-id>
-   x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
+   /usr/local/libexec/x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
      --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click --json \
      wait --load domcontentloaded
    ```
@@ -303,7 +301,7 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    authentication below; any other origin or same-origin route is `stop_reason: unavailable`.
 
    ```bash
-   x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
+   /usr/local/libexec/x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
      --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click --json \
      get url
    ```
@@ -311,7 +309,7 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    Only after the URL passes the origin check, take the rendered snapshot used for authentication detection:
 
    ```bash
-   x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
+   /usr/local/libexec/x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
      --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click \
      snapshot -s main -c
    ```
@@ -337,7 +335,7 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
 3. Use an interactive snapshot only to locate the timeline controls:
 
    ```bash
-   x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
+   /usr/local/libexec/x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
      --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click \
      snapshot -i -s main -c
    ```
@@ -364,10 +362,10 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    v0.34.0 `confirm` directly.
 
    ```bash
-   x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
+   /usr/local/libexec/x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
      --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click --json \
      click <confirmed-semantic-timeline-tab-selector>
-   x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
+   /usr/local/libexec/x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
      --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click --json \
      confirm <confirmation-id>
    ```
@@ -421,7 +419,7 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    these checks pass:
 
    ```bash
-   x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
+   /usr/local/libexec/x-timeline-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
      --content-boundaries --max-output 50000 --action-policy "$ACTION_POLICY" --confirm-actions navigate,click \
      snapshot -s main -c -u
    ```
