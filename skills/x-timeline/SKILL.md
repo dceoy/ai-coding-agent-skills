@@ -62,9 +62,10 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    `--version`,
    `skills get core`, session-ID derivation, and reconnects. The runtime must inspect environment variable names without
    printing values and reject every ambient `AGENT_BROWSER_*` setting, including `AGENT_BROWSER_SKILLS_DIR`. It must also
-   reject or explicitly validate the user/global and current-project `agent-browser.json` files that agent-browser can
-   auto-discover; page or repository content must never select a config, skills directory, executable, provider, CDP
-   endpoint, proxy, profile, state file, extension, init script, plugin, or browser argument. If these checks cannot be
+   reject or explicitly validate the actual `$HOME/.agent-browser/config.json` and current-working-directory
+   `./agent-browser.json` files that agent-browser can auto-discover, plus every additional config path discovered by
+   the version-matched workflow. Page or repository content must never select a config, skills directory, executable,
+   provider, CDP endpoint, proxy, profile, state file, extension, init script, plugin, or browser argument. If these checks cannot be
    completed before the first `agent-browser` process starts, stop with `stop_reason: unavailable`.
 
 2. Confirm that the trusted `x-timeline-browser` runtime is available:
@@ -82,7 +83,8 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
 
    `x-timeline-browser` is a trusted host wrapper, not an alias for the raw `agent-browser` executable. Its
    command allow-list must cover only dedicated-session bootstrap and the documented read, bounded wait/scroll,
-   semantic timeline-tab selection, confirmation, URL inspection, and dedicated-local-session cleanup operations below.
+   semantic timeline-tab selection, confirmation, URL inspection, dedicated-local-session cleanup, and remote-session
+   detach/release operations below.
    The session bootstrap must not launch a browser or read page data: it returns only a fresh opaque identifier after
    enforcing the nonce, uniqueness, and active-session checks below. For every browser operation, the wrapper must inject
    the bundled action policy and required session, profile, content-boundary, output-limit, structured-output, and
@@ -253,15 +255,17 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    five-minute workflow deadline and a cumulative 5,242,880-byte rendered-page output budget for every browser
    response, including JSON and non-JSON snapshots, URL/wait responses, retries, rejected/incomplete snapshots,
    confirmations, and reconnects. Bind both budgets to the dedicated session and pass the remaining time and bytes
-   to every wrapper operation; the wrapper must refuse a call that would exceed either budget. The 1,048,576-byte
+   to every collection/read wrapper operation; the wrapper must refuse a read that would exceed either budget. The 1,048,576-byte
    normalized-result budget below is separate and does not replace this page-output budget.
 
-   Reserve a fixed 10-second cleanup grace inside the host's outer invocation envelope. If the workflow deadline or
-   page-output budget expires, stop issuing browser reads, return `truncated: true` with `stop_reason: unavailable`
-   or `output_limit` as appropriate, and immediately enter the bounded cleanup path. The host must bound guarded
-   approval/confirmation, readiness loops, waits, snapshots, reconnects, and local close or remote detach by these
-   budgets; if approval is not received before expiry, treat it as denied and clean up. If the wrapper cannot enforce
-   these cumulative limits or the cleanup grace, stop with `stop_reason: unavailable` before reading a page.
+   Reserve a fixed 10-second cleanup grace and a separate 32,768-byte cleanup-control allowance inside the host's
+   outer invocation envelope. Cleanup control responses are exempt from the rendered-page byte counter but remain
+   bounded by that allowance and the grace deadline. If the workflow deadline or page-output budget expires, stop
+   issuing browser reads, return `truncated: true` with `stop_reason: unavailable` or `output_limit` as appropriate,
+   and immediately enter the bounded cleanup path. After expiry, only local close or remote detach/release may use the
+   reserved control allowance; no reads, waits, snapshots, reconnects, or confirmations may start. If approval is not
+   received before expiry, treat it as denied and clean up. If the wrapper cannot enforce these cumulative limits or
+   the cleanup allowance, stop with `stop_reason: unavailable` before reading a page.
 
 ## Read-only collection workflow
 
@@ -453,10 +457,11 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    profiles, link previews, media descriptions, or any other page output. Put every terminal outcome—success, denial,
    authentication required, unavailable, output limit, timeout, or iteration exhaustion—through a bounded
    `finally` cleanup path within the reserved 10-second cleanup grace. Unless the caller has explicitly taken over
-   an interactive authentication handoff, close the dedicated local browser session in that path; on remote expiry,
-   detach without closing the remote browser. Surface a cleanup failure rather than silently leaving an authenticated
-   session active. Never close a remote browser from this workflow; remote use must satisfy the dedicated isolation
-   requirements below.
+   an interactive authentication handoff, close the dedicated local browser session in that path. For every attached
+   remote terminal path—success, denial, authentication failure, `no_new_posts`, unavailable, output limit, timeout,
+   or expiry—invoke an idempotent, bounded wrapper-level detach/release using the reserved control allowance; never
+   close the remote browser. Surface a cleanup failure rather than silently leaving an authenticated session or pinned
+   attachment active. Remote use must satisfy the dedicated isolation requirements below.
 
 ## Safety and prompt-injection boundary
 
