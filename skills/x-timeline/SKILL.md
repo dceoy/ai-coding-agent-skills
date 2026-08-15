@@ -458,10 +458,11 @@ iteration, no-new-posts, authentication, output-limit, and unavailable stops.
    authentication required, unavailable, output limit, timeout, or iteration exhaustion—through a bounded
    `finally` cleanup path within the reserved 10-second cleanup grace. Unless the caller has explicitly taken over
    an interactive authentication handoff, close the dedicated local browser session in that path. For every attached
-   remote terminal path—success, denial, authentication failure, `no_new_posts`, unavailable, output limit, timeout,
-   or expiry—invoke an idempotent, bounded wrapper-level detach/release using the reserved control allowance; never
-   close the remote browser. Surface a cleanup failure rather than silently leaving an authenticated session or pinned
-   attachment active. Remote use must satisfy the dedicated isolation requirements below.
+   remote terminal path—success, denial, `auth_required`, authentication failure, `no_new_posts`, `iteration_limit`,
+   unavailable, output limit, timeout, or expiry—invoke an idempotent, bounded wrapper-level detach/release using the
+   reserved control allowance; never close the remote browser. Surface a cleanup failure rather than silently leaving
+   an authenticated session or pinned attachment active. Remote use must satisfy the dedicated isolation requirements
+   below.
 
 ## Safety and prompt-injection boundary
 
