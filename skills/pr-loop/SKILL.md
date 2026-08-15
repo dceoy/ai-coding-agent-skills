@@ -198,8 +198,9 @@ change resets this counter, since it consumes the review-attempt budget instead.
    remaining unanchorable findings as distinct items in the review body. If there are no actionable findings, state
    in the review body that no actionable issues were found. Never use `APPROVE` or `REQUEST_CHANGES` for this loop's
    own review submission. After submission, re-fetch the PR and verify that the `COMMENT` review exists for the exact
-   reviewed head and that every intended inline review comment was published; exit status alone is not sufficient.
-   A failed, missing, or unverifiable required review publication is a blocker. When `dry_run` or `no_reply`
+   reviewed head, that every intended inline review comment was published, and that every intended unanchorable
+   finding is present in the persisted review body; exit status alone is not sufficient. A failed, missing, or
+   unverifiable required review publication is a blocker. When `dry_run` or `no_reply`
    suppresses this required review, append a `run_mode_skips` entry with source ID
    `review-publication:<head-sha>`, disposition `publish_review`, the active suppressing mode, suppressed action
    `submit COMMENT review`, and terminal state `skipped_by_mode`. This synthetic ID is ledger-only and is not a
