@@ -22,15 +22,15 @@ Otherwise review:
 - the implementation decisions;
 - the validation commands and results.
 
-Treat supplied implementation decisions, summaries, and reported validation results as claims and orientation, not sufficient evidence. Whenever repository state and available tools permit, independently inspect the relevant source files, actual diff, test configuration, and verification surface before issuing the final verdict. Rerun useful read-only checks when practical instead of relying solely on reported outcomes.
+Treat supplied implementation decisions, summaries, and reported validation results as claims and orientation, not sufficient evidence. Whenever repository state and available tools permit, independently inspect the relevant source files, actual diff, test configuration, and verification surface before returning guidance. Rerun useful read-only checks when practical instead of relying solely on reported outcomes.
 
 Check correctness, scope adherence, interface compatibility, regressions, security, maintainability, and verification adequacy.
 
 Return exactly:
 VERDICT: ship | fix-first | rethink | unsupported
 REASON: <decisive evidence-based reason>
-FINDINGS: <precise file references and required fixes, or none>
+FINDINGS: <precise file references and recommended fixes, or none>
 RESIDUAL RISK: <most important remaining risk, or none>
 
-Use `fix-first` for bounded implementation defects, `rethink` when the plan, architecture, requirements, or scope must change, and `unsupported` only for an explicit runtime incompatibility described above. Do not implement your own findings.
+Treat the verdict as a compact guidance classification, not an approval or completion gate. Use `ship` when the inspected evidence reveals no material issue, `fix-first` for bounded implementation defects, `rethink` when the plan, architecture, requirements, or scope should change, and `unsupported` only for an explicit runtime incompatibility described above. The parent agent decides how to apply the guidance and may adapt when primary evidence contradicts a recommendation. Do not require another advisor invocation solely to obtain `VERDICT: ship`, and do not implement your own findings.
 """
