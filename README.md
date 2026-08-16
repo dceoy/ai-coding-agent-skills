@@ -56,11 +56,11 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 Project-scoped definitions under `.codex/agents/` provide two native read-only Codex roles:
 
 - `planner` - Produce a decision-complete implementation plan with `gpt-5.6-sol`
-- `advisor` - Provide read-only technical advice or final implementation review with `gpt-5.6-sol`
+- `advisor` - Provide on-demand read-only technical advice or implementation review with `gpt-5.6-sol`
 
 Both roles keep `gpt-5.6-sol` pinned but intentionally omit `model_reasoning_effort`. Their reasoning effort is adaptive by dispatch policy: before each native spawn, choose and pass the lowest adequate supported effort for the task instead of inheriting the parent or global default blindly. Use `medium` for routine non-trivial planning or review, `high` for complex or cross-cutting work, and `xhigh` only for unusually demanding work. Implementation is performed directly by the top-level main agent; there are no dedicated Luna or Terra worker subagents. The main agent's reasoning effort remains the user-selected or current-session setting and is not overridden by this routing policy.
 
-For non-trivial changes, invoke `planner` and `advisor` with `fork_turns: "none"`, pass each role only the task-specific context it needs, select the reasoning effort per dispatch using the policy above, and require read-only behavior. The checked-in TOML definitions request read-only sandboxes and remain authoritative for the configured named role, model, and sandbox default; reasoning effort is deliberately a per-dispatch input. Resolve material decisions before main-agent implementation, run verification, and report completion only after an independent `VERDICT: ship`.
+For non-trivial changes, invoke `planner` with `fork_turns: "none"`, pass the task-specific context it needs, select the reasoning effort per dispatch using the policy above, and require read-only behavior. Resolve material decisions before main-agent implementation and run verification. Following Claude Code's [advisor pattern](https://code.claude.com/docs/en/advisor), invoke `advisor` only when a stronger independent second opinion is useful at a key moment, such as before committing to a consequential approach, when progress is stuck or uncertain, or when independent review would materially increase confidence before completion. Advisor consultation is therefore on demand rather than a universal final-review gate, and `VERDICT: ship` is required only when the workflow actually invokes advisor as a blocking review.
 
 Invoke these roles only through native multi-agent dispatch. Report `unsupported` only when native dispatch is unavailable or runtime evidence explicitly shows a fallback, incompatible model override, failure to honor an explicitly requested per-dispatch reasoning effort, inherited context contrary to the requested isolation, or a writable invocation outside a Git worktree; missing runtime telemetry, an adaptively selected reasoning effort, or a writable effective sandbox alone is not a failure when the mutation guard can be established. The named agents must not modify files regardless of available write capability. In a Git worktree, reject a result when the post-dispatch Git-visible state differs from its recorded baseline or available runtime evidence shows a mutating action, including a transient edit later restored. An unborn repository uses an explicit no-`HEAD` sentinel rather than failing the guard. Outside a Git worktree, require an effective read-only sandbox instead of accepting a writable one. This guard protects persistent Git-visible state but does not attest that a writable runtime performed no transient writes. Do not fall back to nested `codex exec`, shell wrappers, copied prompts, or generic agents.
 
@@ -118,26 +118,3 @@ Install and authenticate the required CLI tools before running skills:
 ### CLI not in PATH
 
 - Ensure the tool is installed and accessible: `which <tool-name>`
-- Add the tool's bin directory to your shell PATH
-- Restart your terminal after installation
-
-### Authentication errors
-
-- Re-run the tool's auth command:
-  - Claude Code: Follow onboarding flow
-  - Codex CLI: run `codex login`
-- Verify active subscription or API key
-
-### Symlink issues
-
-- Skill directories are shared from `skills/` via `.agents/skills` and `.claude/skills`
-- If broken, recreate the symlink or ensure `skills/` exists
-- On Windows, ensure symlink support is enabled
-
-## Contributing
-
-See [AGENTS.md](./AGENTS.md) for repository guidelines and agent-specific rules.
-
-## License
-
-See [LICENSE](./LICENSE) for details.
