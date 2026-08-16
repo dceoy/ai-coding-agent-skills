@@ -2,8 +2,6 @@
 
 Agent skills for AI coders
 
-[![CI/CD](https://github.com/dceoy/ai-coding-agent-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/dceoy/ai-coding-agent-skills/actions/workflows/ci.yml)
-
 ## Overview
 
 Single-source, reusable skills and agent prompts shared across AI coding runtimes. The `skills/` directory is the source of truth and is referenced by runtime-specific integrations via `.claude/skills -> ../skills` and per-skill symlinks under `.agents/skills/` (e.g. `.agents/skills/<skill> -> ../../skills/<skill>`). Autonomous or scheduled workflows should invoke these canonical skills instead of maintaining duplicate routine prompts.
