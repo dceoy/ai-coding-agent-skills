@@ -6,6 +6,8 @@ This file is the user-wide installation template. Project-local Codex sessions r
 
 This is Codex's default routing for non-trivial implementation work when no portable skill defines its own orchestration. A portable skill such as `pr-loop` follows its own `SKILL.md` contract instead and may use whichever native independent-subagent mechanism the active runtime provides, without requiring `.codex/agents` or a fixed named agent; see the repository-root `AGENTS.md`'s "Portable native-subagent contract" section for the full contract.
 
+This named-agent routing requires Codex CLI 0.148.0 or later. Codex 0.147.x rejects an explicit `agent_type` on a full-history fork; 0.148.0 adds support for applying configured roles with `fork_turns: "all"`.
+
 `planner` and `advisor` must be invoked through Codex's native multi-agent tools. Do not invoke them through `codex exec`, nested Codex CLI processes, shell wrappers, copied prompts, generic agents, or simulations.
 
 Invoke `planner` with `fork_turns: "all"` so planning inherits the full parent conversation, preserving user intent and prior decisions without a lossy context-packet reconstruction. Invoke `advisor` with `fork_turns: "none"` so advisory work starts from a fresh context; pass only the task-specific contract and primary evidence it needs.

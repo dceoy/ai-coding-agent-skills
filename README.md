@@ -58,6 +58,8 @@ Project-scoped definitions under `.codex/agents/` provide two native read-only C
 - `planner` - Produce a decision-complete implementation plan with `gpt-5.6-sol`
 - `advisor` - Provide on-demand read-only technical advice or implementation review with `gpt-5.6-sol`
 
+This named-agent setup requires Codex CLI 0.148.0 or later. Codex 0.147.x cannot combine an explicit named role with `fork_turns: "all"`; 0.148.0 includes the upstream full-history role support required by the planner routing below.
+
 Both roles keep `gpt-5.6-sol` pinned but intentionally omit `model_reasoning_effort`. Their reasoning effort is adaptive by dispatch policy: before each native spawn, choose and pass the lowest adequate supported effort for the task instead of inheriting the parent or global default blindly. Use `medium` for routine non-trivial planning or review, `high` for complex or cross-cutting work, and `xhigh` only for unusually demanding work. Implementation is performed directly by the top-level main agent; there are no dedicated Luna or Terra worker subagents. The main agent's reasoning effort remains the user-selected or current-session setting and is not overridden by this routing policy.
 
 For non-trivial changes, invoke `planner` with `fork_turns: "all"` so it inherits the full parent conversation, select the reasoning effort per dispatch using the policy above, and require read-only behavior. Let inherited history carry the user's request, prior decisions, constraints, and open questions; add only newly inspected repository state or task-specific evidence needed for planning. Resolve material decisions before main-agent implementation and run verification. Following Claude Code's [advisor pattern](https://code.claude.com/docs/en/advisor), invoke `advisor` with `fork_turns: "none"` only when a stronger independent second opinion is useful at a key moment, such as before committing to a consequential approach, when progress is stuck or uncertain, or before completion when another check would materially increase confidence. Advisor timing is model-driven rather than a mandatory final-review phase. Treat returned verdict labels as guidance classifications rather than approval gates: apply advice that is supported by primary evidence, surface conflicts when verified evidence contradicts a recommendation, rerun relevant verification after changes, and consult advisor again only when another opinion remains useful or the user explicitly requests it. Completion never requires looping solely to obtain `VERDICT: ship`.
@@ -92,7 +94,7 @@ Install and authenticate the required CLI tools before running skills:
 - **Claude Code** - For `.claude/` agents and skills
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
-- **Codex CLI** - For `.agents/skills/` and `.codex/agents/`
+- **Codex CLI 0.148.0+** - For `.agents/skills/` and `.codex/agents/`
   - Install: `npm install -g @openai/codex`
   - Auth: run `codex login`
 - **Oracle CLI** - For `oracle-chatgpt`

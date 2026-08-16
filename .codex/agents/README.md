@@ -2,6 +2,8 @@
 
 These project-scoped TOML files are an optional, Codex-specific native-subagent routing setup for the default `planner`/`advisor` workflow described in the repository-root `AGENTS.md`. Portable skills such as `pr-loop` (`skills/pr-loop/SKILL.md`) do not require them and instead dispatch their own logical subagent roles through whichever native independent-subagent mechanism the active runtime provides.
 
+This named-agent setup requires Codex CLI 0.148.0 or later. Codex 0.147.x rejects an explicit `agent_type` on a full-history fork; 0.148.0 adds support for applying configured roles with `fork_turns: "all"`.
+
 These project-scoped TOML files define two native read-only Codex roles:
 
 - `planner`: `gpt-5.6-sol`, adaptive reasoning effort, read-only. Produces a decision-complete implementation plan.
