@@ -118,3 +118,26 @@ Install and authenticate the required CLI tools before running skills:
 ### CLI not in PATH
 
 - Ensure the tool is installed and accessible: `which <tool-name>`
+- Add the tool's bin directory to your shell PATH
+- Restart your terminal after installation
+
+### Authentication errors
+
+- Re-run the tool's auth command:
+  - Claude Code: Follow onboarding flow
+  - Codex CLI: run `codex login`
+- Verify active subscription or API key
+
+### Symlink issues
+
+- Skill directories are shared from `skills/` via `.agents/skills` and `.claude/skills`
+- If broken, recreate the symlink or ensure `skills/` exists
+- On Windows, ensure symlink support is enabled
+
+## Contributing
+
+See [AGENTS.md](./AGENTS.md) for repository guidelines and agent-specific rules.
+
+## License
+
+See [LICENSE](./LICENSE) for details.
