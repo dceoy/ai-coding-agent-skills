@@ -9,10 +9,14 @@ export NPM_CONFIG_MIN_RELEASE_AGE="${COOLDOWN_DAYS}"
 export PNPM_CONFIG_MINIMUM_RELEASE_AGE=$((COOLDOWN_DAYS * 24 * 60))
 
 # Python
-uv run ruff format .
-uv run ruff check --fix .
-uv run pyright .
-uv run pytest
+if [[ -n "$(git ls-files -- '*.py')" ]]; then
+  uv run ruff format .
+  uv run ruff check --fix .
+  uv run pyright .
+  if [[ -n "$(git ls-files -- 'tests/test_*.py' 'tests/*_test.py' 'tests/**/test_*.py' 'tests/**/*_test.py')" ]]; then
+    uv run pytest
+  fi
+fi
 
 # Markdown
 npx -y prettier --write '**/*.md'
