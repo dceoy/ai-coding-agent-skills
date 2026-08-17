@@ -2,15 +2,17 @@
 
 Use this catalog to construct PR-specific review tasks. Lenses are analysis dimensions, not fixed subagent identities. Select only lenses justified by the diff and repository context.
 
-## Baseline
+## Baseline for unscoped reviews
 
-Every review must cover:
+When the user has not explicitly narrowed the review, every review must cover:
 
 - correctness and changed control flow;
 - regression risk and edge cases;
 - whether tests and documentation match changed behavior.
 
 For a small change, combine these into one or two tasks. For a larger change, split them only where separate scopes or risk hypotheses improve depth.
+
+When the user explicitly narrows the review scope, this baseline is not a license to dispatch or publish outside that scope. Select only the requested lenses, and inspect surrounding code only as needed to validate those in-scope findings. If the requested scope includes tests or documentation, apply those corresponding lenses; otherwise do not add them as mandatory checks.
 
 ## Conditional Lenses
 

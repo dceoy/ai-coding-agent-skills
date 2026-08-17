@@ -10,6 +10,15 @@ Use action `COMMENT`. Do not use `APPROVE` or `REQUEST_CHANGES` unless the user 
 
 Every submitted review must have a non-empty top-level body, including a clean review with no actionable findings.
 
+Every review body must also contain both hidden markers:
+
+```text
+<!-- pr-review-skill -->
+<!-- pr-review-skill-run: <reviewed-head-sha>-<fresh-UTC-timestamp-and-random-nonce> -->
+```
+
+Generate a fresh current-run marker after freezing the reviewed head for every invocation. Do not reuse a marker from a prior run or derive it only from the head SHA or visible body; the marker is the identity used to distinguish duplicate reviews with otherwise identical content.
+
 ## Before Posting
 
 Immediately re-fetch the PR and compare its current head SHA with the SHA reviewed by discovery and validation subagents.
@@ -65,13 +74,14 @@ Do not imply that unrelated existing feedback has been resolved or that the PR i
 
 ## Verification
 
-Capture the identifier returned by the GitHub review mutation when available, then re-fetch the PR's reviews and inline comments.
+Capture the identifier returned by the GitHub review mutation when available, then re-fetch the PR's reviews and inline comments. A returned review ID is the primary identity when present, but current-run marker verification is required on every path, including mutations that return no artifact ID.
 
 Success requires verifying that:
 
 - the specific review exists and is persisted as a COMMENT review;
 - it belongs to the exact reviewed head SHA when that metadata is available;
 - the top-level body matches the intended review content;
+- the exact fresh current-run marker for this invocation is present, so an older review with the same head and body cannot satisfy verification;
 - every intended inline comment exists at the expected changed location.
 
 Do not treat process exit status, HTTP success alone, stdout, a job summary, or the parent's final response as proof that the review was published.
