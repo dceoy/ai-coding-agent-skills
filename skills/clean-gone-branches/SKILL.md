@@ -36,33 +36,51 @@ Before deleting anything, inspect the branch list and worktree list so the user 
 2. **List worktrees** that may need removal for `[gone]` branches:
 
    ```bash
-   git worktree list
+   git worktree list --porcelain
    ```
 
-3. **Remove worktrees and delete `[gone]` branches**. Strip leading `+`, `*`, or spaces from `git branch -v` output before extracting branch names:
+3. **Remove worktrees and delete `[gone]` branches**. Strip leading `+`, `*`, or spaces from `git branch -v` output before extracting branch names. Match worktrees by their exact `refs/heads/<branch>` entry instead of parsing the human-readable worktree summary:
 
    ```bash
-   git branch -v | grep '\[gone\]' | sed 's/^[+* ]//' | awk '{print $1}' | while read branch; do
+   current_branch=$(git branch --show-current)
+   repo_root=$(git rev-parse --show-toplevel)
+
+   git branch -v | grep '\[gone\]' | sed 's/^[+* ]//' | awk '{print $1}' | while IFS= read -r branch; do
      echo "Processing branch: $branch"
-     worktree=$(git worktree list | grep "\\[$branch\\]" | awk '{print $1}')
-     if [ -n "$worktree" ] && [ "$worktree" != "$(git rev-parse --show-toplevel)" ]; then
+
+     if [ "$branch" = "$current_branch" ]; then
+       echo "  Skipping current branch"
+       continue
+     fi
+
+     worktree=$(
+       git worktree list --porcelain |
+         awk -v ref="refs/heads/$branch" '
+           $1 == "worktree" { path = substr($0, 10) }
+           $1 == "branch" && $2 == ref { print path; exit }
+         '
+     )
+
+     if [ -n "$worktree" ] && [ "$worktree" != "$repo_root" ]; then
        echo "  Removing worktree: $worktree"
        git worktree remove --force "$worktree"
      fi
+
      echo "  Deleting branch: $branch"
-     git branch -D "$branch"
+     git branch -D -- "$branch"
    done
    ```
 
-4. **Report results**: List which worktrees and branches were removed. If no branches are marked as `[gone]`, report that no cleanup was needed.
+4. **Report results**: List which worktrees and branches were removed or skipped. If no branches are marked as `[gone]`, report that no cleanup was needed.
 
 ## Safety Notes
 
-- Do not delete the current branch.
+- Do not delete the current branch; skip it even if it is marked `[gone]`.
 - Do not remove the repository's main worktree.
 - Only delete branches shown by `git branch -v` as `[gone]`; do not infer stale branches by name.
+- Match associated worktrees through `git worktree list --porcelain` using the exact branch ref.
 
 ## Outputs
 
-- Console output listing removed worktrees and deleted branches.
+- Console output listing removed worktrees and deleted or skipped branches.
 - If no `[gone]` branches exist, a message indicating no cleanup was needed.

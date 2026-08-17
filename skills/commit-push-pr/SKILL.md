@@ -1,7 +1,7 @@
 ---
 name: commit-push-pr
 description: Commit staged and unstaged changes, push the branch to origin, and open a pull request using the GitHub CLI. Use when the user asks to commit, push, and create a PR in one workflow.
-allowed-tools: Bash(git checkout --branch:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(gh pr create:*), Bash(git diff:*), Bash(git branch:*), Bash(git log:*)
+allowed-tools: Bash(git checkout --branch:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(gh pr create:*), Bash(gh repo view:*), Bash(git diff:*), Bash(git branch:*), Bash(git log:*)
 ---
 
 # Commit, Push, and PR Skill
@@ -33,9 +33,10 @@ Do not include unrelated user changes unless the user explicitly asked to includ
    git status
    git diff HEAD
    git branch --show-current
+   gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
    ```
 
-2. **Create a new branch** if currently on `main` (or the repository's default branch). Use an appropriate prefixed branch name based on the changes, following repository guidance such as `feature/...`, `bugfix/...`, `refactor/...`, `docs/...`, or `chore/...`.
+2. **Create a new branch** if the current branch matches the repository's default branch reported by `gh repo view`. Use an appropriate prefixed branch name based on the changes, following repository guidance such as `feature/...`, `bugfix/...`, `refactor/...`, `docs/...`, or `chore/...`.
 
 3. **Stage and commit** all relevant changes with a concise, descriptive commit message summarizing the changes. Prefer explicit paths over `git add .` when unrelated changes are present.
 
