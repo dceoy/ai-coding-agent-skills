@@ -62,13 +62,19 @@ Check backward compatibility only where the repository or user requires it. Othe
 
 Activate focused test review whenever behavior changes materially or the diff changes test infrastructure.
 
-Review behavioral coverage rather than raw line coverage. Prioritize regressions in core behavior, public contracts, negative/error paths, validation boundaries, concurrency, migrations, and integration points. A test-gap finding must name the concrete regression that would escape detection.
+Review behavioral coverage rather than raw line coverage. Prioritize regressions in core behavior, public contracts, negative/error paths, validation boundaries, concurrency, migrations, and integration points. Check whether changed tests assert stable behavior and contracts rather than incidental implementation details that would make harmless refactoring fail. A test-gap finding must name the concrete regression that would escape detection, and a test-quality finding must identify a material brittleness or false-confidence risk.
 
 ### Documentation
 
 Activate when public behavior, installation, configuration, commands, examples, APIs, defaults, permissions, operational steps, or release-facing behavior changes.
 
 Report factual mismatch or materially missing user/operator guidance. Do not report prose style preferences.
+
+### Code comments
+
+Activate when the PR adds or modifies code comments or docstrings, or when changed implementation makes nearby explanatory comments potentially stale.
+
+Cross-check factual claims against the implementation, including parameters, return behavior, side effects, error conditions, invariants, referenced symbols, examples, complexity claims, TODOs, and FIXMEs. Report comments that are materially false, stale, or misleading, or that omit a non-obvious changed assumption needed to use or maintain the code safely. Do not report wording preferences or comments that merely restate obvious code unless they create concrete maintenance risk.
 
 ### Infrastructure and supply chain
 
@@ -82,11 +88,13 @@ Activate when the change introduces or alters critical operational paths, backgr
 
 Check whether operators can distinguish success, failure, partial completion, and retry exhaustion. Avoid generic requests for more logging.
 
-### Maintainability and simplification
+### Maintainability and code simplification
 
-Activate when the diff introduces material complexity, duplication, speculative abstractions, compatibility layers, extension points, or infrastructure without a current requirement.
+Activate when the diff introduces material complexity, duplication, unnecessary nesting, redundant logic, speculative abstractions, compatibility layers, extension points, overly clever code, or infrastructure without a current requirement.
 
-Apply KISS, DRY, and YAGNI. Report only concrete maintainability cost tied to the changed code. Prefer the smallest coherent existing abstraction and avoid style-only simplification suggestions.
+Apply KISS, DRY, and YAGNI while preserving the changed behavior and project conventions. Look for the smallest coherent simplification that improves clarity, consistency, or maintainability without collapsing useful abstractions or trading readability for fewer lines. Report only concrete costs tied to changed code and avoid style-only suggestions.
+
+This lens is advisory only. Suggest the minimal code change that would simplify the implementation; never edit, refactor, or otherwise mutate repository contents as part of the review.
 
 ## Activation Hints
 
@@ -97,8 +105,9 @@ Use the changed behavior rather than filenames alone. Typical mappings include:
 - async/shared-state/cache changes -> concurrency, lifecycle, tests;
 - schema/SQL/migration changes -> data integrity, compatibility, performance;
 - public API/config/CLI changes -> compatibility, tests, documentation;
+- comments/docstrings or nearby implementation changes -> code comments;
 - retry/catch/fallback/default changes -> error handling, observability;
 - workflow/Docker/Terraform/Kubernetes changes -> infrastructure, permissions, supply chain;
-- large abstraction or framework changes -> correctness, maintainability, compatibility.
+- large abstraction or framework changes -> correctness, maintainability, code simplification, compatibility.
 
 Do not launch a lens merely because it exists in this catalog. The parent must be able to state a concrete risk hypothesis for every dispatched task.
