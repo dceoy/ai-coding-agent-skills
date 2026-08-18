@@ -88,11 +88,13 @@ Activate when the change introduces or alters critical operational paths, backgr
 
 Check whether operators can distinguish success, failure, partial completion, and retry exhaustion. Avoid generic requests for more logging.
 
-### Maintainability and simplification
+### Maintainability and code simplification
 
-Activate when the diff introduces material complexity, duplication, speculative abstractions, compatibility layers, extension points, or infrastructure without a current requirement.
+Activate when the diff introduces material complexity, duplication, unnecessary nesting, redundant logic, speculative abstractions, compatibility layers, extension points, overly clever code, or infrastructure without a current requirement.
 
-Apply KISS, DRY, and YAGNI. Report only concrete maintainability cost tied to the changed code. Prefer the smallest coherent existing abstraction and avoid style-only simplification suggestions.
+Apply KISS, DRY, and YAGNI while preserving the changed behavior and project conventions. Look for the smallest coherent simplification that improves clarity, consistency, or maintainability without collapsing useful abstractions or trading readability for fewer lines. Report only concrete costs tied to changed code and avoid style-only suggestions.
+
+This lens is advisory only. Suggest the minimal code change that would simplify the implementation; never edit, refactor, or otherwise mutate repository contents as part of the review.
 
 ## Activation Hints
 
@@ -106,6 +108,6 @@ Use the changed behavior rather than filenames alone. Typical mappings include:
 - comments/docstrings or nearby implementation changes -> code comments;
 - retry/catch/fallback/default changes -> error handling, observability;
 - workflow/Docker/Terraform/Kubernetes changes -> infrastructure, permissions, supply chain;
-- large abstraction or framework changes -> correctness, maintainability, compatibility.
+- large abstraction or framework changes -> correctness, maintainability, code simplification, compatibility.
 
 Do not launch a lens merely because it exists in this catalog. The parent must be able to state a concrete risk hypothesis for every dispatched task.
