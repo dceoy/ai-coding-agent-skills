@@ -53,9 +53,13 @@ rather than adding a second retry loop to this orchestration.
 
 When a native subagent dispatch runs in the background, wait for and collect its result only through the runtime's
 completion/result mechanism tied to that accepted dispatch. Do not use `ScheduleWakeup`, a generic scheduler or
-wakeup primitive, or an empty follow-up subagent invocation as a substitute for waiting. If the runtime does not
-expose a reliable way to await and collect background subagent results, dispatch the required independent subagents
-sequentially in the foreground instead. Concurrency is optional; fresh independent contexts remain mandatory.
+wakeup primitive, or an empty follow-up subagent invocation as a substitute for waiting. Every accepted dispatch must
+produce a terminal successful result. If that mechanism times out, errors, is cancelled, or yields no terminal result,
+stop the required phase as failed or unsupported and do not launch a replacement unless pre-acceptance rejection is
+proven. If the runtime does not expose a reliable way to await and collect background subagent results, choose
+sequential foreground dispatch before accepting any background dispatch, and only when the runtime exposes a blocking
+native independent-dispatch mode; otherwise report that phase as `unsupported` and stop. Concurrency is optional;
+fresh independent contexts remain mandatory.
 
 ## Execution Constraints
 
