@@ -1,0 +1,18 @@
+{
+  "default": "deny",
+  "allow": [
+    "navigate",
+    "snapshot",
+    "click",
+    "scroll",
+    "wait",
+    "waitforloadstate",
+    "url",
+    "confirm",
+    "close"
+  ],
+  "confirm": [
+    "navigate",
+    "click"
+  ]
+}

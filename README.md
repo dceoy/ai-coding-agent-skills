@@ -43,6 +43,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 ### AI Tools
 
 - `oracle-chatgpt` - Send one arbitrary prompt to ChatGPT through Oracle browser mode and return the captured response without reinterpretation
+- `x-timeline` - Read authenticated X timelines through agent-browser without engagement actions
 
 ### Skill Management
 
@@ -99,6 +100,14 @@ Install and authenticate the required CLI tools before running skills:
   - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode
   - Remote browser routing is optional and uses Oracle's native configuration
+- **agent-browser** - For `x-timeline`
+  - Install: `npm install -g agent-browser` (or the package manager your environment uses), so `agent-browser` is on
+    `PATH`
+  - No custom wrapper, browser service, or MCP server is required or bundled; `x-timeline` invokes `agent-browser`
+    directly and fails closed as unavailable if it is missing or cannot enforce the safeguards `SKILL.md` documents.
+  - The current upstream release, v0.34.0, does not bind a confirmation ID to its pending request, so `x-timeline`'s
+    guarded navigation/tab-selection step fails closed as unavailable on that version; a newer release that closes
+    this gap is required before that step can run.
 
 ## Usage notes
 
