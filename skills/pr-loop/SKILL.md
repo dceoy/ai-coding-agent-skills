@@ -51,6 +51,12 @@ that the dispatch was rejected before any subagent run was accepted or started; 
 failure rather than risking duplicate accepted work. Keep any such retry bounded inside the runtime integration
 rather than adding a second retry loop to this orchestration.
 
+When a native subagent dispatch runs in the background, wait for and collect its result only through the runtime's
+completion/result mechanism tied to that accepted dispatch. Do not use `ScheduleWakeup`, a generic scheduler or
+wakeup primitive, or an empty follow-up subagent invocation as a substitute for waiting. If the runtime does not
+expose a reliable way to await and collect background subagent results, dispatch the required independent subagents
+sequentially in the foreground instead. Concurrency is optional; fresh independent contexts remain mandatory.
+
 ## Execution Constraints
 
 Accept these optional caller constraints, equivalent in effect to the retired triage skill's modes:
