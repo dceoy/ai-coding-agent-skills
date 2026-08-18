@@ -54,12 +54,14 @@ rather than adding a second retry loop to this orchestration.
 When a native subagent dispatch runs in the background, wait for and collect its result only through the runtime's
 completion/result mechanism tied to that accepted dispatch. Do not use `ScheduleWakeup`, a generic scheduler or
 wakeup primitive, or an empty follow-up subagent invocation as a substitute for waiting. Every accepted dispatch must
-produce a terminal successful result. If that mechanism times out, errors, is cancelled, or yields no terminal result,
-stop the required phase as failed or unsupported and do not launch a replacement unless pre-acceptance rejection is
-proven. If the runtime does not expose a reliable way to await and collect background subagent results, choose
-sequential foreground dispatch before accepting any background dispatch, and only when the runtime exposes a blocking
-native independent-dispatch mode; otherwise report that phase as `unsupported` and stop. Concurrency is optional;
-fresh independent contexts remain mandatory.
+produce a terminal successful result. Its completion/result mechanism must enforce a finite runtime-enforced deadline
+and reap or cancel the accepted dispatch when that deadline expires. If the accepted dispatch or its mechanism times
+out, errors, is cancelled, or yields no terminal result, stop the run as a blocker, discard all partial results from
+that phase, and do not launch a replacement unless pre-acceptance rejection is proven. If the runtime cannot provide
+reliable background result collection with bounded waiting and cleanup, choose sequential foreground dispatch before
+accepting any background dispatch, and only when the runtime exposes a blocking native independent-dispatch mode;
+otherwise report that phase as `unsupported` and stop. Concurrency is optional; fresh independent contexts remain
+mandatory.
 
 ## Execution Constraints
 
@@ -441,6 +443,9 @@ Stop without fabricating progress on any of:
   it;
 - exhaustion of any runtime-local retry for a proven pre-acceptance subagent-dispatch contention signal, or any
   ambiguous dispatch failure where acceptance cannot be ruled out;
+- any accepted native subagent dispatch that times out, errors, is cancelled, or yields no terminal result after its
+  bounded wait; discard all partial results from that phase and stop as a blocker rather than continuing with
+  incomplete phase coverage;
 - a `clarify` disposition, or a `defer`/`won't fix` disposition with `decision_terminal: false`, regardless of whether
   its platform source is resolved, replied left open, or `not_resolvable`; leave the decision pending rather than
   treating platform non-resolvability as project terminality, once any applicable reply has been attempted;
