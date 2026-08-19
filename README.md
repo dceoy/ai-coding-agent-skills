@@ -63,7 +63,7 @@ For non-trivial changes, invoke `planner` through native named-agent dispatch, p
 
 Invoke these roles only through native multi-agent dispatch. Report `unsupported` only when native named-role dispatch is unavailable or runtime evidence explicitly shows a generic/different-agent fallback, incompatible model override, failure to honor an explicitly requested per-dispatch reasoning effort, or a writable invocation outside a Git worktree; missing runtime telemetry, inherited parent history, an adaptively selected reasoning effort, or a writable effective sandbox alone is not a failure when the mutation guard can be established. The named agents must not modify files regardless of available write capability. In a Git worktree, reject a result when the post-dispatch Git-visible state differs from its recorded baseline or available runtime evidence shows a mutating action, including a transient edit later restored. An unborn repository uses an explicit no-`HEAD` sentinel rather than failing the guard. Outside a Git worktree, require an effective read-only sandbox instead of accepting a writable one. This guard protects persistent Git-visible state but does not attest that a writable runtime performed no transient writes. Do not fall back to nested `codex exec`, shell wrappers, copied prompts, or generic agents.
 
-See [.codex/agents/README.md](./.codex/agents/README.md) for installation and usage examples.
+See [.codex/agents/README.md](./.codex/agents/README.md) for installation and usage examples. Future planner parent-context inheritance is tracked separately in [#76](https://github.com/dceoy/ai-coding-agent-skills/issues/76).
 
 ## Structure
 
