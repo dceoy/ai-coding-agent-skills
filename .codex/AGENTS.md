@@ -1,10 +1,10 @@
 # Global Codex instructions
 
-This file is the user-wide installation template. Project-local Codex sessions read the same routing policy from the repository-root `AGENTS.md`.
+This file is the user-wide installation template for the named `planner`/`advisor` routing policy. Install it as `$CODEX_HOME/AGENTS.md`; this repository does not duplicate it as a repository-root `AGENTS.md`.
 
 ## Native named-agent dispatch
 
-This is Codex's default routing for non-trivial implementation work when no portable skill defines its own orchestration. A portable skill such as `pr-loop` follows its own `SKILL.md` contract instead and may use whichever native independent-subagent mechanism the active runtime provides, without requiring `.codex/agents` or a fixed named agent; see the repository-root `AGENTS.md`'s "Portable native-subagent contract" section for the full contract.
+This is Codex's default routing for non-trivial implementation work when no portable skill defines its own orchestration. A portable skill such as `pr-loop` follows its own `SKILL.md` contract instead and may use whichever native independent-subagent mechanism the active runtime provides, without requiring `.codex/agents` or a fixed named agent.
 
 `planner` and `advisor` must be invoked through Codex's native multi-agent tools. Do not invoke them through `codex exec`, nested Codex CLI processes, shell wrappers, copied prompts, generic agents, or simulations.
 
