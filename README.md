@@ -93,7 +93,7 @@ Install and authenticate the required CLI tools before running skills:
 - **Claude Code** - For `.claude/` agents and skills
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
-- **Codex CLI 0.148.0+** - For `.agents/skills/` and `.codex/agents/`
+- **Codex CLI** - For `.agents/skills/`; Codex CLI 0.148.0+ is required for `.codex/agents/`
   - Install: `npm install -g @openai/codex`
   - Auth: run `codex login`
 - **Oracle CLI** - For `oracle-chatgpt`
