@@ -23,13 +23,11 @@ npx -y prettier --write '**/*.md'
 if [[ -f .markdownlint-cli2.jsonc ]]; then
   git ls-files -z -- '*.md' '*.mdx' | xargs -0 -t npx -y markdownlint-cli2 --fix --config .markdownlint-cli2.jsonc
 else
-  printf '{"config":{"MD013":false,"MD033":false,"MD041":false}}' > .markdownlint-cli2.jsonc
-  set +e
-  git ls-files -z -- '*.md' '*.mdx' | xargs -0 -t npx -y markdownlint-cli2 --fix --config .markdownlint-cli2.jsonc
-  markdownlint_exit_code="${?}"
-  set -e
-  rm -f .markdownlint-cli2.jsonc
-  [[ "${markdownlint_exit_code}" -eq 0 ]] || exit "${markdownlint_exit_code}"
+  (
+    trap 'rm -f .markdownlint-cli2.jsonc' EXIT
+    printf '%s\n' '{"config":{"MD013":false,"MD033":false,"MD041":false}}' > .markdownlint-cli2.jsonc
+    git ls-files -z -- '*.md' '*.mdx' | xargs -0 -t npx -y markdownlint-cli2 --fix --config .markdownlint-cli2.jsonc
+  )
 fi
 
 # GitHub Actions
