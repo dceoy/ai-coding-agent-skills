@@ -208,8 +208,10 @@ change resets this counter, since it consumes the review-attempt budget instead.
    initialize an empty run-level `run_mode_skips` ledger; unlike per-head feedback baselines, this ledger survives
    head changes and review-attempt transitions for the lifetime of the loop. Unless `dry_run` or `no_reply` suppresses
    review publication, preflight GitHub access here before dispatching any review subagent: verify that the active
-   authentication can retrieve the PR feedback needed by this loop and can submit and subsequently verify a
-   `COMMENT` review on this PR. If authentication or permission is unavailable, stop before spending a review attempt.
+   authentication can retrieve the PR feedback needed by this loop and, when the runtime exposes an authoritative
+   non-mutating write-permission check, run that check without submitting a probe review. Otherwise let the actual
+   step-6 submission be the write-permission test. If authentication or permission is unavailable, stop before
+   spending a review attempt.
 2. Record the exact current head SHA.
 3. Dispatch the three `review` subagents against that exact head.
 4. Re-fetch the head. If it changed while `review` was running, discard the whole round without acting on it and
