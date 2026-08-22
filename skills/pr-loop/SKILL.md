@@ -45,6 +45,13 @@ Do not satisfy this requirement by:
 If the active runtime exposes no native mechanism capable of an independent subagent for a required phase, report
 that phase's result as `unsupported` and stop under Stop Conditions below rather than downgrading it silently.
 
+Capability detection belongs exclusively to the top-level main agent before it dispatches a required phase. Once the
+runtime accepts a planning, review, or feedback-analysis dispatch, that child is a terminal leaf for the assigned
+role and must perform the requested analysis directly in its current fresh context. It must not re-enter `pr-loop`,
+dispatch another subagent, test whether nested delegation is available, or report `unsupported` merely because the
+leaf itself cannot launch further agents. A leaf may report only its assigned role result; runtime capability and
+dispatch-acceptance failures are orchestration results owned by the top-level main agent.
+
 Do not retry a failed native subagent dispatch based on generic `busy` text, substring matches, provider-specific CLI
 rendering, or any other ambiguous prose. Retry only when the active runtime exposes a stable discriminator proving
 that the dispatch was rejected before any subagent run was accepted or started; otherwise stop and report the
@@ -95,6 +102,9 @@ Give every dispatch an explicit context packet instead of inherited conversation
 - `REPOSITORY CONTEXT`: relevant repository state, architecture, and conventions needed for the role.
 - `NON-NEGOTIABLE CONSTRAINTS`: project/user constraints, compatibility, security requirements, explicit exclusions,
   and any active Execution Constraint from above.
+- `DELEGATION BOUNDARY`: state that this dispatch has already been accepted as a terminal leaf for its assigned role;
+  it must perform that role directly, must not invoke or re-enter `pr-loop`, must not dispatch another subagent, and
+  must not re-evaluate the top-level runtime's independent-subagent capability.
 - Role-specific evidence (below).
 
 ### `planning`
@@ -196,7 +206,10 @@ change resets this counter, since it consumes the review-attempt budget instead.
    Record its head repository and head ref alongside the PR number; every fix commit and push in this loop targets
    that exact head repository/ref, never an implicit upstream inferred from wherever the loop happened to start. Also
    initialize an empty run-level `run_mode_skips` ledger; unlike per-head feedback baselines, this ledger survives
-   head changes and review-attempt transitions for the lifetime of the loop.
+   head changes and review-attempt transitions for the lifetime of the loop. Unless `dry_run` or `no_reply` suppresses
+   review publication, preflight GitHub access here before dispatching any review subagent: verify that the active
+   authentication can retrieve the PR feedback needed by this loop and can submit and subsequently verify a
+   `COMMENT` review on this PR. If authentication or permission is unavailable, stop before spending a review attempt.
 2. Record the exact current head SHA.
 3. Dispatch the three `review` subagents against that exact head.
 4. Re-fetch the head. If it changed while `review` was running, discard the whole round without acting on it and
