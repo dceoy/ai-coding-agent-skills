@@ -1,5 +1,5 @@
 ---
-name: haiku-worker
+name: haiker
 description: Low-cost repository worker for codebase exploration, code search, routine implementation, mechanical refactoring, focused debugging, testing, linting, formatting, and verification. Use proactively for well-scoped work that Haiku can handle reliably, and prefer this agent over the built-in Explore agent for repository exploration.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: haiku

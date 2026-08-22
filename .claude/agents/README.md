@@ -1,8 +1,8 @@
 # Claude Code custom subagent
 
-`haiku-worker.md` defines one low-cost Claude Code subagent for repository exploration and routine implementation work. It pins `model: haiku` while leaving architecture, ambiguous decisions, high-risk reasoning, and final validation with the parent model.
+`haiker.md` defines one low-cost Claude Code subagent for repository exploration and routine implementation work. It pins `model: haiku` while leaving architecture, ambiguous decisions, high-risk reasoning, and final validation with the parent model.
 
-The companion `.claude/CLAUDE.md` routing policy tells the parent Claude Code session to prefer `haiku-worker` over the built-in `Explore` agent for repository exploration when Haiku is adequate. The built-in agent remains available as a fallback; this setup does not deny `Agent(Explore)` globally.
+The companion `.claude/CLAUDE.md` routing policy tells the parent Claude Code session to prefer `haiker` over the built-in `Explore` agent for repository exploration when Haiku is adequate. The built-in agent remains available as a fallback; this setup does not deny `Agent(Explore)` globally.
 
 ## User-wide installation
 
@@ -13,12 +13,12 @@ From this repository, install the worker as a regular file:
 ```bash
 mkdir -p "$HOME/.claude/agents"
 
-if [ -e "$HOME/.claude/agents/haiku-worker.md" ] || [ -L "$HOME/.claude/agents/haiku-worker.md" ]; then
-  printf 'Preserve and merge or remove %s before installation.\n' "$HOME/.claude/agents/haiku-worker.md" >&2
+if [ -e "$HOME/.claude/agents/haiker.md" ] || [ -L "$HOME/.claude/agents/haiker.md" ]; then
+  printf 'Preserve and merge or remove %s before installation.\n' "$HOME/.claude/agents/haiker.md" >&2
   exit 1
 fi
 
-cp .claude/agents/haiku-worker.md "$HOME/.claude/agents/haiku-worker.md"
+cp .claude/agents/haiker.md "$HOME/.claude/agents/haiker.md"
 ```
 
 Then install the routing policy without overwriting existing personal instructions:
@@ -38,7 +38,7 @@ A running Claude Code session watches existing `~/.claude/agents/` directories f
 ```text
 main model
 ├── architecture / planning / ambiguous decisions / final validation
-└── haiku-worker
+└── haiker
     ├── repository exploration and code search
     ├── routine decision-complete implementation
     ├── mechanical refactoring and focused debugging
