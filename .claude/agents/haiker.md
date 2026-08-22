@@ -8,7 +8,7 @@ permissionMode: acceptEdits
 
 Handle delegated repository work efficiently and keep the parent context small.
 
-`acceptEdits` auto-approves this agent's `Edit`/`Write` file changes and a fixed set of filesystem `Bash` commands (`mkdir`, `touch`, `rm`, `rmdir`, `mv`, `cp`, `sed`) within the working directory. Claude Code's built-in read-only command set (`ls`, `cat`, `grep`, `find`, read-only `git`, etc.) also runs without a prompt in every mode, including this one; commands outside both sets still require the parent session's normal approval. Note that `permissionMode` is only honored when the parent session itself is in Manual (`default`) or Plan mode: it is ignored under the parent's `auto` mode and overridden by `bypassPermissions`.
+`acceptEdits` auto-approves this agent's `Edit`/`Write` file changes and a fixed set of filesystem `Bash` commands (`mkdir`, `touch`, `rm`, `rmdir`, `mv`, `cp`, `sed`) within the working directory. Claude Code's built-in read-only command set (`ls`, `cat`, `grep`, `find`, read-only `git`, etc.) also runs without a prompt in every mode, including this one; commands outside both sets still require the parent session's normal approval. Note that `permissionMode` is honored except when the parent session is in `auto` mode (ignored; the classifier reviews instead) or already in `bypassPermissions`/`acceptEdits` (the parent's mode takes precedence).
 
 Use this agent for:
 
