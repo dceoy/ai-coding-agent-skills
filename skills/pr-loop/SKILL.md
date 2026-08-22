@@ -64,11 +64,14 @@ wakeup primitive, or an empty follow-up subagent invocation as a substitute for 
 that returns no completed child while an accepted dispatch is still running is only a polling result, not a dispatch
 timeout: call the same completion/result mechanism again for the same accepted dispatch IDs without launching any
 replacement work. Bound the accepted dispatch's overall lifetime with a finite runtime-enforced task deadline that is
-independent of any shorter polling/wait-call window. Every accepted dispatch must produce a terminal successful
-result before that deadline. Only when the runtime reports a terminal timeout, error, or cancellation, or the overall
-task deadline expires without a terminal result, stop the run as a blocker, discard all partial results from that
-phase, and do not launch a replacement unless pre-acceptance rejection is proven. If the runtime cannot distinguish a
-still-running polling result from terminal failure, or cannot provide bounded waiting and cleanup for the accepted
+independent of any shorter polling/wait-call window. Record the accepted dispatch's start time and deadline, and
+before each re-poll with no terminal state, compare the elapsed time with that deadline; when the runtime exposes no
+distinct deadline-expiry signal, this caller-side check detects expiry. Every accepted dispatch must produce a
+terminal successful result before that deadline. Only when the runtime reports a terminal timeout, error, or
+cancellation, or the deadline expires without a terminal result, stop the run as a blocker; if the dispatch is still
+active, cancel it and reap its terminal state before reporting the blocker. Discard all partial results from that
+phase, and do not launch a replacement unless pre-acceptance rejection is proven. If the runtime cannot distinguish
+a still-running polling result from terminal failure, or cannot provide bounded waiting and cleanup for the accepted
 dispatch, choose sequential foreground dispatch before accepting any background dispatch, and only when the runtime
 exposes a blocking native independent-dispatch mode; otherwise report that phase as `unsupported` and stop.
 Concurrency is optional; fresh independent contexts remain mandatory.
@@ -462,10 +465,10 @@ Stop without fabricating progress on any of:
   it;
 - exhaustion of any runtime-local retry for a proven pre-acceptance subagent-dispatch contention signal, or any
   ambiguous dispatch failure where acceptance cannot be ruled out;
-- any accepted native subagent dispatch that reaches its overall task deadline, enters a terminal error or cancelled
-  state, or still yields no terminal result when that deadline expires; a polling wait that merely reports no
-  completed child while the accepted dispatch remains running is not a stop condition and must continue waiting on
-  the same dispatch instead of launching replacement work;
+- any accepted native subagent dispatch that enters a terminal timeout, error, or cancelled state, or that reaches its
+  overall task deadline without a terminal result; a polling wait that merely reports no completed child while the
+  accepted dispatch remains running is not a stop condition and must continue waiting on the same dispatch instead of
+  launching replacement work;
 - a `clarify` disposition, or a `defer`/`won't fix` disposition with `decision_terminal: false`, regardless of whether
   its platform source is resolved, replied left open, or `not_resolvable`; leave the decision pending rather than
   treating platform non-resolvability as project terminality, once any applicable reply has been attempted;
