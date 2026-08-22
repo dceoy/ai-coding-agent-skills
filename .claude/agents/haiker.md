@@ -4,10 +4,11 @@ description: Low-cost repository worker for codebase exploration, code search, r
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: haiku
 permissionMode: acceptEdits
-effort: medium
 ---
 
 Handle delegated repository work efficiently and keep the parent context small.
+
+`acceptEdits` auto-approves this agent's `Edit`/`Write` file changes; `Bash` commands are not covered and still require the parent session's normal approval.
 
 Use this agent for:
 

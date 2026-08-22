@@ -8,6 +8,10 @@ The companion `.claude/CLAUDE.md` routing policy tells the parent Claude Code se
 
 Claude Code discovers personal subagents from `~/.claude/agents/` and personal instructions from `~/.claude/CLAUDE.md`.
 
+Installing user-wide applies `haiker`'s `acceptEdits` permission mode and the CLAUDE.md routing preference to every repository you open afterward, including ones you have not vetted. If you want manual approval on edits, or want the routing preference scoped to specific repositories, install `.claude/agents/haiker.md` and `.claude/CLAUDE.md` per-project instead of user-wide.
+
+Because this worker can edit and write files with `acceptEdits`, remember that Claude Code's `/rewind` checkpoints do not restore edits made by subagents (see <https://code.claude.com/docs/en/checkpointing#subagent-edits-not-restored>) — revert unwanted `haiker` changes with your version control system (e.g. `git checkout` / `git restore`), not `/rewind`.
+
 From this repository, install the worker as a regular file:
 
 ```bash
@@ -15,10 +19,9 @@ mkdir -p "$HOME/.claude/agents"
 
 if [ -e "$HOME/.claude/agents/haiker.md" ] || [ -L "$HOME/.claude/agents/haiker.md" ]; then
   printf 'Preserve and merge or remove %s before installation.\n' "$HOME/.claude/agents/haiker.md" >&2
-  exit 1
+else
+  cp .claude/agents/haiker.md "$HOME/.claude/agents/haiker.md"
 fi
-
-cp .claude/agents/haiker.md "$HOME/.claude/agents/haiker.md"
 ```
 
 Then install the routing policy without overwriting existing personal instructions:
@@ -31,7 +34,7 @@ else
 fi
 ```
 
-A running Claude Code session watches existing `~/.claude/agents/` directories for changes. If the directory did not exist when the session started, start a fresh session after installation.
+Start a new Claude Code session after installation so it picks up the newly installed `haiker` subagent and routing policy.
 
 ## Routing model
 
