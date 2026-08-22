@@ -4,7 +4,7 @@ This file is the user-wide installation template for the named `planner`/`adviso
 
 ## Native named-agent dispatch
 
-This is Codex's default routing for non-trivial implementation work when no portable skill defines its own orchestration. A portable skill such as `pr-loop` follows its own `SKILL.md` contract instead and may use whichever native independent-subagent mechanism the active runtime provides, without requiring `.codex/agents` or a fixed named agent.
+This is Codex's default routing for non-trivial implementation work. A portable skill such as `pr-loop` still owns its orchestration contract, but Codex may map a compatible logical role onto the configured named `planner` or `advisor` through the native multi-agent mechanism. The portable skill must remain usable without `.codex/agents` or any fixed named-agent definition.
 
 `planner` and `advisor` must be invoked through Codex's native multi-agent tools. Do not invoke them through `codex exec`, nested Codex CLI processes, shell wrappers, copied prompts, generic agents, or simulations.
 
@@ -14,7 +14,7 @@ Treat the installed agent TOML as the source of truth for the named role, model,
 
 Reasoning effort for `planner` and `advisor` is adaptive by dispatch policy. Their TOML files intentionally omit `model_reasoning_effort`. Before each spawn, explicitly select and pass the lowest adequate supported effort for the task instead of relying on `[agents]` defaults or parent-effort inheritance: use `high` for routine non-trivial, complex, or cross-cutting planning and review, `xhigh` for unusually demanding work, and `max` only for the hardest quality-first work where maximum reasoning is materially useful.
 
-Implementation is owned by the top-level main agent. Do not delegate implementation to named or generic worker subagents. If native named-role dispatch is explicitly unavailable or incompatible with the configured role, report `unsupported` rather than silently omitting, downgrading, or simulating a phase.
+Implementation is owned by the top-level main agent. Do not delegate implementation to named or generic worker subagents. When an orchestration path selects a named role, do not silently simulate that named role if native named-role dispatch is unavailable or incompatible with the configured definition. A portable skill may instead use another native independent-subagent mechanism only when its own contract permits that fallback.
 
 ### Planner context handoff
 
@@ -34,7 +34,7 @@ For every `planner` or `advisor` invocation in a Git worktree, immediately befor
 
 ## Model routing
 
-This section applies only to the top-level main agent when no portable skill defines its own orchestration. A portable skill such as `pr-loop` follows its own `SKILL.md` contract instead; its planning, review, and feedback-analysis roles must not be routed through the named `planner` and `advisor` agents below. The named `planner` and `advisor` agents follow their own definitions and must not spawn or delegate to another subagent.
+This section defines Codex's default top-level routing and the named-agent mapping available to portable skills. A portable skill such as `pr-loop` follows its own `SKILL.md` contract; Codex may route a compatible logical role through the named `planner` or `advisor` when that named agent satisfies the skill's fresh-context, read-only, delegation-boundary, and role-output requirements. For `pr-loop`, the `planning` role is compatible with the configured `planner`; do not substitute a named agent for `review` or `feedback-analysis` unless its definition also satisfies those exact role contracts. The named `planner` and `advisor` agents follow their own definitions and must not spawn or delegate to another subagent.
 
 Use the main agent directly for simple questions and narrow, deterministic edits when planning overhead is not justified.
 
