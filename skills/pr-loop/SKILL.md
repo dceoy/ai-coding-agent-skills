@@ -32,9 +32,10 @@ fresh, independent context: it does not inherit the calling session's conversati
 explicit context packet given to it below, and it cannot modify repository files or GitHub state. Use whichever
 native mechanism the active runtime provides for this — for example, Claude Code's subagent/Task launch mechanism, a
 native Codex multi-agent dispatch run with no inherited turns, or Cursor's equivalent independent/background-agent
-mechanism. Treat these as logical roles (`planning`, `review`, `feedback-analysis`), never as a fixed agent name,
-model, provider, or configuration file; do not require `.codex/agents`, `planner.toml`, `advisor.toml`, or any
-similarly named definition.
+mechanism. Treat these as portable logical roles (`planning`, `review`, `feedback-analysis`). This skill itself must
+not require a fixed agent name, model, provider, or configuration file, but the active runtime may map a logical role
+to a compatible native named agent when that agent satisfies the role's fresh-context, read-only,
+delegation-boundary, and output contract. Do not require `.codex/agents` or any similarly named definition.
 
 Do not satisfy this requirement by:
 
