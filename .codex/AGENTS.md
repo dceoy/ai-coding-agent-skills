@@ -4,7 +4,7 @@ This file is the user-wide installation template for the named `planner`/`adviso
 
 ## Native named-agent dispatch
 
-This is Codex's default routing for non-trivial implementation work. A portable skill such as `pr-loop` still owns its orchestration contract, but Codex may map a compatible logical role onto the configured named `planner` or `advisor` through the native multi-agent mechanism. The portable skill must remain usable without `.codex/agents` or any fixed named-agent definition.
+This is Codex's default routing for non-trivial implementation work. A portable skill such as `pr-loop` still owns its orchestration contract, but Codex must prefer a compatible configured named agent over a generic native independent subagent. For `pr-loop`, route the logical `planning` role through the configured named `planner` whenever that role is available and compatible with the skill contract; use another native independent-subagent mechanism only when the named `planner` is unavailable or incompatible. The portable skill must remain usable without `.codex/agents` or any fixed named-agent definition.
 
 `planner` and `advisor` must be invoked through Codex's native multi-agent tools. Do not invoke them through `codex exec`, nested Codex CLI processes, shell wrappers, copied prompts, generic agents, or simulations.
 
@@ -34,7 +34,7 @@ For every `planner` or `advisor` invocation in a Git worktree, immediately befor
 
 ## Model routing
 
-This section defines Codex's default top-level routing and the named-agent mapping available to portable skills. A portable skill such as `pr-loop` follows its own `SKILL.md` contract; Codex may route a compatible logical role through the named `planner` or `advisor` when that named agent satisfies the skill's fresh-context, read-only, delegation-boundary, and role-output requirements. For `pr-loop`, the `planning` role is compatible with the configured `planner`; do not substitute a named agent for `review` or `feedback-analysis` unless its definition also satisfies those exact role contracts. The named `planner` and `advisor` agents follow their own definitions and must not spawn or delegate to another subagent.
+This section defines Codex's default top-level routing and the named-agent mapping available to portable skills. A portable skill such as `pr-loop` follows its own `SKILL.md` contract. When a compatible configured named agent exists for one of the skill's logical roles, route through that named agent before considering a generic native independent subagent. For `pr-loop`, the `planning` role must use the configured named `planner` whenever it is available and satisfies the skill's fresh-context, read-only, delegation-boundary, and role-output requirements; only if that named `planner` is unavailable or incompatible may Codex fall back to another native independent subagent. Do not substitute a named agent for `review` or `feedback-analysis` unless its definition also satisfies those exact role contracts. The named `planner` and `advisor` agents follow their own definitions and must not spawn or delegate to another subagent.
 
 Use the main agent directly for simple questions and narrow, deterministic edits when planning overhead is not justified.
 
