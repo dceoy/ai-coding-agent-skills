@@ -8,11 +8,11 @@ The companion `.claude/CLAUDE.md` routing policy tells the parent Claude Code se
 
 Claude Code discovers personal subagents from `~/.claude/agents/` and personal instructions from `~/.claude/CLAUDE.md`.
 
-Installing user-wide applies `haiker`'s `acceptEdits` permission mode and the CLAUDE.md routing preference to every repository you open afterward, including ones you have not vetted. If you want manual approval on edits, or want the routing preference scoped to specific repositories, install `.claude/agents/haiker.md` and `.claude/CLAUDE.md` per-project instead of user-wide.
+Installing user-wide applies `haiker`'s `acceptEdits` permission mode and the CLAUDE.md routing preference to every repository you open afterward, including ones you have not vetted. If you want manual approval on edits, remove or change `permissionMode: acceptEdits` in your copy of `haiker.md`. If you want the routing preference scoped to specific repositories, install `.claude/agents/haiker.md` and `.claude/CLAUDE.md` per-project instead of user-wide.
 
-Because this worker can edit and write files with `acceptEdits`, remember that Claude Code's `/rewind` checkpoints do not restore edits made by subagents (see <https://code.claude.com/docs/en/checkpointing#subagent-edits-not-restored>) — revert unwanted `haiker` changes with your version control system (e.g. `git checkout` / `git restore`), not `/rewind`.
+Because this worker can edit and write files with `acceptEdits`, remember that Claude Code's `/rewind` checkpoints do not restore edits made by subagents (see <https://code.claude.com/docs/en/checkpointing#subagent-edits-not-restored>) — revert unwanted `haiker` changes with your version control system (e.g. `git checkout` / `git restore`), not `/rewind`. This applies whether you install `haiker` user-wide or per-project.
 
-From this repository, install the worker as a regular file:
+From this repository, install the worker as a regular file (user-wide, shown below), or per-project with `cp .claude/agents/haiker.md <target-repo>/.claude/agents/haiker.md` and `cp .claude/CLAUDE.md <target-repo>/.claude/CLAUDE.md`:
 
 ```bash
 mkdir -p "$HOME/.claude/agents"
