@@ -59,7 +59,7 @@ Project-scoped definitions under `.codex/agents/` provide four native read-only 
 - `reviewer` - Review one caller-defined lens against an exact revision
 - `feedback-analyst` - Analyze review feedback into source-preserving dispositions and fix guidance
 
-All four roles intentionally omit both `model` and `model_reasoning_effort`. Their model and reasoning effort are adaptive by dispatch policy: before each native spawn, choose and pass the lowest adequate supported model and effort instead of inheriting the parent or global defaults blindly. Use `gpt-5.6-terra` for routine non-trivial named-agent work when its intelligence/cost balance is adequate, and use `gpt-5.6-sol` for complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical work. Use `high` reasoning for routine non-trivial, complex, cross-cutting, security-sensitive, or regression-prone work, `xhigh` for unusually demanding work, and `max` only for the hardest quality-first work where maximum reasoning is materially useful. Implementation is performed directly by the top-level main agent; there are no separate Terra/Sol role definitions or dedicated implementation-worker subagents. The main agent's model and reasoning effort remain user- or session-selected and are not overridden by this routing policy.
+All four roles intentionally omit both `model` and `model_reasoning_effort`. Their model and reasoning effort are adaptive by dispatch policy and explicitly selected for each native spawn instead of inheriting the parent or global defaults blindly. Prefer `gpt-5.6-terra` for `planner`, escalating to `gpt-5.6-sol` when planning is complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical. Prefer `gpt-5.6-sol` for `advisor`, using `gpt-5.6-terra` only when the consultation is routine, low-risk, and Terra is clearly adequate. For `reviewer` and `feedback-analyst`, use `gpt-5.6-terra` for routine non-trivial work when its intelligence/cost balance is adequate and `gpt-5.6-sol` for complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical work. Use `high` reasoning for routine non-trivial, complex, cross-cutting, security-sensitive, or regression-prone work, `xhigh` for unusually demanding work, and `max` only for the hardest quality-first work where maximum reasoning is materially useful. Implementation is performed directly by the top-level main agent; there are no separate Terra/Sol role definitions or dedicated implementation-worker subagents. The main agent's model and reasoning effort remain user- or session-selected and are not overridden by this routing policy.
 
 For non-trivial changes, invoke `planner` through native named-agent dispatch in a fresh child context: use `fork_turns: "none"` with MultiAgentV2, or `fork_context: false`/omitted with MultiAgentV1. Pass an explicit context packet covering the user request, prior decisions, task context, non-negotiable constraints, and open questions, select the model and reasoning effort per dispatch using the policy above, and require read-only behavior. Planner correctness therefore does not depend on inherited parent history. Resolve material decisions before main-agent implementation and run verification. Following Claude Code's [advisor pattern](https://code.claude.com/docs/en/advisor), invoke `advisor` in the same kind of fresh child context only when a stronger independent second opinion is useful at a key moment, such as before committing to a consequential approach, when progress is stuck or uncertain, or before completion when another check would materially increase confidence. The advisor receives a fresh context plus task-specific primary evidence instead of inheriting the parent agent's conclusions. Advisor timing is model-driven rather than a mandatory final-review phase. Treat returned verdict labels as guidance classifications rather than approval gates: apply advice that is supported by primary evidence, surface conflicts when verified evidence contradicts a recommendation, rerun relevant verification after changes, and consult advisor again only when another opinion remains useful or the user explicitly requests it. Completion never requires looping solely to obtain `VERDICT: ship`.
 
@@ -97,7 +97,7 @@ Install and authenticate the required CLI tools before running skills:
   - Install: `npm install -g @openai/codex`
   - Auth: run `codex login`
 - **Oracle CLI** - For `oracle-chatgpt`
-  - Install: `npm install -g @steipete/oracle`
+  - Install: `npm install @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode
   - Remote browser routing is optional and uses Oracle's native configuration
 - **agent-browser** - For `x-timeline`
@@ -133,7 +133,7 @@ Install and authenticate the required CLI tools before running skills:
 ### Authentication errors
 
 - Re-run the tool's auth command:
-  - Claude Code: Follow onboarding flow
+  - Claude Code: Follow CLI onboarding flow
   - Codex CLI: run `codex login`
 - Verify active subscription or API key
 
