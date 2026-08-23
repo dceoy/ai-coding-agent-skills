@@ -5,9 +5,9 @@ These project-scoped TOML files are an optional Codex-specific native-subagent s
 The repository defines four generic native read-only Codex roles:
 
 - `planner`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model with Terra preferred, adaptive reasoning effort, read-only. Produces a decision-complete implementation plan.
-- `advisor`: adaptive `gpt-5.6-sol`/`gpt-5.6-terra` model with Sol preferred, adaptive reasoning effort, read-only. Provides on-demand technical advice or implementation review.
-- `reviewer`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Reviews one caller-defined lens against an exact revision and returns evidence-based findings.
-- `feedback-analyst`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Analyzes review feedback into source-preserving dispositions, fix plans, verification guidance, and source actions.
+- `advisor`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model with Terra preferred, adaptive reasoning effort, read-only. Provides on-demand technical advice or implementation review.
+- `reviewer`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model with Terra preferred, adaptive reasoning effort, read-only. Reviews one caller-defined lens against an exact revision and returns evidence-based findings.
+- `feedback-analyst`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model with Terra preferred, adaptive reasoning effort, read-only. Analyzes review feedback into source-preserving dispositions, fix plans, verification guidance, and source actions.
 
 These roles are not owned by any one skill. A portable workflow such as `pr-loop` may map its logical roles onto them when the contracts are compatible; other workflows may reuse the same agents. Implementation remains owned by the top-level main agent. There are no separate Terra/Sol role definitions or implementation-worker roles.
 
@@ -40,13 +40,12 @@ Invoke named roles only through Codex native multi-agent tools. Do not use neste
 
 ## Adaptive model and reasoning effort
 
-The custom agent files intentionally omit both `model` and `model_reasoning_effort`; `adaptive` is a routing policy, not a literal TOML value. Before every named-agent spawn, explicitly choose and pass a supported model and the lowest adequate reasoning effort instead of relying on `[agents]` defaults or parent inheritance.
+The custom agent files intentionally omit both `model` and `model_reasoning_effort`; `adaptive` is a routing policy, not a literal TOML value. Before every named-agent spawn, explicitly choose and pass the lowest adequate supported model and reasoning effort instead of relying on `[agents]` defaults or parent inheritance.
 
 Model selection:
 
-- `planner`: prefer `gpt-5.6-terra`; escalate to `gpt-5.6-sol` for complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical planning.
-- `advisor`: prefer `gpt-5.6-sol`; use `gpt-5.6-terra` only when the consultation is routine, low-risk, and Terra is clearly adequate.
-- `reviewer` and `feedback-analyst`: use `gpt-5.6-terra` for routine non-trivial work where its intelligence/cost balance is adequate, and `gpt-5.6-sol` for complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical work.
+- `gpt-5.6-terra`: default for every named role.
+- `gpt-5.6-sol`: escalate only for complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical work, or when the cost of an incorrect judgment is materially high.
 
 Reasoning-effort selection:
 
@@ -54,7 +53,7 @@ Reasoning-effort selection:
 - `xhigh`: unusually demanding work where additional reasoning is materially useful.
 - `max`: the hardest quality-first work where maximum reasoning is materially useful.
 
-Do not default `planner`, `reviewer`, or `feedback-analyst` to Sol, `xhigh`, or `max` when Terra or a lower effort is adequate. `advisor` is the deliberate model-preference exception: prefer Sol unless Terra is clearly adequate, while still choosing reasoning effort adaptively. If native dispatch cannot accept the selected model override or rejects the selected model, do not silently inherit a different parent model; treat that named invocation as unsupported and let the caller follow its permitted fallback contract. The top-level main agent is outside this adaptive subagent policy, and its model and reasoning effort remain user- or session-selected.
+Do not default any named-agent dispatch to Sol, `xhigh`, or `max` when Terra or a lower effort is adequate. If native dispatch cannot accept the selected model override or rejects the selected model, do not silently inherit a different parent model; treat that named invocation as unsupported and let the caller follow its permitted fallback contract. The top-level main agent is outside this adaptive subagent policy, and its model and reasoning effort remain user- or session-selected.
 
 ## Role contracts
 
