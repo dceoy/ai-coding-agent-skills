@@ -75,7 +75,7 @@ See [.codex/agents/README.md](./.codex/agents/README.md) for installation and us
 ├── .agents/
 │   └── skills/              # Per-skill symlinks into skills/ (other runtimes)
 ├── .claude/
-│   └── skills -> ../skills  # Symlink exposing skills/ to Claude Code runtime
+│   └── skills -> ../skills  # Symlink exposing all skills to Claude Code runtime
 ├── .codex/
 │   └── agents/              # Project-scoped Codex custom subagents
 ├── .github/
@@ -97,7 +97,7 @@ Install and authenticate the required CLI tools before running skills:
   - Install: `npm install -g @openai/codex`
   - Auth: run `codex login`
 - **Oracle CLI** - For `oracle-chatgpt`
-  - Install: `npm install @steipete/oracle`
+  - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode
   - Remote browser routing is optional and uses Oracle's native configuration
 - **agent-browser** - For `x-timeline`
