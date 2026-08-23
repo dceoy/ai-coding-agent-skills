@@ -75,7 +75,7 @@ See [.codex/agents/README.md](./.codex/agents/README.md) for installation and us
 ├── .agents/
 │   └── skills/              # Per-skill symlinks into skills/ (other runtimes)
 ├── .claude/
-│   └── skills -> ../skills  # Symlink exposing all skills to Claude Code runtime
+│   └── skills -> ../skills  # Symlink exposing skills/ to Claude Code runtime
 ├── .codex/
 │   └── agents/              # Project-scoped Codex custom subagents
 ├── .github/
@@ -133,7 +133,7 @@ Install and authenticate the required CLI tools before running skills:
 ### Authentication errors
 
 - Re-run the tool's auth command:
-  - Claude Code: Follow CLI onboarding flow
+  - Claude Code: Follow onboarding flow
   - Codex CLI: run `codex login`
 - Verify active subscription or API key
 
