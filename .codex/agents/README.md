@@ -4,16 +4,16 @@ These project-scoped TOML files are an optional Codex-specific native-subagent s
 
 The repository defines four generic native read-only Codex roles:
 
-- `planner`: `gpt-5.6-sol`, adaptive reasoning effort, read-only. Produces a decision-complete implementation plan.
-- `advisor`: `gpt-5.6-sol`, adaptive reasoning effort, read-only. Provides on-demand technical advice or implementation review.
-- `reviewer`: `gpt-5.6-sol`, adaptive reasoning effort, read-only. Reviews one caller-defined lens against an exact revision and returns evidence-based findings.
-- `feedback-analyst`: `gpt-5.6-sol`, adaptive reasoning effort, read-only. Analyzes review feedback into source-preserving dispositions, fix plans, verification guidance, and source actions.
+- `planner`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Produces a decision-complete implementation plan.
+- `advisor`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Provides on-demand technical advice or implementation review.
+- `reviewer`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Reviews one caller-defined lens against an exact revision and returns evidence-based findings.
+- `feedback-analyst`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Analyzes review feedback into source-preserving dispositions, fix plans, verification guidance, and source actions.
 
-These roles are not owned by any one skill. A portable workflow such as `pr-loop` may map its logical roles onto them when the contracts are compatible; other workflows may reuse the same agents. Implementation remains owned by the top-level main agent. There are no dedicated Luna or Terra implementation-worker roles.
+These roles are not owned by any one skill. A portable workflow such as `pr-loop` may map its logical roles onto them when the contracts are compatible; other workflows may reuse the same agents. Implementation remains owned by the top-level main agent. There are no separate Terra/Sol role definitions or implementation-worker roles.
 
 ## Design rationale
 
-The architecture keeps high-capability Sol agents on read-only planning, review, and analysis boundaries while preserving one write-capable implementation authority:
+The architecture keeps model selection at dispatch time while preserving one write-capable implementation authority:
 
 ```text
 planner ────────────────┐
@@ -25,29 +25,35 @@ advisor (when useful) ──┘
 The steady-state authority split is:
 
 ```text
-planning authority          → Sol planner
+planning authority          → planner
 implementation authority    → top-level main agent
-review authority            → Sol reviewer when invoked
-feedback-analysis authority → Sol feedback-analyst when invoked
-advisory authority          → Sol advisor when invoked
+review authority            → reviewer when invoked
+feedback-analysis authority → feedback-analyst when invoked
+advisory authority          → advisor when invoked
 ```
 
 Keeping implementation ownership in the top-level main-agent path avoids an additional write-capable handoff and preserves a single implementation authority. The top-level implementation session keeps the reasoning effort selected by the user or current session; this routing policy does not override it.
 
 All named roles use fresh child contexts so correctness does not depend on inherited parent history. With MultiAgentV2, set `fork_turns: "none"`; with MultiAgentV1, use `fork_context: false` or omit `fork_context`. Pass task-specific context explicitly.
 
-Invoke named roles only through Codex native multi-agent tools. Do not use nested `codex exec`, shell wrappers, copied prompts, generic-agent simulations, or child coding-agent CLI processes. Treat each TOML definition as authoritative for the configured role, model, and requested sandbox default.
+Invoke named roles only through Codex native multi-agent tools. Do not use nested `codex exec`, shell wrappers, copied prompts, generic-agent simulations, or child coding-agent CLI processes. Treat each TOML definition as authoritative for the configured role and requested sandbox default; model and reasoning effort are selected per native dispatch.
 
-## Adaptive reasoning effort
+## Adaptive model and reasoning effort
 
-The custom agent files intentionally omit `model_reasoning_effort`; `adaptive` is a routing policy, not a literal TOML value. Before every named-agent spawn, explicitly choose and pass the lowest adequate supported effort instead of relying on `[agents]` defaults or parent-effort inheritance:
+The custom agent files intentionally omit both `model` and `model_reasoning_effort`; `adaptive` is a routing policy, not a literal TOML value. Before every named-agent spawn, explicitly choose and pass the lowest adequate supported model and reasoning effort instead of relying on `[agents]` defaults or parent inheritance.
 
-- `medium`: routine non-trivial planning, review, or feedback analysis.
-- `high`: complex, cross-cutting, security-sensitive, or regression-prone work.
+Model selection:
+
+- `gpt-5.6-terra`: routine non-trivial named-agent work where its intelligence/cost balance is adequate.
+- `gpt-5.6-sol`: complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical work.
+
+Reasoning-effort selection:
+
+- `high`: routine non-trivial, complex, cross-cutting, security-sensitive, or regression-prone work.
 - `xhigh`: unusually demanding work where additional reasoning is materially useful.
 - `max`: the hardest quality-first work where maximum reasoning is materially useful.
 
-Do not default every named-agent dispatch to `xhigh` or `max`. The top-level main agent is outside this adaptive subagent policy, and its reasoning effort remains user- or session-selected.
+Do not default every named-agent dispatch to Sol, `xhigh`, or `max` when Terra or a lower effort is adequate. If native dispatch cannot accept the selected model override or rejects the selected model, do not silently inherit a different parent model; treat that named invocation as unsupported and let the caller follow its permitted fallback contract. The top-level main agent is outside this adaptive subagent policy, and its model and reasoning effort remain user- or session-selected.
 
 ## Role contracts
 
