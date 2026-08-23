@@ -42,7 +42,8 @@ Invoke named roles only through Codex native multi-agent tools. Do not use neste
 
 The custom agent files intentionally omit `model_reasoning_effort`; `adaptive` is a routing policy, not a literal TOML value. Before every named-agent spawn, explicitly choose and pass the lowest adequate supported effort instead of relying on `[agents]` defaults or parent-effort inheritance:
 
-- `high`: routine non-trivial, complex, cross-cutting, security-sensitive, or regression-prone planning, review, or feedback analysis.
+- `medium`: routine non-trivial planning, review, or feedback analysis.
+- `high`: complex, cross-cutting, security-sensitive, or regression-prone work.
 - `xhigh`: unusually demanding work where additional reasoning is materially useful.
 - `max`: the hardest quality-first work where maximum reasoning is materially useful.
 
