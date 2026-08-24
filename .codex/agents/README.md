@@ -4,12 +4,12 @@ These project-scoped TOML files are an optional Codex-specific native-subagent s
 
 The repository defines four generic native read-only Codex roles:
 
-- `planner`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Produces a decision-complete implementation plan.
-- `advisor`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Provides on-demand technical advice or implementation review.
-- `reviewer`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Reviews one caller-defined lens against an exact revision and returns evidence-based findings.
-- `feedback-analyst`: adaptive `gpt-5.6-terra`/`gpt-5.6-sol` model, adaptive reasoning effort, read-only. Analyzes review feedback into source-preserving dispositions, fix plans, verification guidance, and source actions.
+- `planner`: defaults to `gpt-5.6-terra`, with `gpt-5.6-sol` escalation for materially complex planning; read-only. Produces a decision-complete implementation plan.
+- `advisor`: defaults to `gpt-5.6-sol`; read-only. Provides on-demand technical advice or implementation review when an independent high-quality second opinion is materially useful.
+- `reviewer`: model selection depends on the caller-supplied review lens; read-only. Reviews one caller-defined lens against an exact revision and returns evidence-based findings.
+- `feedback-analyst`: defaults to `gpt-5.6-luna`, with `gpt-5.6-terra` escalation for materially ambiguous or code-reasoning-heavy triage; read-only. Analyzes review feedback into source-preserving dispositions, fix plans, verification guidance, and source actions.
 
-These roles are not owned by any one skill. A portable workflow such as `pr-loop` may map its logical roles onto them when the contracts are compatible; other workflows may reuse the same agents. Implementation remains owned by the top-level main agent. There are no separate Terra/Sol role definitions or implementation-worker roles.
+These roles are not owned by any one skill. A portable workflow such as `pr-loop` may map its logical roles onto them when the contracts are compatible; other workflows may reuse the same agents. Implementation remains owned by the top-level main agent. There are no separate model-specific role definitions or implementation-worker roles.
 
 ## Design rationale
 
@@ -38,22 +38,27 @@ All named roles use fresh child contexts so correctness does not depend on inher
 
 Invoke named roles only through Codex native multi-agent tools. Do not use nested `codex exec`, shell wrappers, copied prompts, generic-agent simulations, or child coding-agent CLI processes. Treat each TOML definition as authoritative for the configured role and requested sandbox default; model and reasoning effort are selected per native dispatch.
 
-## Adaptive model and reasoning effort
+## Role-specific model and reasoning effort
 
-The custom agent files intentionally omit both `model` and `model_reasoning_effort`; `adaptive` is a routing policy, not a literal TOML value. Before every named-agent spawn, explicitly choose and pass the lowest adequate supported model and reasoning effort instead of relying on `[agents]` defaults or parent inheritance.
+The custom agent files intentionally omit both `model` and `model_reasoning_effort`; routing policy is expressed at dispatch time rather than as literal TOML defaults. Before every named-agent spawn, explicitly choose and pass the role-appropriate supported model and reasoning effort instead of relying on `[agents]` defaults or parent inheritance.
 
 Model selection:
 
-- `gpt-5.6-terra`: routine non-trivial named-agent work where its intelligence/cost balance is adequate.
-- `gpt-5.6-sol`: complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical work.
+- `planner`: use `gpt-5.6-terra` by default. Escalate to `gpt-5.6-sol` when planning materially depends on architecture, public interfaces, schemas, migrations, security boundaries, broad cross-cutting behavior, or unusually regression-prone reasoning.
+- `advisor`: use `gpt-5.6-sol` by default. The advisor should be invoked only when an independent second opinion materially improves decision quality, so its dispatch is intentionally quality-first rather than cost-first.
+- `reviewer` with `correctness`: use `gpt-5.6-terra` by default; escalate to `gpt-5.6-sol` for complex state transitions, concurrency, large refactors, cross-component invariants, or similarly difficult correctness analysis.
+- `reviewer` with `tests/docs`: use `gpt-5.6-luna` by default; escalate to `gpt-5.6-terra` when the verification surface, compatibility implications, or documentation behavior requires substantial code reasoning.
+- `reviewer` with `security/performance`: use `gpt-5.6-terra` by default; escalate to `gpt-5.6-sol` for authentication, authorization, secrets, untrusted input, CI trust boundaries, privilege boundaries, concurrency, resource exhaustion, or similarly high-risk analysis.
+- `feedback-analyst`: use `gpt-5.6-luna` by default; escalate to `gpt-5.6-terra` when feedback conflicts, root-cause grouping is ambiguous, or dispositions require non-trivial source-code reasoning. If the unresolved question instead requires architecture-level or other consequential judgment, consult `advisor` rather than turning feedback analysis into a general advisory role.
 
 Reasoning-effort selection:
 
-- `high`: routine non-trivial, complex, cross-cutting, security-sensitive, or regression-prone work.
-- `xhigh`: unusually demanding work where additional reasoning is materially useful.
-- `max`: the hardest quality-first work where maximum reasoning is materially useful.
+- `medium`: default for Luna dispatches whose work is bounded and structurally well-defined.
+- `high`: default for Terra and Sol dispatches, and for Luna work escalated because additional reasoning is materially useful.
+- `xhigh`: unusually demanding Terra or Sol work where deeper reasoning is expected to improve the result materially.
+- `max`: only the hardest quality-first Sol work where maximum reasoning is materially useful.
 
-Do not default every named-agent dispatch to Sol, `xhigh`, or `max` when Terra or a lower effort is adequate. If native dispatch cannot accept the selected model override or rejects the selected model, do not silently inherit a different parent model; treat that named invocation as unsupported and let the caller follow its permitted fallback contract. The top-level main agent is outside this adaptive subagent policy, and its model and reasoning effort remain user- or session-selected.
+Do not flatten these defaults into one model for every named-agent role. The purpose of the policy is to spend capability where judgment risk is highest while keeping repeated bounded review and triage work inexpensive. If native dispatch cannot accept the selected model override or rejects the selected model, do not silently inherit a different parent model; treat that named invocation as unsupported and let the caller follow its permitted fallback contract. The top-level main agent is outside this subagent policy, and its model and reasoning effort remain user- or session-selected.
 
 ## Role contracts
 
@@ -130,7 +135,7 @@ review            → reviewer
 feedback-analysis → feedback-analyst
 ```
 
-For each `review` attempt, dispatch a separate fresh `reviewer` invocation for each `pr-loop` lens: `correctness`, `tests/docs`, and `security/performance`. Pass the skill's exact source metadata and terminal-state constraints to `feedback-analyst`. Fall back to another native independent subagent only when the required named role is unavailable or incompatible. `advisor` remains a separate on-demand role rather than a substitute for these contracts.
+For each `review` attempt, dispatch a separate fresh `reviewer` invocation for each `pr-loop` lens: `correctness`, `tests/docs`, and `security/performance`, applying the lens-specific model defaults above. Pass the skill's exact source metadata and terminal-state constraints to `feedback-analyst`. Fall back to another native independent subagent only when the required named role is unavailable or incompatible. `advisor` remains a separate on-demand role rather than a substitute for these contracts.
 
 All named agents are terminal leaves for their assigned role and must not spawn or delegate to another subagent.
 
