@@ -15,7 +15,7 @@ The TOML files intentionally omit `model` and `model_reasoning_effort`; both are
 
 - `planner`: Terra → Sol for materially complex planning.
 - `advisor`: Sol.
-- `reviewer`: correctness=Terra, tests/docs=Luna, security/performance=Terra; escalate per `.codex/AGENTS.md`.
+- `reviewer`: correctness=Terra, tests/docs=Luna, security/performance=Terra, other lenses/scopes=Terra; escalate per `.codex/AGENTS.md`.
 - `feedback-analyst`: Luna → Terra for ambiguous or code-reasoning-heavy triage.
 
 Effort is selected for the chosen model: Luna=`max`; Terra=`xhigh` or `max`; Sol=`high`, `xhigh`, or `max`. See `.codex/AGENTS.md` for the default effort within each model and escalation criteria.
