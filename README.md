@@ -59,7 +59,7 @@ Project-scoped definitions under `.codex/agents/` provide four native read-only 
 - `reviewer` - Review one caller-defined lens against an exact revision
 - `feedback-analyst` - Analyze review feedback into source-preserving dispositions and fix guidance
 
-Models and reasoning effort are intentionally unpinned in the TOML files and selected at dispatch time. Role defaults are planner=Terra, advisor=Sol, reviewer correctness=Terra, tests/docs=Luna, security/performance=Terra, and feedback-analyst=Luna, with escalation defined in `.codex/AGENTS.md`. Effort is model-specific: Luna=`max`, Terra=`xhigh|max`, Sol=`high|xhigh|max`. Implementation remains in the top-level main agent.
+Models and reasoning effort are intentionally unpinned in the TOML files and selected at dispatch time. Role defaults are planner=Terra, advisor=Sol, reviewer correctness=Terra, tests/docs=Luna, security/performance=Terra, other scopes=Terra, and feedback-analyst=Luna, with escalation defined in `.codex/AGENTS.md`. Effort is model-specific: Luna=`max`, Terra=`xhigh|max`, Sol=`high|xhigh|max`. Implementation remains in the top-level main agent.
 
 See [.codex/AGENTS.md](./.codex/AGENTS.md) for the authoritative routing policy and [.codex/agents/README.md](./.codex/agents/README.md) for installation.
 
