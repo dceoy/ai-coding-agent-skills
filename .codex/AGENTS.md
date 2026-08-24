@@ -19,6 +19,7 @@ Use these model defaults and escalate only when the stated work requires it:
 - `reviewer` / `correctness`: `gpt-5.6-terra`; use Sol for difficult state transitions, concurrency, large refactors, or cross-component invariants.
 - `reviewer` / `tests/docs`: `gpt-5.6-luna`; use Terra when verification, compatibility, or documentation behavior requires substantial code reasoning.
 - `reviewer` / `security/performance`: `gpt-5.6-terra`; use Sol for authentication, authorization, secrets, untrusted input, CI or privilege boundaries, concurrency, resource exhaustion, or similarly high-risk analysis.
+- `reviewer` / other caller-defined lens or scope: `gpt-5.6-terra`; use Sol when the review is materially difficult, high-risk, cross-cutting, or otherwise quality-critical.
 - `feedback-analyst`: `gpt-5.6-luna`; use Terra when feedback conflicts, root-cause grouping is ambiguous, or dispositions require non-trivial code reasoning. Use `advisor` instead for architecture-level or other consequential judgment.
 
 After selecting the model, choose effort for cost/performance as follows:
