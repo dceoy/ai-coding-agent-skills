@@ -52,20 +52,16 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ## Codex Custom Subagents
 
-Project-scoped definitions under `.codex/agents/` provide four native read-only Codex roles:
+Project-scoped definitions under `.codex/agents/` provide four native read-only roles:
 
 - `planner` - Produce a decision-complete implementation plan
-- `advisor` - Provide on-demand read-only technical advice or implementation review
+- `advisor` - Provide on-demand technical advice or implementation review
 - `reviewer` - Review one caller-defined lens against an exact revision
 - `feedback-analyst` - Analyze review feedback into source-preserving dispositions and fix guidance
 
-All four roles intentionally omit both `model` and `model_reasoning_effort`. Their model and reasoning effort are adaptive by dispatch policy: before each native spawn, choose and pass the lowest adequate supported model and effort instead of inheriting the parent or global defaults blindly. Use `gpt-5.6-terra` for routine non-trivial named-agent work when its intelligence/cost balance is adequate, and use `gpt-5.6-sol` for complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical work. Use `high` reasoning for routine non-trivial, complex, cross-cutting, security-sensitive, or regression-prone work, `xhigh` for unusually demanding work, and `max` only for the hardest quality-first work where maximum reasoning is materially useful. Implementation is performed directly by the top-level main agent; there are no separate Terra/Sol role definitions or dedicated implementation-worker subagents. The main agent's model and reasoning effort remain user- or session-selected and are not overridden by this routing policy.
+Models and reasoning effort are intentionally unpinned in the TOML files and selected at dispatch time. Role defaults are planner=Terra, advisor=Sol, reviewer correctness=Terra, tests/docs=Luna, security/performance=Terra, other scopes=Terra, and feedback-analyst=Luna, with escalation defined in `.codex/AGENTS.md`. Effort is model-specific: Luna=`max`, Terra=`xhigh|max`, Sol=`high|xhigh|max`. Implementation remains in the top-level main agent.
 
-For non-trivial changes, invoke `planner` through native named-agent dispatch in a fresh child context: use `fork_turns: "none"` with MultiAgentV2, or `fork_context: false`/omitted with MultiAgentV1. Pass an explicit context packet covering the user request, prior decisions, task context, non-negotiable constraints, and open questions, select the model and reasoning effort per dispatch using the policy above, and require read-only behavior. Planner correctness therefore does not depend on inherited parent history. Resolve material decisions before main-agent implementation and run verification. Following Claude Code's [advisor pattern](https://code.claude.com/docs/en/advisor), invoke `advisor` in the same kind of fresh child context only when a stronger independent second opinion is useful at a key moment, such as before committing to a consequential approach, when progress is stuck or uncertain, or before completion when another check would materially increase confidence. The advisor receives a fresh context plus task-specific primary evidence instead of inheriting the parent agent's conclusions. Advisor timing is model-driven rather than a mandatory final-review phase. Treat returned verdict labels as guidance classifications rather than approval gates: apply advice that is supported by primary evidence, surface conflicts when verified evidence contradicts a recommendation, rerun relevant verification after changes, and consult advisor again only when another opinion remains useful or the user explicitly requests it. Completion never requires looping solely to obtain `VERDICT: ship`.
-
-Invoke these roles only through native multi-agent dispatch. Report `unsupported` only when native named-role dispatch is unavailable or runtime evidence explicitly shows a generic/different-agent fallback, failure to honor an explicitly requested per-dispatch model, reasoning effort, or fresh-context isolation, or a writable invocation outside a Git worktree; missing runtime telemetry or a writable effective sandbox alone is not a failure when the mutation guard can be established. If native dispatch cannot accept the selected model override or rejects the selected model, do not silently inherit a different parent model. The named agents must not modify files regardless of available write capability. In a Git worktree, reject a result when the post-dispatch Git-visible state differs from its recorded baseline or available runtime evidence shows a mutating action, including a transient edit later restored. An unborn repository uses an explicit no-`HEAD` sentinel rather than failing the guard. Outside a Git worktree, require an effective read-only sandbox instead of accepting a writable one. This guard protects persistent Git-visible state but does not attest that a writable runtime performed no transient writes. Do not fall back to nested `codex exec`, shell wrappers, copied prompts, or generic agents.
-
-See [.codex/agents/README.md](./.codex/agents/README.md) for installation and usage examples. Future planner parent-context inheritance is tracked separately in [#76](https://github.com/dceoy/ai-coding-agent-skills/issues/76).
+See [.codex/AGENTS.md](./.codex/AGENTS.md) for the authoritative routing policy and [.codex/agents/README.md](./.codex/agents/README.md) for installation.
 
 ## Structure
 
@@ -77,12 +73,11 @@ See [.codex/agents/README.md](./.codex/agents/README.md) for installation and us
 ├── .claude/
 │   └── skills -> ../skills  # Symlink exposing skills/ to Claude Code runtime
 ├── .codex/
+│   ├── AGENTS.md            # Codex user-wide routing template
 │   └── agents/              # Project-scoped Codex custom subagents
 ├── .github/
 │   └── workflows/           # CI workflows (ci.yml)
-├── AGENTS.md                # Repository guidelines (source of truth)
-├── CLAUDE.md -> AGENTS.md   # Symlink for Claude Code
-├── README.md                # This file
+├── README.md
 └── LICENSE
 ```
 
@@ -141,11 +136,6 @@ Install and authenticate the required CLI tools before running skills:
 
 - Skill directories are shared from `skills/` via `.agents/skills` and `.claude/skills`
 - If broken, recreate the symlink or ensure `skills/` exists
-- On Windows, ensure symlink support is enabled
-
-## Contributing
-
-See [AGENTS.md](./AGENTS.md) for repository guidelines and agent-specific rules.
 
 ## License
 

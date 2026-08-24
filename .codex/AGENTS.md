@@ -1,63 +1,69 @@
 # Global Codex instructions
 
-This file is the user-wide installation template for the named-agent routing policy. Install it as `$CODEX_HOME/AGENTS.md`; this repository does not duplicate it as a repository-root `AGENTS.md`.
+This file is the user-wide installation template for the named-agent routing policy. Install it as `$CODEX_HOME/AGENTS.md`.
 
-## Native named-agent dispatch
+## Named-agent dispatch
 
-This is Codex's default routing for non-trivial implementation work. A portable skill such as `pr-loop` still owns its orchestration contract, but Codex must prefer a compatible configured named agent over a generic native independent subagent. For `pr-loop`, route `planning` through `planner`, each `review` lens through `reviewer`, and `feedback-analysis` through `feedback-analyst` whenever the corresponding named role is available and compatible with the skill contract; use another native independent-subagent mechanism only when the required named role is unavailable or incompatible. The portable skill must remain usable without `.codex/agents` or any fixed named-agent definition.
+Use the configured `planner`, `advisor`, `reviewer`, and `feedback-analyst` only through Codex native multi-agent dispatch. Do not use nested `codex exec`, shell wrappers, copied prompts, generic-agent simulations, or child coding-agent CLI processes.
 
-`planner`, `advisor`, `reviewer`, and `feedback-analyst` must be invoked through Codex's native multi-agent tools. Do not invoke them through `codex exec`, nested Codex CLI processes, shell wrappers, copied prompts, generic agents, or simulations.
+Invoke every named role in a fresh child context: use `fork_turns: "none"` with MultiAgentV2, or `fork_context: false`/omitted with MultiAgentV1. Pass task-specific context explicitly. Named agents are terminal read-only leaves and must not modify files or dispatch another subagent.
 
-Invoke every named role in a fresh child context. In MultiAgentV2, set `fork_turns: "none"`; in MultiAgentV1, use `fork_context: false` or omit `fork_context`. Correctness comes from the explicit context packet supplied for the role rather than inherited parent history. This keeps one semantic isolation contract across native runtimes without depending on each runtime's parameter names or default history-inheritance behavior.
+The agent TOML files define role behavior and sandbox defaults but intentionally omit `model` and `model_reasoning_effort`. Select both explicitly for every dispatch.
 
-Treat the installed agent TOML as the source of truth for the named role and requested sandbox default. Model and reasoning effort are deliberately selected per native dispatch rather than pinned in the agent definition. A successful native dispatch to the requested named role is sufficient; the runtime does not need to echo those configuration values back to the parent. A broader effective sandbox such as `workspace-write` does not by itself invalidate the invocation when the named-agent mutation guard below can be established: all configured named roles remain behaviorally read-only and must not modify files. Treat the invocation as `unsupported` only when available runtime evidence explicitly shows that native named-role dispatch is unavailable, a generic or different agent was used, an explicitly requested per-dispatch model or reasoning effort was overridden incompatibly, the requested fresh-context isolation was not honored, or a writable invocation cannot be guarded because the workspace is not a Git worktree. Missing runtime telemetry or a writable effective sandbox alone is not evidence of a mismatch.
+### Model and effort routing
 
-Model and reasoning effort for `planner`, `advisor`, `reviewer`, and `feedback-analyst` are adaptive by dispatch policy. Their TOML files intentionally omit both `model` and `model_reasoning_effort`. Before each spawn, explicitly select and pass the lowest adequate supported model and reasoning effort instead of relying on `[agents]` defaults or parent inheritance. Use `gpt-5.6-terra` for routine non-trivial named-agent work when its intelligence/cost balance is adequate, and use `gpt-5.6-sol` for complex, cross-cutting, security-sensitive, regression-prone, unusually demanding, or otherwise quality-critical work. For reasoning effort, use `high` for routine non-trivial, complex, cross-cutting, security-sensitive, or regression-prone work, `xhigh` for unusually demanding work, and `max` only for the hardest quality-first work where maximum reasoning is materially useful. Do not default every dispatch to Sol, `xhigh`, or `max` when Terra or a lower effort is adequate. If native dispatch cannot accept the selected model override or rejects the selected model, do not silently inherit a different parent model; treat the named invocation as `unsupported` so the caller can follow its permitted fallback contract.
+Use these model defaults and escalate only when the stated work requires it:
 
-Implementation is owned by the top-level main agent. Do not delegate implementation to named or generic worker subagents. When an orchestration path selects a named role, do not silently simulate that named role if native named-role dispatch is unavailable or incompatible with the configured definition. A portable skill may instead use another native independent-subagent mechanism only when its own contract permits that fallback.
+- `planner`: `gpt-5.6-terra`; use `gpt-5.6-sol` for architecture, public interfaces, schemas, migrations, security boundaries, broad cross-cutting behavior, or unusually regression-prone planning.
+- `advisor`: `gpt-5.6-sol`.
+- `reviewer` / `correctness`: `gpt-5.6-terra`; use Sol for difficult state transitions, concurrency, large refactors, or cross-component invariants.
+- `reviewer` / `tests/docs`: `gpt-5.6-luna`; use Terra when verification, compatibility, or documentation behavior requires substantial code reasoning.
+- `reviewer` / `security/performance`: `gpt-5.6-terra`; use Sol for authentication, authorization, secrets, untrusted input, CI or privilege boundaries, concurrency, resource exhaustion, or similarly high-risk analysis.
+- `reviewer` / other caller-defined lens or scope: `gpt-5.6-terra`; use Sol when the review is materially difficult, high-risk, cross-cutting, or otherwise quality-critical.
+- `feedback-analyst`: `gpt-5.6-luna`; use Terra when feedback conflicts, root-cause grouping is ambiguous, or dispositions require non-trivial code reasoning. Use `advisor` instead for architecture-level or other consequential judgment.
 
-### Planner context handoff
+After selecting the model, choose effort for cost/performance as follows:
 
-Every planner dispatch must include a context packet that preserves the user's intent without depending on inherited conversation history. Include:
+- Luna: `max`.
+- Terra: `xhigh` by default; `max` when materially useful.
+- Sol: `high` by default; `xhigh` for unusually demanding work; `max` only for the hardest quality-first work.
 
-- `USER REQUEST`: the user's actual request with minimal paraphrasing; prefer verbatim wording when practical.
-- `PRIOR DECISIONS`: decisions already settled with the user. Do not reopen them without a concrete conflict or new evidence.
-- `TASK CONTEXT`: relevant repository state, existing implementation, architecture, and other facts needed to plan.
-- `NON-NEGOTIABLE CONSTRAINTS`: user and project constraints, compatibility, security, migration, operational requirements, and explicit exclusions.
-- `OPEN QUESTIONS`: only genuinely unresolved material decisions.
+Do not carry an effort choice across a model escalation; reselect it from the selected model's allowed set. If native dispatch cannot honor an explicit model or effort, do not silently inherit another value. Treat that named invocation as unsupported and follow the caller's permitted fallback contract.
 
-Keep settled decisions separate from open questions. The explicit packet is the authoritative planning handoff; the fresh child context ensures planner correctness does not depend on parent-history inheritance.
+Implementation remains owned by the top-level main agent. Do not delegate implementation to a worker subagent. The main agent keeps the user- or session-selected model and effort.
 
-### Named-agent mutation guard
+### Planner handoff
 
-For every named-agent invocation in a Git worktree, immediately before dispatch record a Git-visible baseline: `HEAD` when it exists (otherwise an explicit unborn-`HEAD` sentinel), index diff, tracked worktree diff, and every non-ignored untracked path with a content digest. Compare the same state immediately after return. Any persistent Git-visible mutation introduced during the invocation invalidates the result; preserve changes that already existed in the baseline. If available runtime output or telemetry explicitly shows a mutating action, including a transient edit that was restored before return, invalidate the result even when the post-dispatch baseline matches. Ignored and generated files are intentionally outside the persistent-state comparison. If the workspace is not a Git worktree, require an effective read-only sandbox; do not accept a writable effective sandbox without this guard. This guard establishes persistent Git-visible state integrity; it does not prove that a writable runtime performed no transient writes. Named agents remain behaviorally read-only and must not intentionally edit files. Do not describe this guard as runtime-enforced read-only or mutation-free execution.
+Every planner dispatch must include:
 
-## Model routing
+- `USER REQUEST`: the user's request with minimal paraphrasing.
+- `PRIOR DECISIONS`: settled decisions that must not be reopened without new evidence.
+- `TASK CONTEXT`: relevant repository state, architecture, and existing implementation.
+- `NON-NEGOTIABLE CONSTRAINTS`: project/user constraints, compatibility, security, migration, operational requirements, and exclusions.
+- `OPEN QUESTIONS`: only unresolved material decisions.
 
-This section defines Codex's default top-level routing and the named-agent mapping available to portable skills. A portable skill such as `pr-loop` follows its own `SKILL.md` contract. When a compatible configured named agent exists for one of the skill's logical roles, route through that named agent before considering a generic native independent subagent.
+A ready plan must be decision-complete for objective, scope, interfaces, constraints, and verification. Ask the user only when a material user-facing or requirement-level decision remains unresolved; tactical implementation choices stay with the planner/main-agent path.
 
-For `pr-loop` specifically:
+### Mutation guard
 
-- `planning` must use `planner` whenever it is available and satisfies the skill's fresh-context, read-only, delegation-boundary, and role-output requirements.
-- every `review` lens must use a separate fresh `reviewer` invocation whenever that role is available and satisfies the exact `review` contract; pass one of the skill's required lenses (`correctness`, `tests/docs`, or `security/performance`) as the caller-defined review lens.
-- `feedback-analysis` must use `feedback-analyst` whenever that role is available and satisfies the exact `feedback-analysis` contract; pass the skill's source metadata and terminal-state constraints explicitly.
-- only when the required named role is unavailable or incompatible may Codex fall back to another native independent subagent for that logical role.
+Before every named-agent invocation in a Git worktree, record `HEAD` (or an unborn-`HEAD` sentinel), index diff, tracked worktree diff, and every non-ignored untracked path with a content digest. Compare the same state after return. Reject a result if the invocation introduced persistent Git-visible mutation or runtime evidence shows a mutating action, including a transient edit later restored. Preserve pre-existing changes. Ignored/generated files are outside this comparison.
 
-The named agents are generic terminal leaves and are not owned by `pr-loop`; other workflows may invoke them when their contracts fit. `advisor` remains an on-demand role outside `pr-loop`'s required logical-role sequence unless a caller separately requests advisory consultation. Named agents must not spawn or delegate to another subagent.
+Outside a Git worktree, require an effective read-only sandbox. A broader sandbox such as `workspace-write` is acceptable only when the Git-visible mutation guard can be established; it does not make mutation permissible.
 
-Use the main agent directly for simple questions and narrow, deterministic edits when planning overhead is not justified.
+## Routing
 
-For non-trivial implementation tasks:
+Use the main agent directly for simple questions and narrow deterministic edits. For non-trivial implementation, invoke `planner` when planning overhead is justified, implement directly in the top-level main agent, run verification, and invoke `advisor` only when an independent second opinion materially improves decision quality or confidence.
 
-1. Apply the named-agent mutation guard, select and pass the planner model and reasoning effort according to the adaptive policy above, then invoke the configured `planner` in a fresh behaviorally read-only child context: use `fork_turns: "none"` with MultiAgentV2, or `fork_context: false`/omitted with MultiAgentV1. Supply the required planner context packet and obtain a decision-complete contract covering objective, scope, interfaces, constraints, and verification. Prefer the configured read-only sandbox, but accept the contract when native dispatch returns the requested planner result unless runtime evidence explicitly reports a generic/different-agent fallback, failure to honor the explicitly requested model, reasoning effort, or fresh-context isolation, or a writable invocation outside a Git worktree. A writable effective sandbox alone is not a failure condition when the guard can be established.
-2. Route planner decisions before implementation. If the planner returns `STATUS: blocked`, obtain the smallest missing user decision and replan. If it returns `STATUS: ready`, preserve decisions already settled by the user. Require explicit user approval only when the contract introduces or changes a material user-facing or requirement-level decision that is not already settled, including observable product behavior, API or compatibility guarantees, architecture with meaningful trade-offs, destructive or irreversible migration, security posture, significant scope expansion, or a new requirement. The main agent may approve tactical and operational implementation details internally when they stay within the established contract. Do not invent requirements or reopen settled decisions without cause.
-3. Pass the approved contract to the top-level main agent and implement it directly. Keep the main agent's reasoning effort at the user-selected or current-session setting; this routing policy must not set, override, or require a particular reasoning effort. Do not delegate implementation to a worker subagent.
-4. Inspect the actual changes, preserve unrelated work, and run the relevant verification from the planner contract.
-5. Invoke `advisor` only when an independent second opinion materially improves decision quality or confidence. Appropriate triggers include an explicit user request; unresolved architecture, security, API, compatibility, migration, or other cross-cutting trade-offs; multiple plausible approaches with meaningful consequences; verification failures whose diagnosis remains uncertain; or a high-risk/regression-prone implementation where independent review is warranted. Skip advisor for routine, low-risk changes when the main agent can validate the result directly.
-6. When `advisor` is invoked, apply the named-agent mutation guard, select and pass its model and reasoning effort according to the adaptive policy above, and invoke it in a fresh behaviorally read-only child context: use `fork_turns: "none"` with MultiAgentV2, or `fork_context: false`/omitted with MultiAgentV1. Provide only the task-specific contract and primary evidence needed for independent review. For implementation review, provide the planner contract and primary evidence: the actual changed files or diff, relevant source and test configuration, and verification commands and results. Treat implementation decisions, summaries, and reported verification outcomes as orientation or claims rather than authoritative evidence; the advisor must independently inspect available primary evidence. Treat the advisor result as guidance rather than independent approval: apply supported `fix-first` findings in the main agent, return material `rethink` findings to `planner`, and surface any conflict where verified primary evidence contradicts the advice instead of following it mechanically. Rerun relevant verification after changes. Re-invoke `advisor` only when another independent opinion remains materially useful or the user explicitly requests it; do not loop solely to obtain `VERDICT: ship`. The verdict is an advisory classification, not a completion gate. An `unsupported` advisor result blocks completion only when the user explicitly required the consultation or a material risk remains unresolved and cannot be validated independently.
+For `pr-loop`, prefer compatible named roles before generic native independent subagents:
 
-The named agent TOML files intentionally omit `model` and `model_reasoning_effort` and configure read-only sandbox defaults. Select both model and reasoning effort explicitly whenever a named agent is dispatched. Runtime sandbox broadening alone must not block execution when the mutation guard can be established. Every named-agent invocation must use the Git-visible mutation guard above before its result is accepted; outside a Git worktree, require an effective read-only sandbox instead.
+```text
+planning          → planner
+review            → reviewer
+feedback-analysis → feedback-analyst
+```
 
-For architecture, design evaluation, or technical advice without implementation, invoke `advisor` when its independent judgment is useful or when the user explicitly requests it. Apply the same named-agent mutation guard, select advisor model and effort adaptively, invoke it in a fresh child context using the active native runtime's isolation parameter, and keep the work behaviorally read-only.
+Dispatch one fresh `reviewer` per required lens (`correctness`, `tests/docs`, `security/performance`) and apply the lens-specific model policy above. Pass the skill's source metadata and terminal-state constraints to `feedback-analyst`. Fall back to another native independent subagent only when the required named role is unavailable or incompatible with the portable skill contract.
 
-Do not invoke a subagent when the main agent can complete a non-implementation task safely and efficiently without delegation.
+Treat advisor output as guidance, not an approval gate. Apply supported bounded fixes in the main agent, return material architecture/scope conflicts to `planner`, rerun affected verification, and do not loop merely to obtain `VERDICT: ship`.
+
+Treat a named invocation as unsupported only when available runtime evidence shows unavailable native named-role dispatch, use of a different/generic agent, failure to honor the explicit model/effort or fresh-context isolation, or a writable non-Git invocation. Missing telemetry or a writable Git worktree sandbox alone is not a mismatch.
