@@ -39,7 +39,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `pr-feedback-triage` - Triage and resolve pull request review feedback
 - `pr-loop` - Portable Issue-to-PR and iterative PR review/fix loop using the active runtime's own native independent-subagent mechanism, with no Oracle or `.codex/agents` dependency
 - `pr-review` - Autonomous CI/GitHub PR review that posts concise, high-confidence findings by default
-- `simplify-codebase` - Reduce a repository's maintenance surface by removing dead code, duplication, needless indirection, and speculative abstractions under KISS/DRY/YAGNI
+- `simplify-codebase` - Reduce maintenance surface under KISS/DRY/YAGNI when requested or when the agent identifies material simplification opportunities
 
 ### AI Tools
 
