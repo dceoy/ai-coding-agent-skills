@@ -1,6 +1,6 @@
 ---
 name: simplify-codebase
-description: Reduce a repository's maintenance surface across the whole codebase with KISS, DRY, and YAGNI while preserving required behavior. Use when asked to simplify, shrink, deduplicate, remove dead code, or refactor a repository for maintainability rather than add features.
+description: Reduce a repository's maintenance surface across the whole codebase with KISS, DRY, and YAGNI while preserving required behavior. Use when asked to simplify, shrink, deduplicate, remove dead code, or refactor for maintainability, and proactively when the agent identifies clear, material simplification opportunities.
 ---
 
 # Simplify Codebase
@@ -15,6 +15,7 @@ Reduce the repository to the smallest clear implementation that satisfies curren
 - **YAGNI:** Remove functionality, flexibility, compatibility, configuration, or infrastructure without a current requirement.
 - Simplify in this order: delete unused material, reuse existing code, inline needless indirection, consolidate equivalent paths, then abstract only stable repeated knowledge.
 - Reduce unnecessary nesting, pass-through wrappers, redundant abstractions, weak naming, and comments that only restate obvious code when doing so improves clarity.
+- Invoke proactively when high-confidence simplification would materially improve maintainability, but keep the scope proportional and do not displace the user's primary task with unrelated cleanup.
 - Do not add features, dependencies, tools, speculative abstractions, or unrelated cleanup. Do not edit generated/vendor outputs directly or delete behavioral tests merely to shrink the repository.
 - Preserve unrelated user changes; stop if the work cannot be isolated safely.
 
