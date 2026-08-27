@@ -34,7 +34,10 @@ while IFS=$'\t' read -r ref tracking; do
       continue
     fi
     echo "  Removing worktree: $worktree"
-    git worktree remove --force "$worktree"
+    if ! git worktree remove "$worktree"; then
+      echo "  Skipping branch because worktree removal failed"
+      continue
+    fi
   fi
 
   echo "  Deleting branch: $branch"
