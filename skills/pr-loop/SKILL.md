@@ -20,6 +20,28 @@ Preserve explicit caller constraints such as `dry_run`, `no_push`, and `no_reply
 
 For Issue-started work, `dry_run` stops after planning and analysis, while `no_push` may produce verified local commits but cannot enter a remote PR loop because no PR is opened.
 
+## Workflow
+
+```mermaid
+flowchart TD
+  Request --> Issue{Issue-started?}
+  Issue -->|yes| Plan[issue-plan]
+  Plan --> Implement[Main agent: implement, QA, commit, push, open PR]
+  Issue -->|no| Head[Record PR head SHA]
+  Implement --> Head
+  Head --> Review[pr-review]
+  Review --> HeadCheck{Head changed?}
+  HeadCheck -->|yes| Head
+  HeadCheck -->|no| Triage[pr-feedback-triage]
+  Triage --> Blocked{Blocker?}
+  Blocked -->|yes| Stop[Stop and report]
+  Blocked -->|no| Changed{Head changed?}
+  Changed -->|yes| Head
+  Changed -->|no| Feedback{New actionable feedback?}
+  Feedback -->|yes| Triage
+  Feedback -->|no| Done[Done]
+```
+
 ## Issue-started flow
 
 1. Resolve the requested Issue or same-repository Issue set and run `issue-plan`.
