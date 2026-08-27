@@ -21,16 +21,6 @@ The top-level agent owns every repository and GitHub mutation. Delegate only pla
 - Keep implementation and fixes scoped. Apply KISS, DRY, and YAGNI; prefer the smallest coherent change and avoid speculative abstraction or unrelated cleanup.
 - Preserve unrelated local work. Stop before editing if the worktree cannot be safely isolated or bound to the intended base/head.
 
-## Modes
-
-Honor these optional caller constraints:
-
-- `dry_run`: plan, review, and analyze only; perform no repository or GitHub mutation.
-- `no_push`: implement, verify, and commit locally, but do not push, open a PR, or resolve feedback whose fix is unpublished.
-- `no_reply`: do not publish reviews, replies, or resolutions; local implementation and push remain allowed unless another mode forbids them.
-
-Actions suppressed by a mode are not failures. Record them in a run-level `run_mode_skips` ledger and report the affected feedback as `skipped_by_mode`, except an active unsuperseded `CHANGES_REQUESTED` review remains `awaiting_re_review`.
-
 ## Subagent Contract
 
 Give each subagent only the context needed for its role:
@@ -38,7 +28,6 @@ Give each subagent only the context needed for its role:
 - user request and settled prior decisions;
 - exact target: Issue set or PR plus recorded head SHA;
 - relevant repository context and governing constraints;
-- active modes;
 - a delegation boundary stating that the subagent is a read-only terminal leaf;
 - role-specific evidence below.
 
@@ -70,8 +59,7 @@ Dispatch one fresh feedback-analysis subagent after each validated review round.
 
 - inline threads/comments: `thread:<id>`;
 - PR-level comments: `comment:<id>`;
-- review submissions/bodies: `review:<id>`, including reviewer, persisted state, submission time, and body;
-- unpublished local findings, when review publication is suppressed: `finding:<head-sha>:<ordinal>`.
+- review submissions/bodies: `review:<id>`, including reviewer, persisted state, submission time, and body.
 
 If one artifact contains multiple independent feedback items, decompose them into stable item-scoped IDs while retaining the parent artifact ID. Merge only items with the same root cause.
 
@@ -81,10 +69,10 @@ Require one disposition per distinct feedback item: `fix`, `already addressed`, 
 
 1. Resolve the requested Issues and require them to belong to one repository.
 2. Dispatch planning. If blocked, obtain the missing material decision and re-plan; otherwise validate the ready plan.
-3. Unless `dry_run`, resolve the intended base branch and exact base SHA. Require a clean isolatable worktree, create a suitable branch from that SHA, and verify the branch starts there.
-4. Unless `dry_run`, implement directly in the top-level agent, run repository QA, and commit. Do not delegate implementation.
-5. Unless `dry_run` or `no_push`, push the branch and open the PR.
-6. Enter the PR Review Loop. If no PR exists because a mode suppressed publication, report the plan and local state and stop.
+3. Resolve the intended base branch and exact base SHA. Require a clean isolatable worktree, create a suitable branch from that SHA, and verify the branch starts there.
+4. Implement directly in the top-level agent, run repository QA, and commit. Do not delegate implementation.
+5. Push the branch and open the PR.
+6. Enter the PR Review Loop.
 
 For an existing-PR request, enter the PR Review Loop directly.
 
@@ -94,9 +82,9 @@ Use caller-specified review-attempt and same-head feedback-refresh limits when p
 
 ### 1. Freeze the target
 
-Resolve the exact PR, including its head repository and head ref, and initialize the sticky run-level `run_mode_skips` ledger. Record the current head SHA. Every fix commit and push must target that exact head repository/ref, including fork PRs.
+Resolve the exact PR, including its head repository and head ref. Record the current head SHA. Every fix commit and push must target that exact head repository/ref, including fork PRs.
 
-In normal posting mode, verify that current authentication can read the feedback needed by this loop before spending a review attempt. Use a non-mutating write-permission check when the runtime provides one; otherwise the actual review submission is the write test.
+Verify that current authentication can read the feedback needed by this loop before spending a review attempt. Use a non-mutating write-permission check when the runtime provides one; otherwise the actual review submission is the write test.
 
 ### 2. Review the exact head
 
@@ -106,25 +94,23 @@ Re-fetch the head when the review subagents finish. If it changed, discard the w
 
 Validate and arbitrate the findings. Immediately before publication, re-fetch the head again and discard the round if it moved.
 
-Unless `dry_run` or `no_reply`, publish exactly one GitHub review with action `COMMENT` and a non-empty body. Put safely anchorable findings inline and unanchorable findings in the body. If none remain, say only that no new actionable findings were found in this pass; do not imply older feedback is cleared. Re-fetch GitHub state and verify the exact review and intended comments persisted on the reviewed head.
-
-When publication is suppressed, retain the arbitrated findings locally as `finding:<head-sha>:<ordinal>` and record the skipped publication in `run_mode_skips`.
+Publish exactly one GitHub review with action `COMMENT` and a non-empty body. Put safely anchorable findings inline and unanchorable findings in the body. If none remain, say only that no new actionable findings were found in this pass; do not imply older feedback is cleared. Re-fetch GitHub state and verify the exact review and intended comments persisted on the reviewed head.
 
 ### 3. Analyze all feedback
 
-Snapshot all current feedback sources and dispatch feedback analysis. Treat the snapshot plus any local `finding:` sources as the analysis baseline for that head.
+Snapshot all current feedback sources and dispatch feedback analysis. Treat the snapshot as the analysis baseline for that head.
 
 After analysis returns, re-fetch the head first. If it changed, discard the analysis and restart on the new head.
 
-Then re-fetch the GitHub-backed feedback snapshot. If external feedback changed while analysis was running, do not act on stale dispositions. Redispatch feedback analysis on the same head with the fresh GitHub snapshot plus the unchanged local `finding:` set. Continue until the snapshot is stable or the applicable refresh limit is reached.
+Then re-fetch the feedback snapshot. If external feedback changed while analysis was running, do not act on stale dispositions. Redispatch feedback analysis on the same head with the fresh snapshot. Continue until the snapshot is stable or the applicable refresh limit is reached.
 
 Ignore differences caused only by this loop's own recorded GitHub mutations; any other new or edited thread, comment, review, review state, or feedback content is an external delta.
 
 ### 4. Prepare validated dispositions
 
-If this round has any `fix` disposition and `dry_run` is not set, bind the local worktree to the exact recorded PR head repository/ref and SHA without discarding unrelated work. Stop if it is dirty, diverged, otherwise unsafe, or lacks required push access in normal push mode.
+If this round has any `fix` disposition, bind the local worktree to the exact recorded PR head repository/ref and SHA without discarding unrelated work. Stop if it is dirty, diverged, otherwise unsafe, or lacks required push access.
 
-Initialize `expected_head` to the reviewed head SHA. Unless `dry_run`, batch all `fix` dispositions from the round into one coherent change against that same head, run QA once for the combined batch, make one commit, and push once unless `no_push` suppresses it. Do not partially publish a conflicting fix batch. After a successful push, re-fetch and replace `expected_head` with the exact resulting head SHA. Under `dry_run`, record each suppressed fix action in `run_mode_skips` and report its affected feedback item as `skipped_by_mode`.
+Initialize `expected_head` to the reviewed head SHA. Batch all `fix` dispositions from the round into one coherent change against that same head, run QA once for the combined batch, make one commit, and push once. Do not partially publish a conflicting fix batch. After a successful push, re-fetch and replace `expected_head` with the exact resulting head SHA.
 
 For non-fix dispositions, validate and prepare the intended GitHub action, but do not publish, reply, or resolve anything in this step:
 
@@ -137,17 +123,15 @@ PR-level comments and review submissions have no thread-resolution action, so th
 
 An active unsuperseded `CHANGES_REQUESTED` review is always `awaiting_re_review`, regardless of this loop's disposition. It is superseded only by an explicit dismissal or by a later review from the same reviewer with state `APPROVED` or `CHANGES_REQUESTED`; a later `COMMENTED` review does not supersede it. A later `CHANGES_REQUESTED` review transfers the active blocker to that newer review rather than clearing it. This loop must not dismiss or otherwise mutate reviewer state merely to clear the blocker.
 
-Local `finding:` sources have no GitHub artifact. Their terminal state is `skipped_by_mode`; they may still drive local fixes when the active mode permits implementation.
-
 ### 5. Gate and publish on fresh state
 
-Before any GitHub reply or resolution, require the PR head to equal `expected_head` exactly. A descendant SHA is not sufficient. If the head differs, publish nothing from the stale analysis and restart review on the new head. If `dry_run` or `no_push` left a required fix unpublished, leave the affected ordinary feedback open as `skipped_by_mode`; an active unsuperseded `CHANGES_REQUESTED` review remains `awaiting_re_review`.
+Before any GitHub reply or resolution, require the PR head to equal `expected_head` exactly. A descendant SHA is not sufficient. If the head differs, publish nothing from the stale analysis and restart review on the new head.
 
 Before any GitHub reply or resolution, reconcile the current feedback snapshot with the analysis baseline plus this loop's recorded mutations. If external feedback changed on the same reviewed head, refresh feedback analysis before acting. If feedback arrives after a fix push changed the head, start a new review attempt instead.
 
-Only after both gates pass, unless `dry_run` or `no_reply`, publish the prepared replies and apply each validated terminal action: resolve or leave inline threads open conservatively, record PR-level comments and reviews as `not_resolvable` when applicable, and preserve `awaiting_re_review` for active change requests. Record each successful reply/resolution as this loop's own mutation for later reconciliation. When a mode intentionally suppresses an otherwise applicable action, add it to `run_mode_skips` and report `skipped_by_mode`, subject to the `CHANGES_REQUESTED` exception above.
+Only after both gates pass, publish the prepared replies and apply each validated terminal action: resolve or leave inline threads open conservatively, record PR-level comments and reviews as `not_resolvable` when applicable, and preserve `awaiting_re_review` for active change requests. Record each successful reply/resolution as this loop's own mutation for later reconciliation.
 
-A failed attempted publication/reply/resolution is `failed_action`. An action intentionally suppressed by a mode is `skipped_by_mode` and is added to `run_mode_skips`.
+A failed attempted publication, reply, or resolution is `failed_action`.
 
 ### 6. Reconcile and continue or finish
 
@@ -158,14 +142,23 @@ Re-fetch the head after acting:
 - if new external feedback exists on the same head, refresh feedback analysis only;
 - never dispatch the three review subagents again for an unchanged head already carried through this loop.
 
-Finish only when the final head is stable, the required normal-mode `COMMENT` review was verified for that head, the feedback snapshot is reconciled, and every feedback item is terminal.
+Finish only when the final head is stable, the required `COMMENT` review was verified for that head, the feedback snapshot is reconciled, and every feedback item is terminal.
 
 ```mermaid
 flowchart TD
-  A[Freeze PR head SHA] --> B[Review exact head]
+  S{Starting point} -->|Issue| P[Plan issue implementation]
+  S -->|Existing PR| A
+  P --> Q{Plan ready?}
+  Q -->|blocked| R[Obtain missing material decision]
+  R -->|obtained| P
+  R -->|unavailable| K[Stop]
+  Q -->|ready| M[Create branch, implement, QA, commit]
+  M --> N[Push and open PR]
+  N --> A[Freeze PR head SHA]
+  A --> B[Review exact head]
   B --> C{Head changed?}
   C -->|yes| A
-  C -->|no| D[Publish COMMENT review or retain findings by mode]
+  C -->|no| D[Publish COMMENT review]
   D --> E[Analyze all feedback]
   E --> F{State changed?}
   F -->|new head| A
@@ -177,10 +170,10 @@ flowchart TD
   I -->|no| J[Reconcile final head and feedback]
   J -->|same-head feedback| E
   J -->|blocker| K[Stop]
-  J -->|complete| L[success or completed_with_skips]
+  J -->|complete| L[success]
 ```
 
-Terminal states are `resolved`, `replied_left_open`, `not_resolvable`, `skipped_by_mode`, `awaiting_re_review`, or `failed_action`. Completion is blocked by:
+Terminal states are `resolved`, `replied_left_open`, `not_resolvable`, `awaiting_re_review`, or `failed_action`. Completion is blocked by:
 
 - any `fix` still requiring publication;
 - `clarify` awaiting input;
@@ -197,16 +190,15 @@ Terminal states are `resolved`, `replied_left_open`, `not_resolvable`, `skipped_
 ## Outcomes
 
 - `success`: the final reviewed head is stable, required review publication is verified, feedback is reconciled, and no actionable or reviewer-blocked item remains.
-- `completed_with_skips`: the same completion conditions hold, but `run_mode_skips` is non-empty because an active mode intentionally suppressed work.
-- `stopped`: a blocker above prevents either successful outcome.
+- `stopped`: a blocker above prevents success.
 
 ## Output
 
 Report concisely:
 
-- outcome and active modes;
+- outcome;
 - Issues implemented and resulting PR, when applicable;
 - review attempts, final reviewed head SHA, and verified review-publication status;
 - same-head feedback refreshes and any caller limit;
-- disposition/terminal-state summary, including `awaiting_re_review`, `not_resolvable`, and all `run_mode_skips`;
+- disposition/terminal-state summary, including `awaiting_re_review` and `not_resolvable`;
 - any blocker that stopped the loop.
