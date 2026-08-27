@@ -14,6 +14,7 @@ The top-level agent owns every repository and GitHub mutation. Delegate only pla
 - Use real native subagents with fresh context. Do not emulate them in the parent context, launch nested coding-agent CLIs, or require fixed agent names, models, providers, or configuration files.
 - Treat each accepted subagent as a terminal leaf: it performs its assigned role directly and does not re-enter `pr-loop` or delegate again.
 - If a required independent subagent cannot be launched, report `unsupported` and stop. Retry only when the runtime proves rejection occurred before execution was accepted; never duplicate ambiguously accepted work.
+- Every accepted subagent dispatch must reach a terminal result within a finite runtime- or caller-enforced deadline. A still-running poll is not failure; on terminal failure or deadline expiry, stop or cancel and reap the accepted dispatch without launching replacement work.
 - Bind every review and feedback decision to an exact PR head SHA. If the head changes before an action based on that decision, discard the stale result and restart from the new head.
 - Treat subagent output as advisory. The top-level agent validates plans, findings, dispositions, repository state, and GitHub state before acting.
 - The top-level agent alone edits files, runs write-mode tooling, commits, pushes, opens or updates PRs, publishes reviews, replies, and resolves threads.
@@ -89,7 +90,7 @@ For an existing-PR request, enter the PR Review Loop directly.
 
 ## PR Review Loop
 
-Use caller-specified review-attempt and same-head feedback-refresh limits when provided; otherwise they are unbounded. If only a review-attempt limit is supplied, use it for same-head feedback refreshes too. A review attempt begins when review subagents are dispatched. A same-head refresh re-runs only feedback analysis and does not consume another review attempt.
+Use caller-specified review-attempt and same-head feedback-refresh limits when provided; otherwise they are unbounded. If only a review-attempt limit is supplied, use it for same-head feedback refreshes too. A review attempt begins when review subagents are dispatched. A same-head refresh re-runs only feedback analysis and does not consume another review attempt. Track the same-head refresh count per head SHA and reset it whenever the head changes.
 
 ### 1. Freeze the target
 
