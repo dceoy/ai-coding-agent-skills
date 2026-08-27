@@ -8,8 +8,9 @@ main_worktree="$(
 )"
 found=false
 
-while IFS=$'\t' read -r branch tracking; do
+while IFS=$'\t' read -r ref tracking; do
   [[ "$tracking" == "[gone]" ]] || continue
+  branch="${ref#refs/heads/}"
   found=true
   echo "Processing branch: $branch"
 
@@ -38,7 +39,7 @@ while IFS=$'\t' read -r branch tracking; do
 
   echo "  Deleting branch: $branch"
   git branch -D -- "$branch"
-done < <(git for-each-ref --format='%(refname:short)%09%(upstream:track)' refs/heads/)
+done < <(git for-each-ref --format='%(refname)%09%(upstream:track)' refs/heads/)
 
 if [[ "$found" == false ]]; then
   echo "No [gone] branches found."
