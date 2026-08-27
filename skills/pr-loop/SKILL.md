@@ -118,18 +118,18 @@ Then re-fetch the GitHub-backed feedback snapshot. If external feedback changed 
 
 Ignore differences caused only by this loop's own recorded GitHub mutations; any other new or edited thread, comment, review, review state, or feedback content is an external delta.
 
-### 4. Apply validated dispositions
+### 4. Prepare validated dispositions
 
 Before editing, bind the local worktree to the exact recorded PR head repository/ref and SHA without discarding unrelated work. Stop if it is dirty, diverged, otherwise unsafe, or lacks required push access in normal push mode.
 
 Initialize `expected_head` to the reviewed head SHA. Unless `dry_run`, batch all `fix` dispositions from the round into one coherent change against that same head, run QA once for the combined batch, make one commit, and push once unless `no_push` suppresses it. Do not partially publish a conflicting fix batch. After a successful push, re-fetch and replace `expected_head` with the exact resulting head SHA. Under `dry_run`, record each suppressed fix action in `run_mode_skips` and report its affected feedback item as `skipped_by_mode`.
 
-For non-fix dispositions:
+For non-fix dispositions, validate and prepare the intended GitHub action, but do not publish, reply, or resolve anything in this step:
 
-- `already addressed` / `outdated`: re-validate the evidence against the exact current head before replying or resolving.
-- `answer`: post the validated concise answer when replies are allowed.
-- `clarify`: ask the question and leave the item open.
-- `defer` / `won't fix`: explain the decision; resolve only when `decision_terminal: true` and the platform source is resolvable.
+- `already addressed` / `outdated`: re-validate the evidence against the exact current head and prepare any reply/resolution.
+- `answer`: prepare the validated concise answer.
+- `clarify`: prepare the question and keep the item open.
+- `defer` / `won't fix`: prepare the explanation; resolution is allowed only when `decision_terminal: true` and the platform source is resolvable.
 
 PR-level comments and review submissions have no thread-resolution action, so their normal terminal state is `not_resolvable` after any applicable reply. Inline parent threads may be resolved only when every feedback item contributing to that thread is resolve-eligible.
 
@@ -137,11 +137,13 @@ An active unsuperseded `CHANGES_REQUESTED` review is always `awaiting_re_review`
 
 Local `finding:` sources have no GitHub artifact. Their terminal state is `skipped_by_mode`; they may still drive local fixes when the active mode permits implementation.
 
-### 5. Gate every publication on fresh state
+### 5. Gate and publish on fresh state
 
-Before any code-dependent reply or resolution, require the PR head to equal `expected_head` exactly. A descendant SHA is not sufficient. If the head differs, publish nothing from the stale analysis and restart review on the new head.
+Before any code-dependent reply or resolution, require the PR head to equal `expected_head` exactly. A descendant SHA is not sufficient. If the head differs, publish nothing from the stale analysis and restart review on the new head. If `dry_run` or `no_push` left a required fix unpublished, leave the affected ordinary feedback open as `skipped_by_mode`; an active unsuperseded `CHANGES_REQUESTED` review remains `awaiting_re_review`.
 
-Before any GitHub reply or resolution, also reconcile the current feedback snapshot with the analysis baseline plus this loop's recorded mutations. If external feedback changed on the same reviewed head, refresh feedback analysis before acting. If feedback arrives after a fix push changed the head, start a new review attempt instead.
+Before any GitHub reply or resolution, reconcile the current feedback snapshot with the analysis baseline plus this loop's recorded mutations. If external feedback changed on the same reviewed head, refresh feedback analysis before acting. If feedback arrives after a fix push changed the head, start a new review attempt instead.
+
+Only after both gates pass, unless `dry_run` or `no_reply`, publish the prepared replies and apply each validated terminal action: resolve or leave inline threads open conservatively, record PR-level comments and reviews as `not_resolvable` when applicable, and preserve `awaiting_re_review` for active change requests. Record each successful reply/resolution as this loop's own mutation for later reconciliation. When a mode intentionally suppresses an otherwise applicable action, add it to `run_mode_skips` and report `skipped_by_mode`, subject to the `CHANGES_REQUESTED` exception above.
 
 A failed attempted publication/reply/resolution is `failed_action`. An action intentionally suppressed by a mode is `skipped_by_mode` and is added to `run_mode_skips`.
 
@@ -166,13 +168,14 @@ flowchart TD
   E --> F{State changed?}
   F -->|new head| A
   F -->|same-head feedback| E
-  F -->|stable| G[Apply validated dispositions]
-  G --> H{Fix changed head?}
-  H -->|yes| A
-  H -->|no| I[Reconcile final head and feedback]
-  I -->|same-head feedback| E
-  I -->|blocker| J[Stop]
-  I -->|complete| K[success or completed_with_skips]
+  F -->|stable| G[Prepare dispositions and apply fix batch]
+  G --> H[Gate fresh head and feedback, then publish replies/resolutions]
+  H --> I{Head changed from reviewed head?}
+  I -->|yes| A
+  I -->|no| J[Reconcile final head and feedback]
+  J -->|same-head feedback| E
+  J -->|blocker| K[Stop]
+  J -->|complete| L[success or completed_with_skips]
 ```
 
 Terminal states are `resolved`, `replied_left_open`, `not_resolvable`, `skipped_by_mode`, `awaiting_re_review`, or `failed_action`. Completion is blocked by:
