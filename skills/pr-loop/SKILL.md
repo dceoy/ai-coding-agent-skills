@@ -165,9 +165,15 @@ flowchart TD
   S{Starting point} -->|Issue| P[Plan issue implementation]
   S -->|Existing PR| A
   P --> Q{Plan ready?}
-  Q -->|no| K[Stop]
-  Q -->|yes| M[Create branch, implement, QA, commit]
-  M --> N[Push and open PR]
+  Q -->|blocked| R[Obtain missing material decision]
+  R -->|obtained| P
+  R -->|unavailable| K[Stop]
+  Q -->|ready| U{dry_run?}
+  U -->|yes| T[Report plan and stop]
+  U -->|no| M[Create branch, implement, QA, commit]
+  M --> V{no_push?}
+  V -->|yes| W[Report local state and stop]
+  V -->|no| N[Push and open PR]
   N --> A[Freeze PR head SHA]
   A --> B[Review exact head]
   B --> C{Head changed?}
