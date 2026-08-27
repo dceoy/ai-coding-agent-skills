@@ -155,6 +155,25 @@ Re-fetch the head after acting:
 
 Finish only when the final head is stable, the required normal-mode `COMMENT` review was verified for that head, the feedback snapshot is reconciled, and every feedback item is terminal.
 
+```mermaid
+flowchart TD
+  A[Freeze PR head SHA] --> B[Review exact head]
+  B --> C{Head changed?}
+  C -->|yes| A
+  C -->|no| D[Publish COMMENT review or retain findings by mode]
+  D --> E[Analyze all feedback]
+  E --> F{State changed?}
+  F -->|new head| A
+  F -->|same-head feedback| E
+  F -->|stable| G[Apply validated dispositions]
+  G --> H{Fix changed head?}
+  H -->|yes| A
+  H -->|no| I[Reconcile final head and feedback]
+  I -->|same-head feedback| E
+  I -->|blocker| J[Stop]
+  I -->|complete| K[success or completed_with_skips]
+```
+
 Terminal states are `resolved`, `replied_left_open`, `not_resolvable`, `skipped_by_mode`, `awaiting_re_review`, or `failed_action`. Completion is blocked by:
 
 - any `fix` still requiring publication;
