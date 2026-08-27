@@ -162,7 +162,14 @@ Finish only when the final head is stable, the required normal-mode `COMMENT` re
 
 ```mermaid
 flowchart TD
-  A[Freeze PR head SHA] --> B[Review exact head]
+  S{Starting point} -->|Issue| P[Plan issue implementation]
+  S -->|Existing PR| A
+  P --> Q{Plan ready?}
+  Q -->|no| K[Stop]
+  Q -->|yes| M[Create branch, implement, QA, commit]
+  M --> N[Push and open PR]
+  N --> A[Freeze PR head SHA]
+  A --> B[Review exact head]
   B --> C{Head changed?}
   C -->|yes| A
   C -->|no| D[Publish COMMENT review or retain findings by mode]
