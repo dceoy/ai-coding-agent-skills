@@ -122,7 +122,7 @@ Ignore differences caused only by this loop's own recorded GitHub mutations; any
 
 ### 4. Prepare validated dispositions
 
-Before editing, bind the local worktree to the exact recorded PR head repository/ref and SHA without discarding unrelated work. Stop if it is dirty, diverged, otherwise unsafe, or lacks required push access in normal push mode.
+If this round has any `fix` disposition and `dry_run` is not set, bind the local worktree to the exact recorded PR head repository/ref and SHA without discarding unrelated work. Stop if it is dirty, diverged, otherwise unsafe, or lacks required push access in normal push mode.
 
 Initialize `expected_head` to the reviewed head SHA. Unless `dry_run`, batch all `fix` dispositions from the round into one coherent change against that same head, run QA once for the combined batch, make one commit, and push once unless `no_push` suppresses it. Do not partially publish a conflicting fix batch. After a successful push, re-fetch and replace `expected_head` with the exact resulting head SHA. Under `dry_run`, record each suppressed fix action in `run_mode_skips` and report its affected feedback item as `skipped_by_mode`.
 
