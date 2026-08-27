@@ -139,7 +139,7 @@ Local `finding:` sources have no GitHub artifact. Their terminal state is `skipp
 
 ### 5. Gate and publish on fresh state
 
-Before any code-dependent reply or resolution, require the PR head to equal `expected_head` exactly. A descendant SHA is not sufficient. If the head differs, publish nothing from the stale analysis and restart review on the new head. If `dry_run` or `no_push` left a required fix unpublished, leave the affected ordinary feedback open as `skipped_by_mode`; an active unsuperseded `CHANGES_REQUESTED` review remains `awaiting_re_review`.
+Before any GitHub reply or resolution, require the PR head to equal `expected_head` exactly. A descendant SHA is not sufficient. If the head differs, publish nothing from the stale analysis and restart review on the new head. If `dry_run` or `no_push` left a required fix unpublished, leave the affected ordinary feedback open as `skipped_by_mode`; an active unsuperseded `CHANGES_REQUESTED` review remains `awaiting_re_review`.
 
 Before any GitHub reply or resolution, reconcile the current feedback snapshot with the analysis baseline plus this loop's recorded mutations. If external feedback changed on the same reviewed head, refresh feedback analysis before acting. If feedback arrives after a fix push changed the head, start a new review attempt instead.
 
