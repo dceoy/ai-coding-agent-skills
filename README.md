@@ -35,9 +35,10 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ### Code Quality
 
+- `issue-plan` - Produce a decision-complete implementation plan for one or more same-repository GitHub Issues
 - `parameterized-tests` - Prefer native parameterized or table-driven tests for repeated unit-test cases that share the same test logic
 - `pr-feedback-triage` - Triage and resolve pull request review feedback
-- `pr-loop` - Portable Issue-to-PR and iterative PR review/fix loop using the active runtime's own native independent-subagent mechanism, with no Oracle or `.codex/agents` dependency
+- `pr-loop` - Orchestrate `issue-plan`, `pr-review`, and `pr-feedback-triage` for Issue-to-PR and iterative PR review/fix workflows
 - `pr-review` - Autonomous CI/GitHub PR review that posts concise, high-confidence findings by default
 - `simplify-codebase` - Reduce maintenance surface under KISS/DRY/YAGNI, explicitly or proactively when worthwhile
 
@@ -109,7 +110,7 @@ Install and authenticate the required CLI tools before running skills:
 
 - Skills do not always auto-run; use your agent's skill invocation flow or ask for the skill explicitly.
 - For Claude Code Routines, CI, and other autonomous workflows, invoke the canonical skill under `skills/` and pass runtime-specific context externally.
-- `pr-review` is the source of truth for autonomous PR review behavior, including GitHub posting and verification.
+- `issue-plan`, `pr-review`, and `pr-feedback-triage` are the source of truth for their respective phases; `pr-loop` only sequences them.
 - If a skill fails, open its `SKILL.md` and verify prerequisites and command syntax.
 
 ## Troubleshooting

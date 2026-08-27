@@ -54,15 +54,14 @@ Outside a Git worktree, require an effective read-only sandbox. A broader sandbo
 
 Use the main agent directly for simple questions and narrow deterministic edits. For non-trivial implementation, invoke `planner` when planning overhead is justified, implement directly in the top-level main agent, run verification, and invoke `advisor` only when an independent second opinion materially improves decision quality or confidence.
 
-For `pr-loop`, prefer compatible named roles before generic native independent subagents:
+Skill-specific routing follows each skill's own contract:
 
-```text
-planning          → planner
-review            → reviewer
-feedback-analysis → feedback-analyst
-```
+- `issue-plan` may map its required fresh planning subagent to the compatible `planner` role.
+- `pr-review` owns its dynamic review and validation task selection. Map those tasks to compatible fresh `reviewer` invocations when useful; do not force a fixed lens set that the skill did not select.
+- `pr-feedback-triage` is a top-level mutation workflow. Do not insert `feedback-analyst` as an extra required phase unless that skill explicitly delegates analysis.
+- `pr-loop` only sequences `issue-plan`, `pr-review`, and `pr-feedback-triage`; it does not define additional subagent roles.
 
-Dispatch one fresh `reviewer` per required lens (`correctness`, `tests/docs`, `security/performance`) and apply the lens-specific model policy above. Pass the skill's source metadata and terminal-state constraints to `feedback-analyst`. Fall back to another native independent subagent only when the required named role is unavailable or incompatible with the portable skill contract.
+Fall back to another native independent subagent only when a skill requires delegation and the preferred named role is unavailable or incompatible with that skill's portable contract.
 
 Treat advisor output as guidance, not an approval gate. Apply supported bounded fixes in the main agent, return material architecture/scope conflicts to `planner`, rerun affected verification, and do not loop merely to obtain `VERDICT: ship`.
 

@@ -22,17 +22,16 @@ Effort is selected for the chosen model: Luna=`max`; Terra=`xhigh` or `max`; Sol
 
 Invoke named roles only through Codex native multi-agent tools. With MultiAgentV2 use `fork_turns: "none"`; with MultiAgentV1 use `fork_context: false` or omit it. Pass task-specific context explicitly and apply the mutation guard defined in `.codex/AGENTS.md`.
 
-## `pr-loop` mapping
+## Skill mapping
 
-When compatible named roles are available:
+Use named roles only where the invoked skill requires independent delegation:
 
-```text
-planning          → planner
-review            → reviewer
-feedback-analysis → feedback-analyst
-```
+- `issue-plan` may use `planner` for its single fresh planning task.
+- `pr-review` may use fresh `reviewer` invocations for the dynamic review and validation tasks it selects; do not force a fixed set of lenses.
+- `pr-feedback-triage` runs in the top-level main agent and does not require `feedback-analyst` unless its own contract changes to delegate that work.
+- `pr-loop` adds no role mapping of its own; it sequences the three skills above.
 
-Use one fresh `reviewer` invocation per required lens: `correctness`, `tests/docs`, and `security/performance`. `advisor` remains an independent on-demand role rather than part of the required `pr-loop` sequence.
+`advisor` and `feedback-analyst` remain available for independent on-demand use when their roles fit the task.
 
 ## User-wide installation
 
