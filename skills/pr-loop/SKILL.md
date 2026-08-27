@@ -81,7 +81,7 @@ Require one disposition per distinct feedback item: `fix`, `already addressed`, 
 1. Resolve the requested Issues and require them to belong to one repository.
 2. Dispatch planning. If blocked, obtain the missing material decision and re-plan; otherwise validate the ready plan.
 3. Unless `dry_run`, resolve the intended base branch and exact base SHA. Require a clean isolatable worktree, create a suitable branch from that SHA, and verify the branch starts there.
-4. Implement directly in the top-level agent, run repository QA, and commit. Do not delegate implementation.
+4. Unless `dry_run`, implement directly in the top-level agent, run repository QA, and commit. Do not delegate implementation.
 5. Unless `dry_run` or `no_push`, push the branch and open the PR.
 6. Enter the PR Review Loop. If no PR exists because a mode suppressed publication, report the plan and local state and stop.
 
@@ -121,7 +121,7 @@ Ignore differences caused only by this loop's own recorded GitHub mutations; any
 
 Before editing, bind the local worktree to the exact recorded PR head repository/ref and SHA without discarding unrelated work. Stop if it is dirty, diverged, otherwise unsafe, or lacks required push access in normal push mode.
 
-Batch all `fix` dispositions from the round into one coherent change against that same head, run QA once for the combined batch, make one commit, and push once unless a mode suppresses it. Do not partially publish a conflicting fix batch. After pushing, re-fetch and record the exact resulting head SHA as `expected_head`.
+Initialize `expected_head` to the reviewed head SHA. Batch all `fix` dispositions from the round into one coherent change against that same head, run QA once for the combined batch, make one commit, and push once unless a mode suppresses it. Do not partially publish a conflicting fix batch. After a successful push, re-fetch and replace `expected_head` with the exact resulting head SHA.
 
 For non-fix dispositions:
 
@@ -132,7 +132,7 @@ For non-fix dispositions:
 
 PR-level comments and review submissions have no thread-resolution action, so their normal terminal state is `not_resolvable` after any applicable reply. Inline parent threads may be resolved only when every feedback item contributing to that thread is resolve-eligible.
 
-An active unsuperseded `CHANGES_REQUESTED` review is always `awaiting_re_review`, regardless of this loop's disposition. Only later persisted GitHub reviewer state or dismissal can supersede it; this loop must not dismiss or otherwise mutate reviewer state merely to clear the blocker.
+An active unsuperseded `CHANGES_REQUESTED` review is always `awaiting_re_review`, regardless of this loop's disposition. It is superseded only by an explicit dismissal or by a later review from the same reviewer with state `APPROVED` or `CHANGES_REQUESTED`; a later `COMMENTED` review does not supersede it. A later `CHANGES_REQUESTED` review transfers the active blocker to that newer review rather than clearing it. This loop must not dismiss or otherwise mutate reviewer state merely to clear the blocker.
 
 Local `finding:` sources have no GitHub artifact. Their terminal state is `skipped_by_mode`; they may still drive local fixes when the active mode permits implementation.
 
