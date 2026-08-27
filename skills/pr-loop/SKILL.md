@@ -100,7 +100,9 @@ In normal posting mode, verify that current authentication can read the feedback
 
 ### 2. Review the exact head
 
-Dispatch the three review subagents for the recorded head. Re-fetch the head when they finish. If it changed, discard the whole round and restart on the new SHA; the attempt still counts.
+Dispatch the three review subagents for the recorded head. Initialize an attempt-level `head_changed_since_review` flag to `false`. Whenever the loop observes a head SHA different from the reviewed SHA, including a validated post-fix push, set the flag to `true` and never clear it for that attempt even if a later fetch returns to the reviewed SHA.
+
+Re-fetch the head when the review subagents finish. If it changed, discard the whole round and restart on the new SHA; the attempt still counts.
 
 Validate and arbitrate the findings. Immediately before publication, re-fetch the head again and discard the round if it moved.
 
@@ -151,8 +153,8 @@ A failed attempted publication/reply/resolution is `failed_action`. An action in
 
 Re-fetch the head after acting:
 
-- if it differs from the reviewed head, start a new review attempt on the new SHA;
-- if it is unchanged, take one final feedback snapshot and reconcile it against the current baseline plus recorded own mutations;
+- if `head_changed_since_review` is `true` or the head differs from the reviewed head, start a new review attempt on the current SHA;
+- if it is unchanged and the flag is `false`, take one final feedback snapshot and reconcile it against the current baseline plus recorded own mutations;
 - if new external feedback exists on the same head, refresh feedback analysis only;
 - never dispatch the three review subagents again for an unchanged head already carried through this loop.
 
@@ -170,7 +172,7 @@ flowchart TD
   F -->|same-head feedback| E
   F -->|stable| G[Prepare dispositions and apply fix batch]
   G --> H[Gate fresh head and feedback, then publish replies/resolutions]
-  H --> I{Head changed from reviewed head?}
+  H --> I{Head changed at any point since review?}
   I -->|yes| A
   I -->|no| J[Reconcile final head and feedback]
   J -->|same-head feedback| E
