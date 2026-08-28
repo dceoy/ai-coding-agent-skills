@@ -13,8 +13,9 @@ The top-level agent owns every repository and GitHub mutation. Delegate only pla
 
 - Use real native subagents with fresh context. Do not emulate them in the parent context, launch nested coding-agent CLIs, or require fixed agent names, models, providers, or configuration files.
 - Treat each accepted subagent as a terminal leaf: it performs its assigned role directly and does not re-enter `pr-loop` or delegate again.
-- If a required independent subagent cannot be launched, report `unsupported` and stop. Retry only when the runtime proves rejection occurred before execution was accepted; never duplicate ambiguously accepted work.
-- Every accepted subagent dispatch must be bounded by a finite deadline supplied by the caller or guaranteed by the runtime; the orchestrator need not know a runtime-enforced deadline's concrete value, but must not invent, shorten, or override any bound. If neither source guarantees a finite bound, report the required subagent work as `unsupported` and stop before dispatch. A still-running poll is not failure; keep waiting on the same accepted dispatch until it reaches a terminal result or the deadline expires. On terminal failure or expiry, stop or cancel and reap it without launching replacement work.
+- If a required independent subagent cannot be launched, report `unsupported` and stop. Retry only when the runtime proves rejection occurred before execution was accepted, except for the narrowly verified read-only mutation recovery below; never duplicate ambiguously accepted work.
+- Every accepted subagent dispatch must be bounded by a finite deadline supplied by the caller or guaranteed by the runtime; the orchestrator need not know a runtime-enforced deadline's concrete value, but must not invent, shorten, or override any bound. If neither source guarantees a finite bound, report the required subagent work as `unsupported` and stop before dispatch. A still-running poll is not failure; keep waiting on the same accepted dispatch until it reaches a terminal result or the deadline expires. On terminal failure or expiry, stop or cancel and reap it without launching replacement work, except for the narrowly verified read-only mutation recovery below.
+- If an accepted read-only subagent causes Git-visible mutation, reject its output. Recovery is allowed only when a pre-dispatch state snapshot proves the top-level agent can restore the exact prior HEAD, index, tracked worktree, and non-ignored untracked state; no external publication or other side effect occurred; the target head is unchanged; and every concurrently dispatched advisory sibling that may have observed the mutated checkout is cancelled or reaped and its output discarded. After verifying restoration, redispatch the entire affected advisory set with fresh subagents. Permit this recovery at most once per affected advisory set and target head; if mutation recurs, restoration or side-effect verification fails, or acceptance/effects are ambiguous, stop. This exception does not permit replacement after timeout, ordinary terminal failure, or ambiguous acceptance.
 - Bind every review and feedback decision to an exact PR head SHA. If the head changes before an action based on that decision, discard the stale result and restart from the new head.
 - Treat subagent output as advisory. The top-level agent validates plans, findings, dispositions, repository state, and GitHub state before acting.
 - The top-level agent alone edits files, runs write-mode tooling, commits, pushes, opens or updates PRs, publishes reviews, replies, and resolves threads.
@@ -89,6 +90,8 @@ Verify that current authentication can read the feedback needed by this loop bef
 ### 2. Review the exact head
 
 Dispatch the three review subagents for the recorded head. Initialize an attempt-level `head_changed_since_review` flag to `false`. Whenever the loop observes a head SHA different from the reviewed SHA, including a validated post-fix push, set the flag to `true` and never clear it for that attempt even if a later fetch returns to the reviewed SHA.
+
+If any reviewer violates the read-only mutation contract, discard the entire three-lens round and apply the verified mutation-recovery invariant above before any publication. A recovered redispatch uses three fresh reviewers against the same unchanged head and counts as a new review attempt.
 
 Re-fetch the head when the review subagents finish. If it changed, discard the whole round and restart on the new SHA; the attempt still counts.
 
@@ -182,7 +185,7 @@ Terminal states are `resolved`, `replied_left_open`, `not_resolvable`, `awaiting
 - `failed_action`;
 - an unreconciled head or feedback delta;
 - exhausted caller limits;
-- unsupported or failed required subagent work;
+- unsupported or failed required subagent work after any permitted mutation recovery;
 - unsafe worktree/branch state, authentication/permission failure, or unresolved QA failure.
 
 `replied_left_open` is terminal only when its disposition itself is terminal.
