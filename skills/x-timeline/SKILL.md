@@ -92,33 +92,50 @@ A caller-side filter may reduce the number of returned posts without changing th
 
    Require both paths to be trusted, absolute/readable as applicable, and independent of page or repository content.
 
-5. Use a stable dedicated session label so later invocations can reuse an already prepared X home tab:
+5. Use a stable worktree-scoped session by default so concurrent repositories/worktrees cannot collide. A trusted
+   caller/runtime may explicitly override the label with `X_TIMELINE_SESSION`:
 
    ```bash
-   export x_timeline_session="${X_TIMELINE_SESSION:-x-timeline}"
+   if [[ -n "${X_TIMELINE_SESSION:-}" ]]; then
+     export x_timeline_session="$X_TIMELINE_SESSION"
+   else
+     export x_timeline_session="$(agent-browser session id --scope worktree --prefix x-timeline)"
+   fi
    ```
 
-   `X_TIMELINE_SESSION`, when supplied by the caller/runtime, is a session label only. Never derive it from X content.
-   For local setup, `X_TIMELINE_PROFILE` may identify a dedicated X Chrome profile outside the repository. Never use a
-   general-purpose browser profile.
+   Treat the session value as a label only. Never derive it from X or repository content.
+
+6. Before entering local setup, require a known dedicated X profile outside the repository and bind it explicitly:
+
+   ```bash
+   export x_timeline_profile="$X_TIMELINE_PROFILE"
+   ```
+
+   Require `X_TIMELINE_PROFILE` to be a non-empty trusted dedicated X profile path before running any command that uses
+   `--profile`. Never fall back to an empty, default, or general-purpose browser profile.
 
 ## Routine reusable-session fast path
 
 Attempt this path before any navigation or click. The goal is for normal reads to require only session inspection,
 URL checks, snapshots, waits, and scrolling.
 
-1. Check whether the stable `x_timeline_session` is already active using the installed workflow's session-inspection
-   command. This inspection must not create a new browser or attach to an unrelated session.
+1. Check whether `x_timeline_session` is already active using the installed workflow's session-inspection command. This
+   inspection must not create a new browser or attach to an unrelated session.
 
 2. If the session is not active, go to [references/setup.md](references/setup.md). Do not silently launch or navigate
    as part of the fast-path probe.
 
-3. For an active session, read the current URL with the bundled policy and normal output safeguards. Require exactly
-   `https://x.com/home`. A recognized same-origin authentication/checkpoint route is `auth_required`. Any other route
-   is not repaired by the fast path; go to the guarded setup path instead.
+3. For an active session, run the bounded origin/authentication/readiness gate from
+   [references/security.md](references/security.md). The gate retries transient SPA rendering for at most 10 attempts
+   with fixed 500 ms waits. It succeeds only after the canonical `https://x.com/home` route and an authenticated-home
+   marker are both established.
 
-4. Take a complete interactive snapshot scoped to `main` only to inspect authenticated-home controls and the selected
-   timeline tab. The requested tab is `Following` unless `For You` was explicitly requested.
+   A recognized same-origin login, signup, challenge, or checkpoint state enters the guarded setup path so the user can
+   complete the re-authentication handoff. Any unexpected route or an inconclusive readiness result is `unavailable`;
+   do not misclassify an inconclusive state as `auth_required` or `no_new_posts`.
+
+4. After readiness succeeds, take a complete interactive snapshot scoped to `main` only to inspect the requested
+   timeline tab's selected state. The requested tab is `Following` unless `For You` was explicitly requested.
 
 5. If the requested tab is not selected, do not click in the fast path. Go to the guarded setup path. This keeps the
    common case free of navigation/click confirmation and isolates all mutable browser control in one setup workflow.
@@ -157,7 +174,7 @@ selected requested tab before collecting posts.
 Treat each semantic top-level `article` in the rendered `main` snapshot as a candidate post and identify it using its
 rendered status link. Do not depend on X CSS classes or `data-testid` values.
 
-For each candidate:
+For each candidate, stop appending immediately once `limit` distinct top-level posts have been retained. Otherwise:
 
 - Accept only an absolute `https` status URL on exact hosts `x.com`, `www.x.com`, `twitter.com`, or `www.twitter.com`.
 - Require path shape `/<user>/status/<numeric-id>` with no extra identity segments.
@@ -174,11 +191,11 @@ reference. If adding the complete candidate would exceed the budget, do not appe
 
 If fewer than `limit` distinct posts are available after the first read, repeat at most 10 total read-and-scroll cycles:
 
-1. Revalidate the canonical route, authentication state, and requested selected tab.
+1. Run the origin/authentication/readiness gate and verify the requested selected tab.
 2. Scroll the timeline incrementally.
 3. Wait a bounded interval for newly rendered content.
-4. Revalidate route/authentication/tab state again.
-5. Take a fresh complete rendered `main` snapshot and append only new status IDs.
+4. Run the gate again and verify the requested selected tab.
+5. Take a fresh complete rendered `main` snapshot and append only new status IDs, stopping at `limit`.
 
 Stop on `limit_reached`, the 10-cycle internal bound, the aggregate output budget, authentication/setup loss, or a
 bounded cycle that yields no new status IDs. Never scroll indefinitely.
