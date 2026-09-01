@@ -100,10 +100,10 @@ Install and authenticate the required CLI tools before running skills:
   - Install: `npm install -g agent-browser` (or the package manager your environment uses), so `agent-browser` is on
     `PATH`
   - No custom wrapper, browser service, or MCP server is required or bundled; `x-timeline` invokes `agent-browser`
-    directly and fails closed as unavailable if it is missing or cannot enforce the safeguards `SKILL.md` documents.
-  - The current upstream release, v0.34.0, does not bind a confirmation ID to its pending request, so `x-timeline`'s
-    guarded navigation/tab-selection step fails closed as unavailable on that version; a newer release that closes
-    this gap is required before that step can run.
+    directly and fails closed if the installed workflow cannot enforce its documented safeguards.
+  - `x-timeline` prefers a reusable dedicated X session already on `https://x.com/home`, so routine reads need no
+    navigation or tab-selection action. Initial setup and tab changes use guarded actions and capability-check the
+    installed `agent-browser` workflow instead of pinning behavior to a specific upstream release number.
 
 ## Usage notes
 
