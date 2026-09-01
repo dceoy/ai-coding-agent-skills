@@ -1,22 +1,33 @@
 # X timeline setup path
 
-Use this path only when the reusable `x-timeline` session is absent, is not on the canonical home route, or does not
-have the requested timeline tab selected. Routine reads should not navigate or click.
+Use this path only when the reusable X session is absent, is not on the canonical home route, is unauthenticated, or
+does not have the requested timeline tab selected. Routine reads should not navigate or click.
 
 ## Local setup
 
 Use a Chrome profile dedicated to X and stored outside the repository. The profile may contain authentication cookies,
-so never print, inspect, copy, commit, or upload it. Prefer a headed session for the initial setup so the user can log
-in and select the desired timeline interactively when needed.
+so never print, inspect, copy, commit, or upload it. Prefer a headed session for initial setup and re-authentication so
+the user can log in interactively when needed.
 
-Use the stable session label from `SKILL.md` for every command. A caller-provided `X_TIMELINE_PROFILE` is acceptable
-only when it is a known dedicated X profile outside the repository.
+Use the stable worktree-scoped session label from `SKILL.md` for every command. Before local setup, require
+`X_TIMELINE_PROFILE` to identify a known dedicated X profile outside the repository and bind it explicitly:
+
+```bash
+export x_timeline_profile="$X_TIMELINE_PROFILE"
+```
+
+Reject an unset, empty, untrusted, repository-local, or general-purpose profile instead of allowing `--profile ""` or
+a browser default.
 
 Before any guarded navigation or click, verify the installed `agent-browser` workflow and native confirmation behavior.
 The confirmation response must identify the pending action with a non-empty confirmation ID and enough structured
-description to verify the exact target, and `confirm <id>` must apply only to that pending action. If the installed
-version cannot provide that guarantee, do not issue the guarded action. Ask the user to prepare the dedicated X session
-manually instead and return `stop_reason: setup_required`.
+description to verify the exact target, and the `confirm` handler must validate that supplied ID against that specific
+pending command rather than merely accepting any live confirmation ID.
+
+Do not infer correct binding from rapid sequencing or from having only one confirmation in flight. Do not substitute
+`--confirm-interactive`; coding-agent Bash sessions may lack a TTY and the CLI then auto-denies. If exact binding cannot
+be independently verified, do not issue the guarded action. Ask the user to prepare the dedicated X session manually
+and return `stop_reason: setup_required`.
 
 ### Open the home timeline
 
@@ -37,13 +48,12 @@ agent-browser --session "$x_timeline_session" --profile "$x_timeline_profile" \
   confirm <confirmation-id>
 ```
 
-Then wait for DOM readiness, check `get url`, and require exactly `https://x.com/home` before consuming timeline
-content. A recognized same-origin login, signup, challenge, or checkpoint route is `auth_required`; any other origin or
-same-origin route is `unavailable`.
+Then run the bounded origin/authentication/readiness gate from `security.md`. Do not consume timeline content until the
+canonical `https://x.com/home` route and an authenticated-home marker are both established.
 
 If authentication is required, hand the headed dedicated profile to the user. Never fill credentials, handle cookies,
-read tokens, or automate the login form in this skill. After the user completes authentication, re-run the canonical
-URL and authenticated-home checks before continuing.
+read tokens, or automate the login form in this skill. After the user completes authentication, re-run the bounded gate
+before continuing.
 
 ## Select the requested tab
 
@@ -58,7 +68,7 @@ Never click post links, media, profile links, engagement controls, or ambiguous 
 
 After a confirmed tab click, run a bounded synchronization loop with a 30-second deadline and at most 10 attempts:
 
-1. Require the canonical `https://x.com/home` URL.
+1. Pass the bounded origin/authentication/readiness gate.
 2. Wait 500 ms.
 3. Verify that the requested tab is selected.
 4. Take a complete rendered `main` snapshot.
@@ -75,8 +85,10 @@ If the requested selected state cannot be established within the bounds, return 
 ## Reusable session handoff
 
 Once authentication, canonical route, and requested tab are verified, leave the dedicated local session active after a
-successful read so later invocations can take the routine fast path without `open` or `click`. Do not keep a failed
-newly-created session alive after a security or setup failure; close it through the bundled read-only policy.
+successful read so later invocations can take the routine fast path without `open` or `click`. A later
+login/signup/challenge/checkpoint state returns here for interactive re-authentication rather than becoming a permanent
+terminal state.
 
-For a user-managed long-lived headed session, do not close the browser merely because one read completed. The user can
-close it explicitly when persistence is no longer desired.
+Do not keep a failed newly-created session alive after a security or setup failure; close it through the bundled
+read-only policy. For a user-managed long-lived headed session, do not close the browser merely because one read
+completed. The user can close it explicitly when persistence is no longer desired.
