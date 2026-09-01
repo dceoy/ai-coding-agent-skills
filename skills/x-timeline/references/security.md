@@ -45,17 +45,31 @@ Pass `--content-boundaries`, `--max-output 50000`, the literal bundled action-po
 installed workflow uses a native truncation marker that must be checked; use structured JSON for guarded actions and
 other commands whose result must be machine-validated.
 
-## Origin, authentication, and tab gate
+## Origin, authentication, and readiness gate
 
-Before parsing any timeline content:
+Use one bounded gate before trusting home-timeline content. This gate exists because an attached or reused X SPA can be
+between rendered states even though the browser session is already active.
 
-1. Require the exact canonical route `https://x.com/home` with no alternate port, credentials, query, or fragment.
-2. Treat a recognized same-origin login, signup, challenge, or checkpoint flow as `auth_required`.
-3. Treat any other origin or unexpected same-origin route as `unavailable`.
-4. Verify an authenticated-home marker and the requested timeline tab's selected state.
+Run at most 10 attempts with a fixed 500 ms wait between attempts. On each attempt:
 
-Repeat the route/authentication check immediately before every rendered post snapshot and after each scroll/wait before
-parsing new content. Never parse stale DOM after authentication expiry or a route change.
+1. Read the current URL and accept only the exact canonical `https://x.com/home` route or a recognized same-origin
+   login, signup, challenge, or checkpoint route.
+2. If a recognized authentication route or a complete rendered `main` snapshot clearly exposes an authentication,
+   challenge, or checkpoint flow, classify it as `auth_required` and enter the guarded setup/re-authentication path.
+3. If the origin or same-origin route is otherwise unexpected, return `truncated: true` with
+   `stop_reason: unavailable`.
+4. On the canonical home route, take a complete boundary-validated `main` snapshot and require a semantic
+   authenticated-home marker, such as the home timeline controls documented by the installed workflow.
+5. When the marker is absent but no explicit authentication flow is visible, wait 500 ms and retry rather than
+   guessing the state.
+
+The gate succeeds only after both the canonical route and an authenticated-home marker are established. If all 10
+attempts are inconclusive, return `truncated: true` with `stop_reason: unavailable`; specifically, do not report
+`auth_required` or `no_new_posts` from an inconclusive render.
+
+After the gate succeeds, verify the requested timeline tab's selected state before parsing posts. Repeat the gate
+immediately before every rendered post snapshot and after each scroll/wait before parsing new content. Never parse
+stale DOM after authentication expiry or a route change.
 
 ## Snapshot completeness and budgets
 
