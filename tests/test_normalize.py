@@ -15,23 +15,42 @@ if TYPE_CHECKING:
 
 
 def _write_raw(
-    workdir_path: Path, run_id: str, pr_number: int, bundle: dict[str, Any]
+    workdir_path: Path,
+    run_id: str,
+    repo_id: int,
+    pr_number: int,
+    bundle: dict[str, Any],
 ) -> None:
-    """Append one PR's raw snapshot bundle to a run's evidence directory."""
+    """Append one PR's raw snapshot bundle to a run's evidence directory.
+
+    Mirrors ``collect``: one shared file per bundle type per run, every
+    line carrying ``pr_number`` plus ``provenance.repository_id``.
+    """
     raw_root = workdir.raw_dir(workdir_path, run_id)
+    prov = {"repository_id": repo_id}
     workdir.append_ndjson(
         raw_root / "pulls.ndjson",
-        {"pr_number": pr_number, "provenance": {}, "payload": bundle.get("pr", {})},
+        {"pr_number": pr_number, "provenance": prov, "payload": bundle.get("pr", {})},
     )
     for name in ("reviews", "commits", "timeline"):
         workdir.append_ndjson(
             raw_root / f"{name}.ndjson",
             {
                 "pr_number": pr_number,
-                "provenance": {},
+                "provenance": prov,
                 "payload": bundle.get(name, []),
             },
         )
+
+
+def _repo_meta(repo_id: int, repo: dict[str, Any] | None) -> dict[str, Any]:
+    """Default repository metadata for one repo entry."""
+    return repo or {
+        "name": f"repo{repo_id}",
+        "archived": False,
+        "fork": False,
+        "created_at": "2020-01-01T00:00:00Z",
+    }
 
 
 def commit_run(
@@ -39,9 +58,10 @@ def commit_run(
     *,
     run_id: str,
     refresh_started_at: str,
-    prs: dict[int, dict[str, Any]],
+    prs: dict[int, dict[str, Any]] | None = None,
     repo_id: int = 1,
     repo: dict[str, Any] | None = None,
+    repos: dict[int, dict[int, dict[str, Any]]] | None = None,
     previous_committed_run_id: str | None = None,
     limitations: list[dict[str, Any]] | None = None,
     commit: bool = True,
@@ -52,24 +72,32 @@ def commit_run(
         workdir_path: The workdir root.
         run_id: The run ID.
         refresh_started_at: The manifest's ``refresh_started_at``.
-        prs: ``{pr_number: {"pr": {...}, "reviews": [...], "commits": [...],
-            "timeline": [...]}}`` bundles to write as raw evidence and mark
-            touched.
-        repo_id: The repository ID the PRs belong to.
-        repo: Optional repository metadata for ``state.json``.
+        prs: Single-repo shorthand -- ``{pr_number: bundle}`` for
+            ``repo_id``, where ``bundle`` is ``{"pr": {...}, "reviews":
+            [...], "commits": [...], "timeline": [...]}``.
+        repo_id: The repository ID ``prs`` belongs to.
+        repo: Optional repository metadata for ``repo_id``.
+        repos: Multi-repo form -- ``{repo_id: {pr_number: bundle}}``.
+            Mutually exclusive with ``prs``.
         previous_committed_run_id: The prior committed run, recorded in the
             manifest and walked by the lineage resolver.
         limitations: Manifest ``limitations`` entries.
         commit: When ``True``, atomically point ``state.json`` at this run.
     """
-    for pr_number, bundle in prs.items():
-        _write_raw(workdir_path, run_id, pr_number, bundle)
-    repo_meta = repo or {
-        "name": "repo1",
-        "archived": False,
-        "fork": False,
-        "created_at": "2020-01-01T00:00:00Z",
-    }
+    by_repo = repos if repos is not None else {repo_id: prs or {}}
+    manifest_repos: dict[str, Any] = {}
+    state_repos: dict[str, Any] = {}
+    for rid, rprs in by_repo.items():
+        meta = _repo_meta(rid, repo if rid == repo_id else None)
+        for pr_number, bundle in rprs.items():
+            _write_raw(workdir_path, run_id, rid, pr_number, bundle)
+        manifest_repos[str(rid)] = {**meta, "touched_pr_numbers": sorted(rprs)}
+        state_repos[str(rid)] = {
+            **meta,
+            "discovery_watermark": refresh_started_at,
+            "history_boundary": "2020-01-01T00:00:00Z",
+            "last_seen_in_enumeration_at": refresh_started_at,
+        }
     manifest = {
         "schema_version": workdir.SCHEMA_VERSION,
         "run_id": run_id,
@@ -81,9 +109,7 @@ def commit_run(
             "end": "2026-07-01T00:00:00Z",
         },
         "refresh_started_at": refresh_started_at,
-        "repositories": {
-            str(repo_id): {**repo_meta, "touched_pr_numbers": sorted(prs)}
-        },
+        "repositories": manifest_repos,
         "failures": [],
         "limitations": limitations or [],
     }
@@ -95,14 +121,7 @@ def commit_run(
                 "schema_version": workdir.SCHEMA_VERSION,
                 "committed_run_id": run_id,
                 "organization": "acme",
-                "repositories": {
-                    str(repo_id): {
-                        **repo_meta,
-                        "discovery_watermark": refresh_started_at,
-                        "history_boundary": "2020-01-01T00:00:00Z",
-                        "last_seen_in_enumeration_at": refresh_started_at,
-                    }
-                },
+                "repositories": state_repos,
             },
         )
 
@@ -278,26 +297,31 @@ def test_force_push_removing_a_commit_is_not_unioned(tmp_path: Path) -> None:
     assert [(r["position"], r["sha"]) for r in commit_rows] == [(0, "a2"), (1, "b2")]
 
 
-def test_winner_ordering_uses_refresh_started_at_not_run_id_lexical(
+def test_winner_ordering_uses_refresh_started_at_not_filesystem_order(
     tmp_path: Path,
 ) -> None:
-    """The newest bundle wins by refresh time even if its run ID sorts first."""
+    """The newest bundle wins by ``refresh_started_at``, not run-ID order.
+
+    The run ID that sorts first (and would head a directory scan) is
+    deliberately the *older* run, so a filesystem-order winner would pick
+    the wrong bundle.
+    """
     commit_run(
         tmp_path,
-        run_id="zzz-early",
+        run_id="aaa-early",
         refresh_started_at="2026-03-01T00:00:00Z",
         prs={7: {"pr": _pr_object(7, additions=1)}},
     )
     commit_run(
         tmp_path,
-        run_id="aaa-late",
+        run_id="zzz-late",
         refresh_started_at="2026-03-09T00:00:00Z",
-        previous_committed_run_id="zzz-early",
+        previous_committed_run_id="aaa-early",
         prs={7: {"pr": _pr_object(7, additions=99)}},
     )
     normalize.run_normalize(workdir_path=tmp_path)
     pr_rows = _rows(tmp_path, "pull_requests.ndjson")
-    assert pr_rows[0]["source_run_id"] == "aaa-late"
+    assert pr_rows[0]["source_run_id"] == "zzz-late"
     assert pr_rows[0]["additions"] == 99
 
 
@@ -384,6 +408,9 @@ def test_actor_map_change_renormalizes_without_github_access(
         msg = "normalize must not touch GitHub"
         raise AssertionError(msg)
 
+    # Defense-in-depth: `normalize` does not import `ghapi` at all, so this
+    # guard is structural today. It stays to catch a future regression that
+    # adds a live call path.
     monkeypatch.setattr(ghapi, "request", _boom)
     monkeypatch.setattr(ghapi, "paginate", _boom)
     commit_run(
@@ -417,6 +444,7 @@ def test_actor_map_change_renormalizes_without_github_access(
     ("actor", "entries", "expected"),
     [
         (_user(10, "alice", "User"), [], "human"),
+        ({"id": 11, "login": "carol"}, [], "human"),
         (_user(None, "dependabot[bot]", "Bot"), [], "bot"),
         (_user(20, "renovate[bot]", "User"), [], "bot"),
         (_user(30, "ai-bot", "Bot"), [{"actor_id": 30}], "explicit-ai-agent"),
@@ -426,6 +454,8 @@ def test_actor_map_change_renormalizes_without_github_access(
             "explicit-ai-agent",
         ),
         (_user(50, "ghost", "Mannequin"), [], "unknown"),
+        (_user(60, "org", "Organization"), [], "unknown"),
+        ({"id": None, "login": None}, [], "unknown"),
         (None, [], "unknown"),
     ],
 )
@@ -559,3 +589,203 @@ def test_malformed_actor_map_raises_normalize_error(tmp_path: Path) -> None:
     )
     with pytest.raises(normalize.NormalizeError, match="actor_id"):
         normalize.run_normalize(workdir_path=tmp_path, actor_map_path=bad)
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"actor_id": "500"},
+        {"login": 500},
+        {"actor_id": True},
+        {"actor_id": 1.0},
+    ],
+)
+def test_actor_map_rejects_wrong_typed_identity_fields(
+    tmp_path: Path, entry: dict[str, Any]
+) -> None:
+    """A wrong-typed ``actor_id``/``login`` fails closed instead of being dropped."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    amap = tmp_path / "amap.json"
+    amap.write_text(json.dumps({"explicit_ai_agents": [entry]}), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="must be a"):
+        normalize.run_normalize(workdir_path=tmp_path, actor_map_path=amap)
+
+
+def test_same_pr_number_in_two_repos_is_not_cross_contaminated(tmp_path: Path) -> None:
+    """One run touching repo-a#1 and repo-b#1 keeps each PR's bundle separate."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        repos={
+            1: {
+                1: {
+                    "pr": _pr_object(1, additions=1, user=_user(10, "alice")),
+                    "reviews": [
+                        {"id": 100, "user": _user(11, "bob"), "state": "APPROVED"}
+                    ],
+                    "commits": [{"sha": "a1"}],
+                }
+            },
+            2: {
+                1: {
+                    "pr": _pr_object(1, additions=99, user=_user(20, "dave")),
+                    "reviews": [
+                        {"id": 200, "user": _user(21, "eve"), "state": "APPROVED"}
+                    ],
+                    "commits": [{"sha": "b1"}],
+                }
+            },
+        },
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    prs = {
+        (r["repository_id"], r["pr_number"]): r
+        for r in _rows(tmp_path, "pull_requests.ndjson")
+    }
+    assert prs[1, 1]["additions"] == 1
+    assert prs[1, 1]["author_login"] == "alice"
+    assert prs[2, 1]["additions"] == 99
+    assert prs[2, 1]["author_login"] == "dave"
+    reviews = {
+        (r["repository_id"], r["review_id"]) for r in _rows(tmp_path, "reviews.ndjson")
+    }
+    assert reviews == {(1, 100), (2, 200)}
+    commits = {
+        (r["repository_id"], r["sha"]) for r in _rows(tmp_path, "pr_commits.ndjson")
+    }
+    assert commits == {(1, "a1"), (2, "b1")}
+
+
+def test_missing_bundle_file_in_committed_run_fails_closed(tmp_path: Path) -> None:
+    """A committed run missing a bundle file is damaged evidence, not empty data."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    (workdir.raw_dir(tmp_path, "run-a") / "reviews.ndjson").unlink()
+    with pytest.raises(normalize.NormalizeError, match="missing"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_corrupt_committed_state_fails_closed(tmp_path: Path) -> None:
+    """An unreadable ``state.json`` raises instead of crashing with a traceback."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    workdir.state_path(tmp_path).write_text("{not json", encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_null_committed_run_id_raises_rather_than_writing_empty_tree(
+    tmp_path: Path,
+) -> None:
+    """A ``committed_run_id: null`` state is rejected, not silently normalized."""
+    workdir.write_state(tmp_path, {"committed_run_id": None, "repositories": {}})
+    with pytest.raises(normalize.NormalizeError):
+        normalize.run_normalize(workdir_path=tmp_path)
+    assert not (tmp_path / "normalized").exists()
+
+
+def test_actors_registry_dedupes_by_id_first_login_wins(tmp_path: Path) -> None:
+    """One actor ID under two logins keeps the first; login-only actors sort last."""
+    commit_run(
+        tmp_path,
+        run_id="run-old",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7, user=_user(10, "alice"))}},
+    )
+    commit_run(
+        tmp_path,
+        run_id="run-new",
+        refresh_started_at="2026-03-08T00:00:00Z",
+        previous_committed_run_id="run-old",
+        prs={
+            8: {
+                "pr": _pr_object(8, user=_user(10, "alice-renamed")),
+                "reviews": [
+                    {"id": 1, "user": _user(11, "bob"), "state": "APPROVED"},
+                    {"id": 2, "user": {"login": "ghostonly"}, "state": "COMMENTED"},
+                ],
+            }
+        },
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    actors = _rows(tmp_path, "actors.ndjson")
+    by_id = {a["actor_id"]: a for a in actors}
+    assert by_id[10]["login"] == "alice"  # first seen wins over "alice-renamed"
+    assert actors[-1]["actor_id"] is None
+    assert actors[-1]["login"] == "ghostonly"
+    assert [a["actor_id"] for a in actors if a["actor_id"] is not None] == [10, 11]
+
+
+def test_review_dismissed_event_is_carried_into_timeline_output(tmp_path: Path) -> None:
+    """`review_dismissed` events (raw material for changes-requested) are retained."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={
+            7: {
+                "pr": _pr_object(7),
+                "timeline": [
+                    {"event": "labeled", "created_at": "2026-02-01T00:00:00Z"},
+                    {
+                        "event": "review_dismissed",
+                        "created_at": "2026-02-02T00:00:00Z",
+                        "dismissed_review": {
+                            "review_id": 55,
+                            "state": "changes_requested",
+                        },
+                    },
+                ],
+            }
+        },
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    events = _rows(tmp_path, "timeline_events.ndjson")
+    assert [e["event"] for e in events] == ["review_dismissed"]
+    assert events[0]["payload"]["dismissed_review"] == {
+        "review_id": 55,
+        "state": "changes_requested",
+    }
+
+
+def test_derivation_json_records_freshness_provenance(tmp_path: Path) -> None:
+    """`derivation.json` carries `as_of` and a newest-first `source_run_ids`."""
+    commit_run(
+        tmp_path,
+        run_id="run-old",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    commit_run(
+        tmp_path,
+        run_id="run-new",
+        refresh_started_at="2026-03-08T00:00:00Z",
+        previous_committed_run_id="run-old",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    outcome = normalize.run_normalize(workdir_path=tmp_path)
+    derivation = json.loads(
+        (tmp_path / "normalized" / "derivation.json").read_text(encoding="utf-8")
+    )
+    assert derivation["committed_run_id"] == "run-new"
+    assert derivation["source_run_ids"] == ["run-new", "run-old"]
+    assert derivation["as_of"] == "2026-03-08T00:00:00Z"
+    assert derivation["requested_interval"] == {
+        "start": "2026-01-01T00:00:00Z",
+        "end": "2026-07-01T00:00:00Z",
+    }
+    assert outcome.derivation["as_of"] == "2026-03-08T00:00:00Z"

@@ -19,10 +19,15 @@ of entity files under ``<workdir>/normalized/``:
   the tree was derived from, including the actor-classification
   fingerprint.
 
-Output is a pure function of the committed lineage manifests, their raw
-NDJSON evidence, the normalized actor map, and the module schema version:
-running it twice on the same inputs produces a byte-identical tree. It
-performs no GitHub access and acquires no collection lock.
+The entity files are a deterministic function of the committed lineage
+manifests, their raw NDJSON evidence, the normalized actor map, and the
+module schema version: running it twice on the same inputs produces
+byte-identical entity files. ``derivation.json`` additionally records the
+normalizer's own git revision as provenance -- that field, and only that
+field, can differ between two runs over identical inputs from different
+checkouts. It performs no GitHub access and acquires no collection lock;
+it must not be run concurrently with itself (the entity files are written
+through independent atomic renames and could interleave).
 """
 
 from __future__ import annotations
@@ -118,7 +123,9 @@ def load_actor_map(path: Path | None) -> ActorMap:
     Raises:
         NormalizeError: If the file cannot be read, is not valid JSON, is
             not a JSON object, or ``explicit_ai_agents`` is not a list of
-            ``actor_id``/``login`` objects.
+            objects each carrying a valid integer ``actor_id`` and/or
+            string ``login``. Wrong-typed identity fields fail closed
+            rather than being silently dropped.
     """
     if path is None:
         return ActorMap(frozenset(), frozenset())
@@ -142,17 +149,46 @@ def load_actor_map(path: Path | None) -> ActorMap:
     ids: set[int] = set()
     logins: set[str] = set()
     for entry in entries:
-        if not isinstance(entry, dict) or not ({"actor_id", "login"} & entry.keys()):
+        _consume_actor_map_entry(path, entry, ids, logins)
+    return ActorMap(frozenset(ids), frozenset(logins))
+
+
+def _consume_actor_map_entry(
+    path: Path, entry: object, ids: set[int], logins: set[str]
+) -> None:
+    """Validate one ``explicit_ai_agents`` entry into ``ids`` / ``logins``.
+
+    Args:
+        path: The actor-map path, for error messages.
+        entry: One raw list element.
+        ids: The accumulating explicit-AI-agent ``actor_id`` set.
+        logins: The accumulating casefolded explicit-AI-agent login set.
+
+    Raises:
+        NormalizeError: If the entry is not an object with a valid integer
+            ``actor_id`` and/or string ``login`` (JSON booleans are not
+            valid IDs).
+    """
+    if not isinstance(entry, dict) or not ({"actor_id", "login"} & entry.keys()):
+        msg = (
+            f"actor map at {path}: each entry needs an 'actor_id' or 'login' "
+            f"key, got {entry!r}"
+        )
+        raise NormalizeError(msg)
+    if "actor_id" in entry:
+        actor_id = entry["actor_id"]
+        if isinstance(actor_id, bool) or not isinstance(actor_id, int):
             msg = (
-                f"actor map at {path}: each entry needs an 'actor_id' or 'login' "
-                f"key, got {entry!r}"
+                f"actor map at {path}: 'actor_id' must be an integer, got {actor_id!r}"
             )
             raise NormalizeError(msg)
-        if isinstance(entry.get("actor_id"), int):
-            ids.add(entry["actor_id"])
-        if isinstance(entry.get("login"), str):
-            logins.add(entry["login"].casefold())
-    return ActorMap(frozenset(ids), frozenset(logins))
+        ids.add(actor_id)
+    if "login" in entry:
+        login = entry["login"]
+        if not isinstance(login, str):
+            msg = f"actor map at {path}: 'login' must be a string, got {login!r}"
+            raise NormalizeError(msg)
+        logins.add(login.casefold())
 
 
 def classify_actor(
@@ -181,11 +217,12 @@ def classify_actor(
         return _CLASS_AI, "actor_map_login"
     if github_type == "Bot" or (login_cf is not None and login_cf.endswith("[bot]")):
         return _CLASS_BOT, ("github_type_bot" if github_type == "Bot" else "bot_login")
-    if github_type == "User" and login_cf is not None:
+    if login_cf is not None and github_type in {None, "User"}:
         return _CLASS_HUMAN, "user"
-    known_unknown = {"Mannequin", "Organization"}
     reason = (
-        github_type.casefold() if github_type in known_unknown else "unclassifiable"
+        github_type.casefold()
+        if github_type in {"Mannequin", "Organization"}
+        else "unclassifiable"
     )
     return _CLASS_UNKNOWN, reason
 
@@ -249,29 +286,59 @@ def _cap_exceeded(manifest: dict[str, Any], repo_id: int, pr_number: int) -> boo
     return False
 
 
-def _read_bundle_lines(raw_root: Path, filename: str, pr_number: int) -> list[Any]:
-    """Read one raw NDJSON file's payloads for a single PR, in file order.
+#: The four per-run raw bundle files every touched PR contributes to.
+_BUNDLE_FILES = ("pulls.ndjson", "reviews.ndjson", "commits.ndjson", "timeline.ndjson")
+
+
+def _read_run_bucket(raw_root: Path, filename: str) -> dict[tuple[int, int], list[Any]]:
+    """Read one run's raw bundle file once, bucketed by ``(repo_id, pr)``.
+
+    ``collect`` writes a single file per bundle type per run, with every
+    touched PR from every repository interleaved. Records are keyed by
+    ``pr_number`` plus ``provenance.repository_id`` -- filtering on
+    ``pr_number`` alone would merge two repositories that happen to share a
+    PR number.
 
     Args:
         raw_root: The winning run's raw evidence directory.
         filename: The bundle file name (for example ``"reviews.ndjson"``).
-        pr_number: The PR number whose records to keep.
 
     Returns:
-        The ``payload`` of every line whose ``pr_number`` matches, in the
-        order the lines appear on disk.
+        ``payload`` lists keyed by ``(repository_id, pr_number)``, each in
+        the order the lines appear on disk.
+
+    Raises:
+        NormalizeError: If the file does not exist -- a lineage-committed
+            run is expected to hold every bundle endpoint -- or a line is
+            not valid JSON.
     """
     path = raw_root / filename
     if not path.exists():
-        return []
-    payloads: list[Any] = []
+        msg = (
+            f"committed run evidence file {path} is missing; the committed "
+            "lineage points at incomplete or damaged evidence"
+        )
+        raise NormalizeError(msg)
+    buckets: dict[tuple[int, int], list[Any]] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line:
             continue
-        record = json.loads(line)
-        if record.get("pr_number") == pr_number:
-            payloads.append(record.get("payload"))
-    return payloads
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as exc:
+            msg = f"raw evidence line in {path} is not valid JSON: {exc}"
+            raise NormalizeError(msg) from exc
+        if not isinstance(record, dict):
+            continue
+        pr_number = record.get("pr_number")
+        provenance = record.get("provenance")
+        repo_id = (
+            provenance.get("repository_id") if isinstance(provenance, dict) else None
+        )
+        if not isinstance(pr_number, int) or not isinstance(repo_id, int):
+            continue
+        buckets.setdefault((repo_id, pr_number), []).append(record.get("payload"))
+    return buckets
 
 
 def _flatten(payloads: list[Any]) -> list[dict[str, Any]]:
@@ -307,52 +374,82 @@ class _Bundle:
     commits_capped: bool
 
 
-def _select_bundle(
+def _build_run_bundles(
     workdir_path: Path,
-    repo_id: int,
-    pr_number: int,
-    ordered_runs: list[dict[str, Any]],
-) -> _Bundle:
-    """Select and read the newest committed bundle that touched a PR.
+    manifest: dict[str, Any],
+    pr_ids: list[tuple[int, int]],
+) -> list[_Bundle]:
+    """Read one winning run's four bundle files once and build its bundles.
 
     Args:
         workdir_path: The skill's workdir root.
-        repo_id: The PR's repository ID.
-        pr_number: The PR number.
+        manifest: The winning run's finalized manifest.
+        pr_ids: The ``(repository_id, pr_number)`` pairs whose winning run
+            is this one.
+
+    Returns:
+        One :class:`_Bundle` per entry in ``pr_ids``.
+
+    Raises:
+        NormalizeError: If the manifest lacks a string ``run_id``, a bundle
+            file is missing, or a touched PR has no PR object in its
+            winning run -- all signs of damaged committed evidence.
+    """
+    run_id = manifest.get("run_id")
+    if not isinstance(run_id, str):
+        msg = "a committed lineage manifest is missing a string 'run_id'"
+        raise NormalizeError(msg)
+    raw_root = workdir.raw_dir(workdir_path, run_id)
+    files = {name: _read_run_bucket(raw_root, name) for name in _BUNDLE_FILES}
+    bundles: list[_Bundle] = []
+    for key in pr_ids:
+        pr_payloads = files["pulls.ndjson"].get(key, [])
+        pr_object = next(
+            (p for p in reversed(pr_payloads) if isinstance(p, dict)), None
+        )
+        if pr_object is None:
+            msg = (
+                f"committed run {run_id} has no PR object for {key[0]}#{key[1]}; "
+                "the committed lineage points at damaged evidence"
+            )
+            raise NormalizeError(msg)
+        bundles.append(
+            _Bundle(
+                repo_id=key[0],
+                pr_number=key[1],
+                source_run_id=run_id,
+                pr_object=pr_object,
+                reviews=_flatten(files["reviews.ndjson"].get(key, [])),
+                commits=_flatten(files["commits.ndjson"].get(key, [])),
+                timeline=_flatten(files["timeline.ndjson"].get(key, [])),
+                commits_capped=_cap_exceeded(manifest, key[0], key[1]),
+            )
+        )
+    return bundles
+
+
+def _select_winning_runs(
+    ordered_runs: list[dict[str, Any]],
+) -> dict[tuple[int, int], str]:
+    """Map each touched PR to the newest committed run that touched it.
+
+    Args:
         ordered_runs: Lineage manifests sorted newest first by
             ``(refresh_started_at, run_id)``.
 
     Returns:
-        The winning bundle.
-
-    Raises:
-        NormalizeError: If no committed run records this PR as touched
-            (a committed-lineage invariant violation).
+        ``(repository_id, pr_number)`` -> winning ``run_id``. Whole-bundle
+        replacement: a PR touched by several runs is served entirely from
+        the newest one; mutable child rows are never unioned across runs.
     """
+    winning: dict[tuple[int, int], str] = {}
     for manifest in ordered_runs:
-        if (repo_id, pr_number) not in _touched_prs(manifest):
+        run_id = manifest.get("run_id")
+        if not isinstance(run_id, str):
             continue
-        run_id = manifest["run_id"]
-        raw_root = workdir.raw_dir(workdir_path, run_id)
-        pr_payloads = _read_bundle_lines(raw_root, "pulls.ndjson", pr_number)
-        pr_object = next((p for p in reversed(pr_payloads) if isinstance(p, dict)), {})
-        return _Bundle(
-            repo_id=repo_id,
-            pr_number=pr_number,
-            source_run_id=run_id,
-            pr_object=pr_object,
-            reviews=_flatten(_read_bundle_lines(raw_root, "reviews.ndjson", pr_number)),
-            commits=_flatten(_read_bundle_lines(raw_root, "commits.ndjson", pr_number)),
-            timeline=_flatten(
-                _read_bundle_lines(raw_root, "timeline.ndjson", pr_number)
-            ),
-            commits_capped=_cap_exceeded(manifest, repo_id, pr_number),
-        )
-    msg = (
-        f"no committed run touched PR {repo_id}#{pr_number}; the committed "
-        "lineage is inconsistent with its own manifests"
-    )
-    raise NormalizeError(msg)
+        for pair in _touched_prs(manifest):
+            winning.setdefault(pair, run_id)
+    return winning
 
 
 def _actor_of(record: dict[str, Any]) -> dict[str, Any] | None:
@@ -663,6 +760,37 @@ def _existing_is_current(
     )
 
 
+def _gather_bundles(
+    workdir_path: Path, ordered_runs: list[dict[str, Any]]
+) -> list[_Bundle]:
+    """Resolve every touched PR to its winning bundle, in stable key order.
+
+    Reads each winning run's four bundle files exactly once, so cost is
+    linear in total evidence size rather than quadratic in PR count.
+
+    Args:
+        workdir_path: The skill's workdir root.
+        ordered_runs: Lineage manifests, newest first.
+
+    Returns:
+        One :class:`_Bundle` per touched ``(repository_id, pr_number)``,
+        sorted by that key.
+    """
+    winning_run = _select_winning_runs(ordered_runs)
+    pr_ids = sorted(winning_run)
+    runs_by_id = {
+        m["run_id"]: m for m in ordered_runs if isinstance(m.get("run_id"), str)
+    }
+    by_run: dict[str, list[tuple[int, int]]] = {}
+    for pair in pr_ids:
+        by_run.setdefault(winning_run[pair], []).append(pair)
+    built: dict[tuple[int, int], _Bundle] = {}
+    for run_id, pairs in by_run.items():
+        for bundle in _build_run_bundles(workdir_path, runs_by_id[run_id], pairs):
+            built[bundle.repo_id, bundle.pr_number] = bundle
+    return [built[pair] for pair in pr_ids]
+
+
 def _write_entities(
     out_dir: Path,
     state: dict[str, Any],
@@ -722,24 +850,38 @@ def run_normalize(
         derivation metadata.
 
     Raises:
-        NormalizeError: If nothing is committed, or the actor map is
-            unreadable or malformed.
+        NormalizeError: If nothing is committed, the committed state or a
+            lineage manifest is unreadable, or the actor map is unreadable
+            or malformed.
     """
-    state = workdir.read_state(workdir_path)
-    if state is None or "committed_run_id" not in state:
+    try:
+        state = workdir.read_state(workdir_path)
+    except (json.JSONDecodeError, OSError) as exc:
+        msg = f"committed state in {workdir_path} is unreadable: {exc}"
+        raise NormalizeError(msg) from exc
+    if not state or not state.get("committed_run_id"):
         msg = f"workdir {workdir_path} has no committed collection state to normalize"
         raise NormalizeError(msg)
     actor_map = load_actor_map(actor_map_path)
     fingerprint = actor_map.fingerprint()
     committed_run_id = state["committed_run_id"]
-    lineage = workdir.resolve_committed_lineage(workdir_path, state)
+    try:
+        lineage = workdir.resolve_committed_lineage(workdir_path, state)
+    except json.JSONDecodeError as exc:
+        msg = f"a committed lineage manifest in {workdir_path} is not valid JSON: {exc}"
+        raise NormalizeError(msg) from exc
+    if not lineage:
+        msg = f"committed run {committed_run_id} resolves to an empty lineage"
+        raise NormalizeError(msg)
     ordered_runs = sorted(
-        lineage, key=lambda m: (_parse_manifest_ts(m), m["run_id"]), reverse=True
+        lineage,
+        key=lambda m: (_parse_manifest_ts(m), str(m.get("run_id") or "")),
+        reverse=True,
     )
-    newest = ordered_runs[0] if ordered_runs else {}
+    newest = ordered_runs[0]
     derivation = {
         "committed_run_id": committed_run_id,
-        "source_run_ids": [m["run_id"] for m in ordered_runs],
+        "source_run_ids": [str(m.get("run_id") or "") for m in ordered_runs],
         "as_of": _parse_manifest_ts(newest),
         "requested_interval": newest.get("requested_interval"),
         "schema_version": workdir.SCHEMA_VERSION,
@@ -750,13 +892,7 @@ def run_normalize(
     }
     if not force and _existing_is_current(workdir_path, committed_run_id, fingerprint):
         return NormalizeOutcome(committed_run_id, "already-current", derivation)
-    pr_ids = sorted({
-        pair for manifest in ordered_runs for pair in _touched_prs(manifest)
-    })
-    bundles = [
-        _select_bundle(workdir_path, repo_id, pr_number, ordered_runs)
-        for repo_id, pr_number in pr_ids
-    ]
+    bundles = _gather_bundles(workdir_path, ordered_runs)
     out_dir = workdir_path / "normalized"
     out_dir.mkdir(parents=True, exist_ok=True)
     _write_entities(out_dir, state, bundles, actor_map)

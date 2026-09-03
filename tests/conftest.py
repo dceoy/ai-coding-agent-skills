@@ -1,9 +1,10 @@
 """Shared test fixtures and fakes for the ``github-productivity`` skill.
 
 ``FakeGh`` and the ``fake_gh`` fixture are a deterministic, no-network
-stand-in for :mod:`ghapi`. They live here so ``test_collect.py`` and
-``test_normalize.py`` share one implementation rather than each carrying a
-copy.
+stand-in for :mod:`ghapi`, used by ``test_collect.py`` and available to
+any future test that drives ``collect``. ``test_normalize.py`` does not
+use them -- it builds committed-lineage evidence on disk directly -- so
+they live here rather than in ``test_collect.py`` only to keep one copy.
 """
 
 from __future__ import annotations

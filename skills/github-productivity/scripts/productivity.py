@@ -9,6 +9,7 @@ analysis, and reporting subcommands land in follow-up work; see
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -191,7 +192,12 @@ def _run_normalize_command(args: argparse.Namespace) -> int:
             actor_map_path=args.actor_map,
             force=args.force,
         )
-    except (NormalizeError, workdir.CommittedLineageError) as exc:
+    except (
+        NormalizeError,
+        workdir.CommittedLineageError,
+        json.JSONDecodeError,
+        OSError,
+    ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_DERIVATION_FAILED
     print(f"normalized {outcome.committed_run_id} ({outcome.status})")

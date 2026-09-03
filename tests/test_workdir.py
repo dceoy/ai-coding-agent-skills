@@ -81,6 +81,17 @@ def test_atomic_write_ndjson_replaces_whole_file_deterministically(
     )
 
 
+def test_atomic_write_ndjson_cleans_up_temp_file_on_serialization_failure(
+    tmp_path: Path,
+) -> None:
+    """A non-serializable row raises and leaves no orphan temp file behind."""
+    target = tmp_path / "rows.ndjson"
+    with pytest.raises(TypeError):
+        workdir.atomic_write_ndjson(target, [{"ok": 1}, {"bad": object()}])
+    assert not target.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_finalize_manifest_is_write_once(tmp_path: Path) -> None:
     """A finalized manifest can never be silently overwritten."""
     workdir.finalize_manifest(tmp_path, "run-a", _base_manifest("run-a"))
