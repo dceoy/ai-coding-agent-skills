@@ -54,16 +54,6 @@ Outside a Git worktree, require an effective read-only sandbox. A broader sandbo
 
 Use the main agent directly for simple questions and narrow deterministic edits. For non-trivial implementation, invoke `planner` when planning overhead is justified, implement directly in the top-level main agent, run verification, and invoke `advisor` only when an independent second opinion materially improves decision quality or confidence.
 
-For `pr-loop`, prefer compatible named roles before generic native independent subagents:
-
-```text
-planning          → planner
-review            → reviewer
-feedback-analysis → feedback-analyst
-```
-
-Dispatch one fresh `reviewer` per required lens (`correctness`, `tests/docs`, `security/performance`) and apply the lens-specific model policy above. Pass the skill's source metadata and terminal-state constraints to `feedback-analyst`. Fall back to another native independent subagent only when the required named role is unavailable or incompatible with the portable skill contract.
-
 Treat advisor output as guidance, not an approval gate. Apply supported bounded fixes in the main agent, return material architecture/scope conflicts to `planner`, rerun affected verification, and do not loop merely to obtain `VERDICT: ship`.
 
 Treat a named invocation as unsupported only when available runtime evidence shows unavailable native named-role dispatch, use of a different/generic agent, failure to honor the explicit model/effort or fresh-context isolation, or a writable non-Git invocation. Missing telemetry or a writable Git worktree sandbox alone is not a mismatch.
