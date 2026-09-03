@@ -50,6 +50,27 @@ def test_end_not_after_start_is_invalid_args(
     assert "--end must be strictly after --start" in capsys.readouterr().err
 
 
+def test_negative_overlap_hours_is_invalid_args(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A negative ``--overlap-hours`` exits with the invalid-arguments code."""
+    exit_code = productivity.main([
+        "collect",
+        "--org",
+        "acme",
+        "--workdir",
+        str(tmp_path),
+        "--start",
+        "2026-01-01",
+        "--end",
+        "2026-02-01",
+        "--overlap-hours",
+        "-1",
+    ])
+    assert exit_code == productivity.EXIT_INVALID_ARGS
+    assert "--overlap-hours must not be negative" in capsys.readouterr().err
+
+
 def test_collect_command_dispatches_and_returns_ok(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

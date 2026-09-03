@@ -90,14 +90,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run_collect_command(args: argparse.Namespace) -> int:
-    """Handle a parsed ``collect`` invocation.
+def _validate_collect_args(args: argparse.Namespace) -> tuple[datetime, datetime] | int:
+    """Parse and validate the ``collect`` subcommand's arguments.
 
     Args:
         args: Parsed CLI arguments for the ``collect`` subcommand.
 
     Returns:
-        The process exit code.
+        The parsed ``(start, end)`` boundaries if valid, otherwise the
+        exit code to return for the first validation failure found.
     """
     try:
         start = parse_boundary(args.start)
@@ -108,6 +109,25 @@ def _run_collect_command(args: argparse.Namespace) -> int:
     if end <= start:
         print("error: --end must be strictly after --start", file=sys.stderr)
         return EXIT_INVALID_ARGS
+    if args.overlap_hours < 0:
+        print("error: --overlap-hours must not be negative", file=sys.stderr)
+        return EXIT_INVALID_ARGS
+    return start, end
+
+
+def _run_collect_command(args: argparse.Namespace) -> int:
+    """Handle a parsed ``collect`` invocation.
+
+    Args:
+        args: Parsed CLI arguments for the ``collect`` subcommand.
+
+    Returns:
+        The process exit code.
+    """
+    validated = _validate_collect_args(args)
+    if isinstance(validated, int):
+        return validated
+    start, end = validated
     try:
         outcome = run_collect(
             org=args.org,

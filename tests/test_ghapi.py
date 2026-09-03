@@ -103,6 +103,22 @@ def test_request_provenance_excludes_credential_material(
     assert "state" in response.provenance["params"]
 
 
+def test_scrub_provenance_redacts_credential_shaped_value_under_innocuous_key() -> None:
+    """A credential-shaped value must be caught even under a harmless-looking key.
+
+    ``scrub_provenance`` must catch this case, not just ``_redact_secret_values``
+    applied to ``gh``'s stderr elsewhere -- provenance persists to raw NDJSON
+    regardless of whether any request ever failed.
+    """
+    scrubbed = ghapi.scrub_provenance({
+        "endpoint": "/x",
+        "params": {"note": "token=ghp_123456789012345678901234567890123456"},
+    })
+    serialized = json.dumps(scrubbed)
+    assert "ghp_" not in serialized
+    assert "[REDACTED]" in serialized
+
+
 @pytest.mark.parametrize(
     ("record", "forbidden_key"),
     [

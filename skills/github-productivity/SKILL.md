@@ -25,9 +25,9 @@ uv run skills/github-productivity/scripts/productivity.py collect \
   --overlap-hours 24
 ```
 
-- `--start` / `--end` accept either a date-only value (`YYYY-MM-DD`, converted to UTC midnight) or a timestamp with an explicit UTC offset. The interval is half-open `[start, end)`; `--end` must be strictly after `--start`.
-- `--overlap-hours` (default `24`) is the deterministic overlap applied to discovery boundaries and watermarks.
-- Exit codes: `0` success, `1` the run was incomplete (fail closed; committed state is unchanged), `2` invalid arguments — including reusing a `--workdir` for a different `--org` than it already has evidence for — `3` the workdir is already locked by another collection run.
+- `--start` / `--end` accept either a date-only value (`YYYY-MM-DD`, converted to UTC midnight) or a timestamp with an explicit UTC offset. The requested interval is half-open `[start, end)`; `--end` must be strictly after `--start`. `--start` bounds how far back discovery/backfill looks; `--end` is validated and recorded as provenance for the follow-up derivation work, but does **not** stop `collect` from fetching evidence past it — collection always discovers through "now" so a later re-run with a later `--end` never needs to recollect. Event-level filtering by `end` happens at derivation time (not implemented in this PR); see [Observation-range semantics](references/methodology.md#observation-range-semantics).
+- `--overlap-hours` (default `24`, must be non-negative) is the deterministic overlap applied to discovery boundaries and watermarks.
+- Exit codes: `0` success, `1` the run was incomplete (fail closed; committed state is unchanged), `2` invalid arguments — including a negative `--overlap-hours` or reusing a `--workdir` for a different `--org` than it already has evidence for — `3` the workdir is already locked by another collection run, including by a since-killed process (see [Known limitations](references/methodology.md#known-limitations) for recovery).
 
 Re-running `collect` against the same `--workdir` incrementally extends coverage. Requesting an earlier `--start` than previously covered triggers a bounded backward backfill before that range counts as covered. See [references/methodology.md](references/methodology.md) for the full transaction, discovery, and time-semantics contract.
 

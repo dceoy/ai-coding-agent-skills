@@ -67,7 +67,7 @@ class GhApiResponse:
 
 
 def scrub_provenance(record: dict[str, Any]) -> dict[str, Any]:
-    """Remove any credential-shaped key from a provenance record.
+    """Remove or redact any credential-shaped content from a provenance record.
 
     Args:
         record: A provenance mapping that may contain caller-supplied
@@ -77,21 +77,39 @@ def scrub_provenance(record: dict[str, Any]) -> dict[str, Any]:
         A shallow copy of ``record`` with any key matching a
         credential-shaped pattern (``authorization``, ``token``,
         ``password``, ``secret``, ``cookie``, case-insensitive) removed from
-        the top level and from any nested ``params`` mapping.
+        the top level and from any nested ``params`` mapping, and any
+        string value in what remains passed through
+        :func:`_redact_secret_values` — a credential-shaped *value* stored
+        under an innocuous key (for example ``params={"note": "token=abc"}``)
+        is redacted too, not just a credential-shaped key.
     """
     scrubbed = {
-        key: value
+        key: _redact_value(value)
         for key, value in record.items()
         if not _SECRET_KEY_PATTERN.search(key)
     }
     params = scrubbed.get("params")
     if isinstance(params, dict):
         scrubbed["params"] = {
-            key: value
+            key: _redact_value(value)
             for key, value in params.items()
             if not _SECRET_KEY_PATTERN.search(str(key))
         }
     return scrubbed
+
+
+def _redact_value(value: Any) -> Any:  # noqa: ANN401
+    """Apply value-shape secret redaction to a string; pass other types through.
+
+    Args:
+        value: A provenance field value, of whatever type the caller
+            supplied (only strings can carry redactable free text).
+
+    Returns:
+        ``value`` unchanged if it isn't a string, otherwise
+        :func:`_redact_secret_values` applied to it.
+    """
+    return _redact_secret_values(value) if isinstance(value, str) else value
 
 
 def _redact_secret_values(text: str) -> str:
