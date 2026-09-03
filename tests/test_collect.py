@@ -378,8 +378,9 @@ def test_refresh_started_at_persists_microsecond_precision(
     assert persisted.microsecond == fixed_now.microsecond
     state = workdir.read_state(tmp_path)
     assert state is not None
-    assert state["repositories"]["1"]["discovery_watermark"] == (
-        outcome.manifest["refresh_started_at"]
+    assert (
+        state["repositories"]["1"]["discovery_watermark"]
+        == outcome.manifest["refresh_started_at"]
     )
 
 
