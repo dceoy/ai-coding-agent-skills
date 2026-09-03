@@ -22,18 +22,6 @@ Effort is selected for the chosen model: Luna=`max`; Terra=`xhigh` or `max`; Sol
 
 Invoke named roles only through Codex native multi-agent tools. With MultiAgentV2 use `fork_turns: "none"`; with MultiAgentV1 use `fork_context: false` or omit it. Pass task-specific context explicitly and apply the mutation guard defined in `.codex/AGENTS.md`.
 
-## `pr-loop` mapping
-
-When compatible named roles are available:
-
-```text
-planning          → planner
-review            → reviewer
-feedback-analysis → feedback-analyst
-```
-
-Use one fresh `reviewer` invocation per required lens: `correctness`, `tests/docs`, and `security/performance`. `advisor` remains an independent on-demand role rather than part of the required `pr-loop` sequence.
-
 ## User-wide installation
 
 Codex uses `$CODEX_HOME` when set and otherwise defaults to `$HOME/.codex`.
@@ -63,6 +51,6 @@ else
 fi
 ```
 
-Use regular-file copies; agent-definition symlinks may not be discovered. Remove obsolete `planner-sol.toml`, `advisor-sol.toml`, `worker-luna.toml`, `worker-terra.toml`, `pr-loop-reviewer.toml`, and `pr-loop-feedback-analyst.toml` from existing user-wide installations.
+Use regular-file copies; agent-definition symlinks may not be discovered. Remove obsolete `planner-sol.toml`, `advisor-sol.toml`, `worker-luna.toml`, and `worker-terra.toml` from existing user-wide installations.
 
 Start a fresh Codex session after installation and verify that `planner`, `advisor`, `reviewer`, and `feedback-analyst` resolve from the expected definitions.
