@@ -176,7 +176,40 @@ def test_collect_command_returns_invalid_args_exit_code_on_organization_mismatch
     assert exit_code == productivity.EXIT_INVALID_ARGS
 
 
-def test_only_collect_subcommand_is_registered() -> None:
-    """Follow-up subcommands are not registered until they are implemented."""
+@pytest.mark.parametrize("command", ["aggregate", "analyze", "report"])
+def test_followup_subcommands_are_not_registered(command: str) -> None:
+    """Aggregation/analysis/report subcommands land in later work."""
     with pytest.raises(SystemExit):
-        productivity.main(["normalize"])
+        productivity.main([command])
+
+
+def test_normalize_command_dispatches_and_returns_ok(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A successful ``normalize`` run returns the OK exit code."""
+    captured: dict[str, Any] = {}
+
+    def fake_run_normalize(**kwargs: Any) -> Any:  # noqa: ANN401
+        captured.update(kwargs)
+        return type("Outcome", (), {"committed_run_id": "run-1", "status": "written"})()
+
+    monkeypatch.setattr(productivity, "run_normalize", fake_run_normalize)
+    exit_code = productivity.main(["normalize", "--workdir", str(tmp_path)])
+    assert exit_code == productivity.EXIT_OK
+    assert captured["workdir_path"] == tmp_path
+    assert captured["actor_map_path"] is None
+    assert captured["force"] is False
+
+
+def test_normalize_command_returns_derivation_failed_on_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A normalization error maps to the derivation-failed exit code."""
+
+    def fake_run_normalize(**_kwargs: Any) -> Any:  # noqa: ANN401
+        msg = "nothing committed"
+        raise productivity.NormalizeError(msg)
+
+    monkeypatch.setattr(productivity, "run_normalize", fake_run_normalize)
+    exit_code = productivity.main(["normalize", "--workdir", str(tmp_path)])
+    assert exit_code == productivity.EXIT_DERIVATION_FAILED
