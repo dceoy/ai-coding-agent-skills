@@ -927,6 +927,44 @@ def test_manifest_ts_fails_closed_on_non_string_refresh_started_at(
         normalize.run_normalize(workdir_path=tmp_path)
 
 
+def test_manifest_ts_fails_closed_on_invalid_timestamp_string(
+    tmp_path: Path,
+) -> None:
+    """A non-empty but unparseable ``refresh_started_at`` raises."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    manifest_path = workdir.manifest_path(tmp_path, "run-a")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["refresh_started_at"] = "not-a-timestamp"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="not a valid ISO-8601"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_manifest_ts_fails_closed_on_missing_utc_offset(tmp_path: Path) -> None:
+    """A ``refresh_started_at`` without a UTC offset raises.
+
+    An offset-naive value would otherwise fail to compare against
+    timezone-aware peers when sorting the lineage.
+    """
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    manifest_path = workdir.manifest_path(tmp_path, "run-a")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["refresh_started_at"] = "2026-03-01T00:00:00"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="UTC offset"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
 def test_commit_rows_fails_closed_on_commit_count_mismatch(tmp_path: Path) -> None:
     """An uncapped PR's flattened commit count must match the PR object's.
 

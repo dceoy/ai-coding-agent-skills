@@ -36,6 +36,7 @@ import hashlib
 import json
 import operator
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import workdir
@@ -227,27 +228,39 @@ def classify_actor(
     return _CLASS_UNKNOWN, reason
 
 
-def _parse_manifest_ts(manifest: dict[str, Any]) -> str:
-    """Return a manifest's ``refresh_started_at`` for ordering.
+def _parse_manifest_ts(manifest: dict[str, Any]) -> datetime:
+    """Return a manifest's ``refresh_started_at`` instant for ordering.
 
     Args:
         manifest: A finalized run manifest.
 
     Returns:
-        The ISO-8601 ``refresh_started_at`` string.
+        The parsed, timezone-aware ``refresh_started_at`` instant.
 
     Raises:
-        NormalizeError: If ``refresh_started_at`` is missing or not a
-            non-empty string -- it drives the ``(refresh_started_at, run_id)``
-            winner ordering and ``derivation.json.as_of``, so a malformed
-            committed manifest must fail closed rather than silently sort as
-            the oldest run.
+        NormalizeError: If ``refresh_started_at`` is missing, not a string,
+            not a valid ISO-8601 timestamp, or lacks a UTC offset -- it
+            drives the ``(refresh_started_at, run_id)`` winner ordering and
+            ``derivation.json.as_of``, so a malformed committed manifest
+            must fail closed rather than sort by a lexicographic or
+            otherwise misleading comparison of an unparsed value.
     """
     value = manifest.get("refresh_started_at")
     if not isinstance(value, str) or not value:
         msg = f"manifest 'refresh_started_at' must be a non-empty string, got {value!r}"
         raise NormalizeError(msg)
-    return value
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        msg = (
+            "manifest 'refresh_started_at' is not a valid ISO-8601 timestamp: "
+            f"{value!r}"
+        )
+        raise NormalizeError(msg) from exc
+    if parsed.tzinfo is None:
+        msg = f"manifest 'refresh_started_at' must include a UTC offset, got {value!r}"
+        raise NormalizeError(msg)
+    return parsed
 
 
 def _touched_prs(manifest: dict[str, Any]) -> set[tuple[int, int]]:
@@ -999,7 +1012,7 @@ def run_normalize(
     derivation = {
         "committed_run_id": committed_run_id,
         "source_run_ids": [str(m.get("run_id") or "") for m in ordered_runs],
-        "as_of": _parse_manifest_ts(newest),
+        "as_of": newest.get("refresh_started_at"),
         "requested_interval": newest.get("requested_interval"),
         "schema_version": workdir.SCHEMA_VERSION,
         "normalizer_schema_version": NORMALIZE_SCHEMA_VERSION,
