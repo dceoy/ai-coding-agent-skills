@@ -240,9 +240,11 @@ def check_history_coverage(
 ) -> None:
     """Fail closed if committed state does not cover the requested window.
 
-    Mirrors the issue's "stale-state fallback only when the prior committed
-    state fully covers the requested interval" rule, enforced here since
-    ``normalize`` does not apply a requested window at all.
+    Reads committed state fresh from disk. Callers that already hold a
+    pinned ``state`` snapshot (matched against loaded entities) should use
+    :func:`check_history_coverage_for_state` instead, so the coverage check
+    and the loaded entities are guaranteed to reflect the same committed
+    generation.
 
     Args:
         workdir_path: The skill's workdir root.
@@ -260,6 +262,38 @@ def check_history_coverage(
     if not state:
         msg = f"workdir {workdir_path} has no committed collection state"
         raise AggregateError(msg)
+    check_history_coverage_for_state(
+        state, start=start, overlap_hours=overlap_hours, repository_ids=repository_ids
+    )
+
+
+def check_history_coverage_for_state(
+    state: dict[str, Any],
+    *,
+    start: datetime,
+    overlap_hours: int,
+    repository_ids: frozenset[int] | None,
+) -> None:
+    """Fail closed if a pinned committed-state snapshot does not cover the window.
+
+    Mirrors the issue's "stale-state fallback only when the prior committed
+    state fully covers the requested interval" rule, enforced here since
+    ``normalize`` does not apply a requested window at all. Takes an
+    already-read ``state`` snapshot rather than reading it from disk, so a
+    caller can pin it to the same committed generation its loaded entities
+    came from.
+
+    Args:
+        state: A pinned committed ``state.json`` snapshot.
+        start: The requested inclusive UTC interval start.
+        overlap_hours: The deterministic overlap used at collection time.
+        repository_ids: Restrict the check to this repository set, or
+            ``None`` for every committed repository.
+
+    Raises:
+        AggregateError: If any in-scope repository's ``history_boundary``
+            does not reach ``start - overlap_hours``.
+    """
     required_boundary = start - timedelta(hours=overlap_hours)
     repositories = state.get("repositories", {})
     for key, entry in repositories.items():
@@ -452,7 +486,7 @@ def _pr_metrics(
     )
     queue_to_merge_hours = (
         (merged_at - queue_entry).total_seconds() / 3600.0
-        if queue_entry is not None
+        if queue_entry is not None and queue_entry <= merged_at
         else None
     )
     eligible_reviews = [
@@ -594,9 +628,9 @@ def _accumulate_pr(
         counters[idx]["opened_by_class"][author_class] = (
             counters[idx]["opened_by_class"].get(author_class, 0) + 1
         )
-        counters[idx]["active_repositories"].add(repo_id)
         if author_class in author_classes:
             counters[idx]["opened_prs"] += 1
+            counters[idx]["active_repositories"].add(repo_id)
             actor_key = (pr.get("author_id"), pr.get("author_login"))
             counters[idx]["active_pr_authors"].add(actor_key)
     for review in entities.reviews.get((repo_id, pr_number), []):
@@ -613,7 +647,8 @@ def _accumulate_pr(
         counters[idx]["reviews_by_class"][reviewer_class] = (
             counters[idx]["reviews_by_class"].get(reviewer_class, 0) + 1
         )
-        counters[idx]["active_repositories"].add(repo_id)
+        # Reviews are neither "PR-authorship" nor "merge" events, so they do
+        # not count toward active_repositories (see references/metrics.md).
         if reviewer_class == _HUMAN and review.get("independent"):
             counters[idx]["active_human_reviewers"].add((
                 review.get("reviewer_id"),
@@ -923,9 +958,6 @@ def run_aggregate(
 ) -> AggregateOutcome:
     """Build and persist the primary organization-week panel for a workdir.
 
-    Propagates :class:`AggregateError` if entities cannot be loaded or
-    committed history does not cover the requested window.
-
     Args:
         workdir_path: The skill's workdir root.
         start: Requested inclusive UTC interval start.
@@ -936,10 +968,28 @@ def run_aggregate(
 
     Returns:
         The outcome: the built panel and the paths it was written to.
+
+    Raises:
+        AggregateError: If entities cannot be loaded, no committed state
+            exists, committed state has advanced past the generation
+            ``normalize`` derived entities from, or committed history does
+            not cover the requested window.
     """
     entities = load_entities(workdir_path)
-    check_history_coverage(
-        workdir_path, start=start, overlap_hours=overlap_hours, repository_ids=None
+    state = workdir.read_state(workdir_path)
+    if not state:
+        msg = f"workdir {workdir_path} has no committed collection state"
+        raise AggregateError(msg)
+    if state.get("committed_run_id") != entities.derivation.get("committed_run_id"):
+        msg = (
+            f"committed state advanced to run {state.get('committed_run_id')!r} since "
+            f"'normalize' derived entities from run "
+            f"{entities.derivation.get('committed_run_id')!r}; run 'normalize' again "
+            "before aggregating so entities and coverage reflect the same generation"
+        )
+        raise AggregateError(msg)
+    check_history_coverage_for_state(
+        state, start=start, overlap_hours=overlap_hours, repository_ids=None
     )
     effective_end = resolve_effective_observation_end(entities, end)
     panel = build_panel(

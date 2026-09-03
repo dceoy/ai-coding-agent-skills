@@ -388,3 +388,104 @@ def test_repository_id_filter_overrides_fork_default(tmp_path: Path) -> None:
         repository_ids=frozenset({2}),
     )
     assert panel.weeks[0].metrics["opened_prs"] == 1
+
+
+def test_active_repositories_excludes_non_qualifying_activity(tmp_path: Path) -> None:
+    """A repo with only bot-authored PRs and only reviews is not counted active."""
+    write_state(tmp_path, repository_ids=[1])
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[
+            pr_row(
+                1,
+                1,
+                created_at="2026-01-05T00:00:00Z",
+                author_classification="bot",
+            )
+        ],
+        reviews=[review_row(1, 1, 101, submitted_at="2026-01-06T00:00:00Z")],
+    )
+    entities = aggregate.load_entities(tmp_path)
+    panel = aggregate.build_panel(
+        entities,
+        start=_ts("2026-01-05T00:00:00Z"),
+        end=_ts("2026-01-12T00:00:00Z"),
+        effective_observation_end=_ts("2026-01-12T00:00:00Z"),
+    )
+    assert panel.weeks[0].metrics["active_repositories"] == 0
+
+
+def test_active_repositories_counts_qualifying_open_and_merge(tmp_path: Path) -> None:
+    """A qualifying opened PR and a qualifying merge both count as active."""
+    write_state(tmp_path, repository_ids=[1, 2])
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1), repo_row(2)],
+        pull_requests=[
+            pr_row(1, 1, created_at="2026-01-05T00:00:00Z"),
+            pr_row(
+                2,
+                1,
+                created_at="2026-01-01T00:00:00Z",
+                merged_at="2026-01-06T00:00:00Z",
+            ),
+        ],
+        draft_lifecycle=[draft_row(2, 1, first_queue_entry="2026-01-01T00:00:00Z")],
+    )
+    entities = aggregate.load_entities(tmp_path)
+    panel = aggregate.build_panel(
+        entities,
+        start=_ts("2026-01-05T00:00:00Z"),
+        end=_ts("2026-01-12T00:00:00Z"),
+        effective_observation_end=_ts("2026-01-12T00:00:00Z"),
+    )
+    assert panel.weeks[0].metrics["active_repositories"] == 2
+
+
+def test_queue_to_merge_excludes_out_of_order_queue_entry(tmp_path: Path) -> None:
+    """A queue entry reconstructed after merged_at is excluded, not negative."""
+    write_state(tmp_path, repository_ids=[1])
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[
+            pr_row(
+                1,
+                1,
+                created_at="2026-01-01T00:00:00Z",
+                merged_at="2026-01-02T00:00:00Z",
+            )
+        ],
+        draft_lifecycle=[
+            draft_row(1, 1, first_queue_entry="2026-01-05T00:00:00Z")  # after merge
+        ],
+    )
+    entities = aggregate.load_entities(tmp_path)
+    start, end = _ts("2026-01-01T00:00:00Z"), _ts("2026-01-08T00:00:00Z")
+    panel = aggregate.build_panel(
+        entities, start=start, end=end, effective_observation_end=end
+    )
+    week = next(w for w in panel.weeks if w.metrics["merged_prs"] == 1)
+    assert week.metrics["median_queue_to_merge"] is None
+    assert week.metrics["median_queue_to_merge_n"] == 0
+
+
+def test_run_aggregate_fails_closed_on_advanced_committed_state(tmp_path: Path) -> None:
+    """Aggregate fails closed if state.json advances past normalize's generation."""
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run1")
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[],
+        committed_run_id="run1",
+    )
+    # Simulate a concurrent 'collect' committing a newer run after
+    # 'normalize' derived entities from run1.
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run2")
+    with pytest.raises(aggregate.AggregateError, match="advanced"):
+        aggregate.run_aggregate(
+            workdir_path=tmp_path,
+            start=_ts("2026-01-05T00:00:00Z"),
+            end=_ts("2026-01-12T00:00:00Z"),
+        )

@@ -272,15 +272,6 @@ def _its_section(analysis: dict[str, Any]) -> str:
             "descriptive-only, no ITS models were fit."
         )
     else:
-        table_rows = [
-            (
-                f"| `{metric}` | {result.get('fitted')} | "
-                f"{_fmt((result.get('beta') or {}).get('beta2'))} | "
-                f"{_fmt((result.get('beta') or {}).get('beta3'))} | "
-                f"{result.get('reason') or ''} |"
-            )
-            for metric, result in analysis.get("its", {}).items()
-        ]
         intro = (
             f"Intervention: `{analysis['intervention_at']}`, first complete "
             f"post week `{analysis.get('first_complete_post_week')}`. HAC lag "
@@ -288,13 +279,7 @@ def _its_section(analysis: dict[str, Any]) -> str:
             f"minimum guard {analysis.get('min_guard_weeks')} non-missing "
             "complete weeks per side."
         )
-        body = "\n".join([
-            intro,
-            "",
-            "| metric | fitted | beta2 (level) | beta3 (slope) | reason |",
-            "| --- | --- | --- | --- | --- |",
-            *table_rows,
-        ])
+        body = "\n".join([intro, "", *_its_table(analysis.get("its", {}))])
     interpretation = (
         "> Interpretation: any fitted level/slope change reflects an "
         "organization-level structural change associated with the "
@@ -304,18 +289,77 @@ def _its_section(analysis: dict[str, Any]) -> str:
     return f"## Modeled structural changes (ITS)\n\n{body}\n\n{interpretation}\n"
 
 
-def _sensitivity_section(analysis: dict[str, Any]) -> str:
-    """Render the sensitivity-results section.
+def _its_table(results: dict[str, Any]) -> list[str]:
+    """Render a fitted/beta2/beta3/reason table for a set of ITS results.
 
     Returns:
-        The section's Markdown text.
+        Markdown table lines (header plus one row per metric), or an
+        empty list if ``results`` is empty.
     """
-    sens = analysis.get("sensitivities", {})
-    window_lines = [
-        f"- {weeks_key}-week symmetric window available: {result.get('available')}"
-        for weeks_key, result in sens.get("window", {}).items()
+    if not results:
+        return []
+    return [
+        "| metric | fitted | beta2 (level) | beta3 (slope) | reason |",
+        "| --- | --- | --- | --- | --- |",
+        *(
+            f"| `{metric}` | {result.get('fitted')} | "
+            f"{_fmt((result.get('beta') or {}).get('beta2'))} | "
+            f"{_fmt((result.get('beta') or {}).get('beta3'))} | "
+            f"{result.get('reason') or ''} |"
+            for metric, result in results.items()
+        ),
     ]
-    stable = sens.get("stable_cohort", {})
+
+
+def _actor_totals(
+    rows: list[dict[str, Any]],
+) -> tuple[int, int, float | None, float | None]:
+    """Sum opened-PR counts and average explicit-AI-agent/unknown shares.
+
+    Returns:
+        ``(opened_prs_total, merged_prs_total, avg_ai_share, avg_unknown_share)``,
+        averaged over weeks where the share is available.
+    """
+    opened_total = sum(int(r.get("opened_prs") or 0) for r in rows)
+    merged_total = sum(int(r.get("merged_prs") or 0) for r in rows)
+    ai_shares = [
+        float(r["opened_prs_by_explicit-ai-agent_share"])
+        for r in rows
+        if r.get("opened_prs_by_explicit-ai-agent_share") not in {None, ""}
+    ]
+    unknown_shares = [
+        float(r["opened_prs_by_unknown_share"])
+        for r in rows
+        if r.get("opened_prs_by_unknown_share") not in {None, ""}
+    ]
+    avg_ai = sum(ai_shares) / len(ai_shares) if ai_shares else None
+    avg_unknown = sum(unknown_shares) / len(unknown_shares) if unknown_shares else None
+    return opened_total, merged_total, avg_ai, avg_unknown
+
+
+def _window_sensitivity_block(sens: dict[str, Any]) -> list[str]:
+    """Render the window-sensitivity lines.
+
+    Returns:
+        Markdown lines for the window-sensitivity subsection.
+    """
+    window_blocks: list[str] = []
+    for weeks_key, result in sens.get("window", {}).items():
+        available = result.get("available")
+        window_blocks.append(
+            f"**{weeks_key}-week symmetric window** (available: {available})"
+        )
+        window_blocks.extend(_its_table(result.get("results", {})))
+        window_blocks.append("")
+    return window_blocks
+
+
+def _leave_one_out_block(sens: dict[str, Any]) -> list[str]:
+    """Render the leave-one-repository-out lines.
+
+    Returns:
+        Markdown lines for the leave-one-out subsection.
+    """
     loo_lines = []
     for metric, result in sens.get("leave_one_repository_out", {}).items():
         if result.get("runs"):
@@ -325,21 +369,66 @@ def _sensitivity_section(analysis: dict[str, Any]) -> str:
             )
         else:
             loo_lines.append(f"- `{metric}`: no leave-one-out runs available")
+    return loo_lines
+
+
+def _actor_sensitivity_block(
+    sens: dict[str, Any], primary_rows: list[dict[str, Any]]
+) -> list[str]:
+    """Render the actor-sensitivity lines, with primary-vs-widened totals/shares.
+
+    Returns:
+        Markdown lines for the actor-sensitivity subsection.
+    """
     actor = sens.get("actor", {})
+    primary_opened, primary_merged, _, _ = _actor_totals(primary_rows)
+    widened_opened, widened_merged, ai_share, unknown_share = _actor_totals(
+        actor.get("rows", [])
+    )
+    primary_totals = f"{primary_opened} / {primary_merged}"
+    widened_totals = f"{widened_opened} / {widened_merged}"
+    return [
+        f"- Author classes included: {actor.get('author_classes')}",
+        f"- Primary (human+explicit-ai-agent) opened/merged totals: {primary_totals}",
+        f"- Widened (not-known-bot) opened/merged totals: {widened_totals}",
+        f"- Mean weekly `explicit-ai-agent` share of opened PRs: {_fmt(ai_share)}",
+        f"- Mean weekly `unknown` share of opened PRs: {_fmt(unknown_share)}",
+    ]
+
+
+def _sensitivity_section(
+    analysis: dict[str, Any], primary_rows: list[dict[str, Any]]
+) -> str:
+    """Render the sensitivity-results section, with actual computed values.
+
+    Args:
+        analysis: The full ``analyze`` output document.
+        primary_rows: The rendered primary organization-week panel rows,
+            for the actor-sensitivity delta.
+
+    Returns:
+        The section's Markdown text.
+    """
+    sens = analysis.get("sensitivities", {})
+    stable = sens.get("stable_cohort", {})
+    stable_block = [
+        f"- Repositories in cohort: {len(stable.get('repository_ids', []))}",
+        "",
+        *_its_table(stable.get("results", {})),
+    ]
     return "\n".join([
         "## Sensitivity results",
         "",
         "### Window sensitivity",
-        *window_lines,
-        "",
+        *_window_sensitivity_block(sens),
         "### Stable / two-sided repository cohort",
-        f"- Repositories in cohort: {len(stable.get('repository_ids', []))}",
+        *stable_block,
         "",
         "### Leave-one-repository-out",
-        *loo_lines,
+        *_leave_one_out_block(sens),
         "",
         "### Actor sensitivity (not-known-bot)",
-        f"- Author classes included: {actor.get('author_classes')}",
+        *_actor_sensitivity_block(sens, primary_rows),
         "",
     ])
 
@@ -403,7 +492,7 @@ def _render_report(
         _OBSERVED_METRICS_SECTION,
         _coverage_section(complete_rows),
         _its_section(analysis),
-        _sensitivity_section(analysis),
+        _sensitivity_section(analysis, rows),
         _INTERPRETATION,
         _LIMITATIONS,
     )

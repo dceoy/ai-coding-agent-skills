@@ -58,7 +58,8 @@ def _build_parser() -> argparse.ArgumentParser:
     """Build the top-level argument parser.
 
     Returns:
-        A parser with the ``collect`` subcommand registered.
+        A parser with the ``collect``, ``normalize``, ``aggregate``,
+        ``analyze``, and ``report`` subcommands registered.
     """
     parser = argparse.ArgumentParser(prog="productivity.py")
     subparsers = parser.add_subparsers(dest="command", required=True)

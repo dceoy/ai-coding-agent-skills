@@ -84,17 +84,23 @@ def _week_start(instant: datetime) -> datetime:
 
 @dataclass(slots=True)
 class TimeIndex:
-    """The fixed calendar-week ``time_t`` index for regression-eligible weeks.
+    """The fixed calendar-week ``time_t`` index over every complete ISO week.
 
-    ``weeks`` and ``time_t`` are parallel, ordered lists over every complete,
-    non-excluded ISO week in the panel. ``p`` is ``None`` when no
-    intervention was given (descriptive-only run).
+    ``weeks`` is the ordered list of every complete week in the panel;
+    ``time_t`` for a week is its position in this list, so it is always a
+    true calendar-week offset. ``excluded_partial_week``, when set, marks a
+    week that must never contribute a data row to any fit (its slot is
+    still counted for ``time_t`` purposes, so later weeks are not shifted).
+    ``p`` is ``None`` when no intervention was given (descriptive-only run)
+    or when the intervention's first complete post week falls outside the
+    panel's complete weeks; ``intervention_given`` disambiguates the two.
     """
 
     weeks: list[datetime]
     p: int | None
     first_complete_post_week: datetime | None
     excluded_partial_week: datetime | None
+    intervention_given: bool
 
 
 def build_time_index(panel: Panel, intervention_at: datetime | None) -> TimeIndex:
@@ -106,11 +112,14 @@ def build_time_index(panel: Panel, intervention_at: datetime | None) -> TimeInde
             descriptive-only run.
 
     Returns:
-        The fixed week/``time_t``/``p`` index.
+        The fixed week/``time_t``/``p`` index. ``weeks`` always retains
+        every complete week, including a mid-week intervention's excluded
+        containing week, so that ``time_t`` never gets renumbered around a
+        gap -- only :func:`fit_its` drops that week's data row.
     """
     complete_weeks = [w.week_start for w in panel.weeks if w.complete_week]
     if intervention_at is None:
-        return TimeIndex(complete_weeks, None, None, None)
+        return TimeIndex(complete_weeks, None, None, None, intervention_given=False)
     containing = _week_start(intervention_at)
     exact_monday = intervention_at == containing
     if exact_monday:
@@ -119,9 +128,8 @@ def build_time_index(panel: Panel, intervention_at: datetime | None) -> TimeInde
     else:
         first_post = containing + timedelta(days=7)
         excluded = containing
-    eligible = [w for w in complete_weeks if w != excluded]
-    p = eligible.index(first_post) if first_post in eligible else None
-    return TimeIndex(eligible, p, first_post, excluded)
+    p = complete_weeks.index(first_post) if first_post in complete_weeks else None
+    return TimeIndex(complete_weeks, p, first_post, excluded, intervention_given=True)
 
 
 @dataclass(slots=True)
@@ -184,9 +192,14 @@ def fit_its(panel: Panel, time_index: TimeIndex, metric: str) -> ITSResult:
         len(time_index.weeks) - pre_complete if time_index.p is not None else 0
     )
     if time_index.p is None:
+        reason = (
+            "intervention_outside_panel"
+            if time_index.intervention_given
+            else "no_intervention_specified"
+        )
         return _skip(
             metric,
-            "no_intervention_specified",
+            reason,
             pre_complete=pre_complete,
             post_complete=post_complete,
             non_missing=0,
@@ -194,7 +207,8 @@ def fit_its(panel: Panel, time_index: TimeIndex, metric: str) -> ITSResult:
     rows: list[tuple[int, float]] = [
         (t, float(value))
         for t, w in enumerate(time_index.weeks)
-        if (value := by_week.get(w)) is not None
+        if w != time_index.excluded_partial_week
+        and (value := by_week.get(w)) is not None
     ]
     pre_n = sum(1 for t, _ in rows if t < time_index.p)
     post_n = sum(1 for t, _ in rows if t >= time_index.p)
@@ -350,6 +364,7 @@ def _window_sensitivity(
         weeks,
         time_index.first_complete_post_week,
         time_index.excluded_partial_week,
+        intervention_given=True,
     )
     results = {
         m: _result_to_json(fit_its(panel, truncated, m)) for m in ITS_ELIGIBLE_METRICS
