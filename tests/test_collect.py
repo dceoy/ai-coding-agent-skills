@@ -1,0 +1,450 @@
+"""Tests for repository/PR discovery, reconciliation, and bundle collection."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+
+import collect
+import ghapi
+import pytest
+import workdir
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+@dataclass
+class _FakeGh:
+    """Deterministic stand-in for :mod:`ghapi`'s ``paginate``/``request``."""
+
+    list_pages: dict[tuple[str, str | None, str | None], list[list[dict[str, Any]]]] = (
+        field(default_factory=dict)
+    )
+    objects: dict[str, Any] = field(default_factory=dict)
+    failing_substrings: set[str] = field(default_factory=set)
+    calls: list[tuple[str, str, dict[str, Any]]] = field(default_factory=list)
+
+    def set_list(
+        self,
+        endpoint: str,
+        pages: list[list[dict[str, Any]]],
+        *,
+        sort: str | None = None,
+        direction: str | None = None,
+    ) -> None:
+        """Register the pages a matching paginated call should return."""
+        self.list_pages[endpoint, sort, direction] = pages
+
+    def set_object(self, endpoint: str, payload: Any) -> None:  # noqa: ANN401
+        """Register the payload a non-paginated call should return."""
+        self.objects[endpoint] = payload
+
+    def fail(self, substring: str) -> None:
+        """Force any call whose endpoint contains ``substring`` to error."""
+        self.failing_substrings.add(substring)
+
+    def paginate(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, Any],
+        repository_id: int | None,  # noqa: ARG002
+        run_id: str,  # noqa: ARG002
+        per_page: int = 100,  # noqa: ARG002
+    ) -> Any:  # noqa: ANN401
+        """Fake replacement for ``ghapi.paginate``."""
+        self.calls.append(("paginate", endpoint, dict(params)))
+        if any(tag in endpoint for tag in self.failing_substrings):
+            msg = f"forced failure for {endpoint}"
+            raise ghapi.GhApiError(msg)
+        key = (endpoint, params.get("sort"), params.get("direction"))
+        pages = self.list_pages.get(
+            key, self.list_pages.get((endpoint, None, None), [[]])
+        )
+        return (
+            ghapi.GhApiResponse(
+                payload=page, provenance={"endpoint": endpoint, "params": dict(params)}
+            )
+            for page in pages
+        )
+
+    def request(
+        self,
+        *,
+        endpoint: str,
+        params: dict[str, Any],
+        repository_id: int | None,  # noqa: ARG002
+        run_id: str,  # noqa: ARG002
+    ) -> ghapi.GhApiResponse:
+        """Fake replacement for ``ghapi.request``."""
+        self.calls.append(("request", endpoint, dict(params)))
+        if any(tag in endpoint for tag in self.failing_substrings):
+            msg = f"forced failure for {endpoint}"
+            raise ghapi.GhApiError(msg)
+        return ghapi.GhApiResponse(
+            payload=self.objects.get(endpoint, {}), provenance={"endpoint": endpoint}
+        )
+
+
+def _repo(
+    repo_id: int, name: str, *, archived: bool = False, fork: bool = False
+) -> dict[str, Any]:
+    """Build a minimal repository enumeration item."""
+    return {
+        "id": repo_id,
+        "name": name,
+        "full_name": f"acme/{name}",
+        "archived": archived,
+        "fork": fork,
+        "created_at": "2020-01-01T00:00:00Z",
+    }
+
+
+def _pr(number: int, updated_at: str, *, is_pr: bool = True) -> dict[str, Any]:
+    """Build a minimal issues/pulls list item."""
+    item: dict[str, Any] = {"number": number, "updated_at": updated_at}
+    if is_pr:
+        item["pull_request"] = {}
+    return item
+
+
+@pytest.fixture
+def fake_gh(monkeypatch: pytest.MonkeyPatch) -> _FakeGh:
+    """Patch :mod:`ghapi` with a deterministic fake for one test."""
+    fake = _FakeGh()
+    monkeypatch.setattr(ghapi, "paginate", fake.paginate)
+    monkeypatch.setattr(ghapi, "request", fake.request)
+    return fake
+
+
+_START = datetime(2026, 1, 8, tzinfo=UTC)
+_END = datetime(2026, 2, 1, tzinfo=UTC)
+
+
+def test_initial_backfill_stops_at_boundary_via_descending_sort(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """Backfill discovery pages newest-first and stops below the required boundary."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/pulls",
+        [[_pr(5, "2026-01-10T00:00:00Z"), _pr(4, "2026-01-06T00:00:00Z")]],
+        sort="updated",
+        direction="desc",
+    )
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.status == "complete"
+    assert outcome.manifest["repositories"]["1"]["touched_pr_numbers"] == [5]
+    pulls_calls = [c for c in fake_gh.calls if c[1] == "/repos/acme/repo1/pulls"]
+    assert pulls_calls[0][2]["sort"] == "updated"
+    assert pulls_calls[0][2]["direction"] == "desc"
+
+
+def test_backward_range_expansion_triggers_backfill(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A committed boundary newer than the newly requested start triggers backfill."""
+    workdir.write_state(
+        tmp_path,
+        {
+            "committed_run_id": "prior",
+            "collection_affecting_fingerprint": (
+                collect.collection_affecting_fingerprint([])
+            ),
+            "repositories": {
+                "1": {
+                    "name": "repo1",
+                    "archived": False,
+                    "fork": False,
+                    "created_at": "2020-01-01T00:00:00Z",
+                    "discovery_watermark": "2026-01-20T00:00:00Z",
+                    "history_boundary": "2026-01-15T00:00:00Z",
+                }
+            },
+        },
+    )
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    pulls_calls = [c for c in fake_gh.calls if c[1] == "/repos/acme/repo1/pulls"]
+    assert pulls_calls, (
+        "backfill must run because the requested start precedes the committed boundary"
+    )
+
+
+def test_incremental_discovery_uses_created_ascending_since_watermark(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """Incremental discovery pages Issues since the watermark, ascending by creation."""
+    workdir.write_state(
+        tmp_path,
+        {
+            "committed_run_id": "prior",
+            "collection_affecting_fingerprint": (
+                collect.collection_affecting_fingerprint([])
+            ),
+            "repositories": {
+                "1": {
+                    "name": "repo1",
+                    "archived": False,
+                    "fork": False,
+                    "created_at": "2020-01-01T00:00:00Z",
+                    "discovery_watermark": "2026-01-05T00:00:00Z",
+                    "history_boundary": "2020-01-01T00:00:00Z",
+                }
+            },
+        },
+    )
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/issues",
+        [[_pr(9, "2026-01-06T00:00:00Z")]],
+        sort="created",
+        direction="asc",
+    )
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    incremental_calls = [
+        c
+        for c in fake_gh.calls
+        if c[1] == "/repos/acme/repo1/issues" and c[2].get("sort") == "created"
+    ]
+    assert incremental_calls[0][2]["since"] == "2026-01-04T00:00:00Z"
+    assert 9 in outcome.manifest["repositories"]["1"]["touched_pr_numbers"]
+
+
+def test_reconciliation_adds_pr_missed_by_incremental_scan(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """The always-run reconciliation pass unions in PRs the primary scan missed."""
+    workdir.write_state(
+        tmp_path,
+        {
+            "committed_run_id": "prior",
+            "collection_affecting_fingerprint": (
+                collect.collection_affecting_fingerprint([])
+            ),
+            "repositories": {
+                "1": {
+                    "name": "repo1",
+                    "archived": False,
+                    "fork": False,
+                    "created_at": "2020-01-01T00:00:00Z",
+                    "discovery_watermark": "2026-01-05T00:00:00Z",
+                    "history_boundary": "2020-01-01T00:00:00Z",
+                }
+            },
+        },
+    )
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/issues",
+        [[_pr(10, "2026-01-06T00:00:00Z")]],
+        sort="created",
+        direction="asc",
+    )
+    fake_gh.set_list(
+        "/repos/acme/repo1/issues",
+        [[_pr(7, "2026-01-06T00:00:00Z")]],
+        sort="updated",
+        direction="asc",
+    )
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert set(outcome.manifest["repositories"]["1"]["touched_pr_numbers"]) == {7, 10}
+
+
+def test_non_pr_issues_are_filtered_out(tmp_path: Path, fake_gh: _FakeGh) -> None:
+    """Issues without a ``pull_request`` key are never treated as touched PRs."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    fake_gh.set_list(
+        "/repos/acme/repo1/issues",
+        [
+            [
+                _pr(11, "2026-01-08T00:00:00Z", is_pr=False),
+                _pr(12, "2026-01-08T00:00:00Z"),
+            ]
+        ],
+        sort="updated",
+        direction="asc",
+    )
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.manifest["repositories"]["1"]["touched_pr_numbers"] == [12]
+
+
+def test_failed_bundle_fetch_leaves_committed_state_unchanged(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A failed refresh leaves state.json unchanged and excluded from lineage."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    first = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert first.status == "complete"
+    committed_before = workdir.read_state(tmp_path)
+
+    fake_gh.set_list(
+        "/repos/acme/repo1/issues",
+        [[_pr(20, "2026-01-15T00:00:00Z")]],
+        sort="created",
+        direction="asc",
+    )
+    fake_gh.fail("/reviews")
+    second = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert second.status == "incomplete"
+    assert second.manifest["failures"]
+    assert workdir.read_state(tmp_path) == committed_before
+
+
+def test_interruption_before_manifest_finalization_leaves_no_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_gh: _FakeGh
+) -> None:
+    """A crash before finalization leaves no manifest and releases the lock."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+
+    def _boom(_ctx: object) -> None:
+        msg = "simulated crash"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(collect, "fetch_organization_repositories", _boom)
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    assert not list(workdir.manifests_dir(tmp_path).glob("*.json"))
+    assert not workdir.lock_path(tmp_path).exists()
+
+
+def test_crash_after_finalization_before_state_commit_leaves_orphan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_gh: _FakeGh
+) -> None:
+    """A crash after finalization but before the state commit leaves an orphan run."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    original_write_state = workdir.write_state
+
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        msg = "simulated crash before state commit"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(workdir, "write_state", _boom)
+    with pytest.raises(RuntimeError, match="simulated crash before state commit"):
+        collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    orphan_manifests = list(workdir.manifests_dir(tmp_path).glob("*.json"))
+    assert len(orphan_manifests) == 1
+    assert workdir.read_state(tmp_path) is None
+
+    monkeypatch.setattr(workdir, "write_state", original_write_state)
+    second = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert second.status == "complete"
+    assert second.manifest["previous_committed_run_id"] is None
+    committed = workdir.read_state(tmp_path)
+    assert committed is not None
+    assert committed["committed_run_id"] == second.run_id
+
+
+def test_archived_and_fork_repositories_are_retained(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """Archived repositories and forks are both enumerated and collected."""
+    fake_gh.set_list(
+        "/orgs/acme/repos",
+        [[_repo(1, "archived-repo", archived=True), _repo(2, "fork-repo", fork=True)]],
+    )
+    fake_gh.set_list(
+        "/repos/acme/archived-repo/pulls", [[]], sort="updated", direction="desc"
+    )
+    fake_gh.set_list(
+        "/repos/acme/fork-repo/pulls", [[]], sort="updated", direction="desc"
+    )
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.manifest["repositories"]["1"]["archived"] is True
+    assert outcome.manifest["repositories"]["2"]["fork"] is True
+
+
+def test_repository_rename_preserves_single_state_entry(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A repository rename updates the existing state entry, never duplicates it."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "old-name")]])
+    fake_gh.set_list(
+        "/repos/acme/old-name/pulls", [[]], sort="updated", direction="desc"
+    )
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "new-name")]])
+    fake_gh.set_list(
+        "/repos/acme/new-name/pulls", [[]], sort="updated", direction="desc"
+    )
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+
+    state = workdir.read_state(tmp_path)
+    assert state is not None
+    assert list(state["repositories"].keys()) == ["1"]
+    assert state["repositories"]["1"]["name"] == "new-name"
+
+
+def test_repository_missing_from_enumeration_keeps_prior_evidence(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A repository that later disappears from enumeration keeps its retained state."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1"), _repo(2, "repo2")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    fake_gh.set_list("/repos/acme/repo2/pulls", [[]], sort="updated", direction="desc")
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+
+    state = workdir.read_state(tmp_path)
+    assert state is not None
+    assert set(state["repositories"].keys()) == {"1", "2"}
+
+
+def test_watermark_advances_to_refresh_started_at_not_max_updated_at(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """The watermark is refresh_started_at, never the max observed updated_at."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/pulls",
+        [[_pr(1, "2030-06-15T00:00:00Z")]],
+        sort="updated",
+        direction="desc",
+    )
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    state = workdir.read_state(tmp_path)
+    assert state is not None
+    watermark = state["repositories"]["1"]["discovery_watermark"]
+    assert watermark == outcome.manifest["refresh_started_at"]
+    assert watermark != "2030-06-15T00:00:00Z"
+
+
+def test_second_concurrent_collector_is_rejected(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A concurrent collector cannot advance state while another run holds the lock."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    with (
+        workdir.CollectionLock(tmp_path, "outside-run"),
+        pytest.raises(workdir.WorkdirLockedError),
+    ):
+        collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    assert workdir.read_state(tmp_path) is None

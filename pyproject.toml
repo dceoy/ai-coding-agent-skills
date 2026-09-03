@@ -104,6 +104,8 @@ ignore = [
 "**/scripts/**/*.py" = [
     "S404", # subprocess required for git invocation
     "T201", # CLI output via print
+    "S603", # subprocess call with a fixed, non-shell argument vector
+    "S607", # `gh` is invoked via PATH by design, matching the `gh` CLI convention
 ]
 "tests/**/*.py" = [
     "DOC201", # Missing return documentation
@@ -127,6 +129,7 @@ max-public-methods = 40
 [tool.pyright]
 include = ["skills"]
 exclude = ["build", ".venv", "**/__pycache__"]
+extraPaths = ["skills/github-productivity/scripts"]
 venvPath = "."
 venv = ".venv"
 typeCheckingMode = "strict"
@@ -142,7 +145,7 @@ addopts = [
     "--doctest-modules",
     "--capture=no",
 ]
-pythonpath = ["."]
+pythonpath = [".", "skills/github-productivity/scripts"]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]

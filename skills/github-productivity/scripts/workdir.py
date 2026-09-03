@@ -1,0 +1,345 @@
+"""Workdir layout, single-writer locking, and committed-state transactions.
+
+This module owns the on-disk transaction model described in the
+``github-productivity`` skill's methodology: append-only raw evidence per
+run, write-once immutable manifests, and an atomically replaced
+``state.json`` that is the sole acceptance frontier for committed
+collection coverage. ``collect`` is the only writer; every other command
+reads a single pinned ``state.json`` snapshot.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import secrets
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any, Self
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+#: Schema version for both run manifests and ``state.json``. Bump when the
+#: on-disk shape changes in a way that is not backward compatible.
+SCHEMA_VERSION = 1
+
+_MANIFEST_STATUSES = frozenset({"complete", "incomplete"})
+
+
+class WorkdirLockedError(Exception):
+    """Raised when a collection lock is already held by another run."""
+
+
+class ManifestAlreadyFinalizedError(Exception):
+    """Raised when finalizing a run manifest that already exists on disk."""
+
+
+class CommittedLineageError(Exception):
+    """Raised when the committed run lineage cannot be resolved from disk."""
+
+
+def raw_dir(workdir: Path, run_id: str) -> Path:
+    """Return the append-only raw evidence directory for one run.
+
+    Args:
+        workdir: The skill's workdir root.
+        run_id: The collection run ID.
+
+    Returns:
+        The path ``<workdir>/raw/<run_id>``.
+    """
+    return workdir / "raw" / run_id
+
+
+def manifests_dir(workdir: Path) -> Path:
+    """Return the directory holding finalized run manifests.
+
+    Args:
+        workdir: The skill's workdir root.
+
+    Returns:
+        The path ``<workdir>/manifests``.
+    """
+    return workdir / "manifests"
+
+
+def manifest_path(workdir: Path, run_id: str) -> Path:
+    """Return the finalized manifest path for one run.
+
+    Args:
+        workdir: The skill's workdir root.
+        run_id: The collection run ID.
+
+    Returns:
+        The path ``<workdir>/manifests/<run_id>.json``.
+    """
+    return manifests_dir(workdir) / f"{run_id}.json"
+
+
+def state_path(workdir: Path) -> Path:
+    """Return the path of the committed ``state.json``.
+
+    Args:
+        workdir: The skill's workdir root.
+
+    Returns:
+        The path ``<workdir>/state.json``.
+    """
+    return workdir / "state.json"
+
+
+def lock_path(workdir: Path) -> Path:
+    """Return the path of the single-writer collection lock file.
+
+    Args:
+        workdir: The skill's workdir root.
+
+    Returns:
+        The path ``<workdir>/.collect.lock``.
+    """
+    return workdir / ".collect.lock"
+
+
+def new_run_id() -> str:
+    """Generate a new collection run ID.
+
+    Returns:
+        A run ID composed of the current UTC timestamp and a random
+        suffix, safe to use as a filesystem path component.
+    """
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"{stamp}-{secrets.token_hex(4)}"
+
+
+def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
+    """Write JSON to ``path`` atomically via a temp file plus rename.
+
+    Args:
+        path: Destination path. Its parent directory must already exist.
+        data: JSON-serializable data to write.
+    """
+    tmp_path = path.with_name(f"{path.name}.tmp.{secrets.token_hex(4)}")
+    with tmp_path.open("w", encoding="utf-8") as handle:
+        json.dump(data, handle, sort_keys=True, indent=2)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    tmp_path.replace(path)
+
+
+def append_ndjson(path: Path, record: dict[str, Any]) -> None:
+    """Append one JSON record as a line to an append-only NDJSON file.
+
+    Args:
+        path: The NDJSON file to append to. Created, along with its parent
+            directory, if it does not already exist.
+        record: JSON-serializable record to append.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True))
+        handle.write("\n")
+
+
+@dataclass(slots=True)
+class CollectionLock:
+    """An exclusive, single-writer lock over one workdir.
+
+    Acquire before reading mutable committed state and hold through
+    discovery, canonical refetches, manifest finalization, and the atomic
+    state commit. Use as a context manager.
+    """
+
+    workdir: Path
+    run_id: str
+    _acquired: bool = False
+
+    def __enter__(self) -> Self:
+        """Acquire the lock, failing closed if already held.
+
+        Returns:
+            This lock instance.
+
+        Raises:
+            WorkdirLockedError: If another run already holds the lock.
+        """
+        path = lock_path(self.workdir)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            path.touch(exist_ok=False)
+        except FileExistsError as exc:
+            msg = f"workdir {self.workdir} is already locked by another collection run"
+            raise WorkdirLockedError(msg) from exc
+        path.write_text(
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "run_id": self.run_id,
+                    "acquired_at": datetime.now(UTC).isoformat(),
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        self._acquired = True
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        """Release the lock if held."""
+        if self._acquired:
+            lock_path(self.workdir).unlink(missing_ok=True)
+            self._acquired = False
+
+
+def read_state(workdir: Path) -> dict[str, Any] | None:
+    """Read and pin the current committed ``state.json`` snapshot.
+
+    Args:
+        workdir: The skill's workdir root.
+
+    Returns:
+        The committed state as a dict, or ``None`` if no collection has
+        ever committed for this workdir.
+    """
+    path = state_path(workdir)
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def write_state(workdir: Path, state: dict[str, Any]) -> None:
+    """Atomically replace the committed ``state.json``.
+
+    Args:
+        workdir: The skill's workdir root.
+        state: The new committed state. Must already reflect a
+            successfully finalized ``complete`` manifest.
+    """
+    workdir.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(state_path(workdir), state)
+
+
+def finalize_manifest(workdir: Path, run_id: str, manifest: dict[str, Any]) -> None:
+    """Write a run manifest exactly once. Never overwrite an existing one.
+
+    Args:
+        workdir: The skill's workdir root.
+        run_id: The collection run ID.
+        manifest: The manifest body. Must include a ``status`` of either
+            ``"complete"`` or ``"incomplete"``.
+
+    Raises:
+        ManifestAlreadyFinalizedError: If a manifest for this run ID
+            already exists.
+        ValueError: If ``manifest["status"]`` is not a recognized value.
+    """
+    if manifest.get("status") not in _MANIFEST_STATUSES:
+        msg = f"manifest status must be one of {sorted(_MANIFEST_STATUSES)}"
+        raise ValueError(msg)
+    path = manifest_path(workdir, run_id)
+    if path.exists():
+        msg = f"manifest for run {run_id} is already finalized"
+        raise ManifestAlreadyFinalizedError(msg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(path, manifest)
+
+
+def read_manifest(workdir: Path, run_id: str) -> dict[str, Any]:
+    """Read one finalized run manifest.
+
+    Args:
+        workdir: The skill's workdir root.
+        run_id: The collection run ID.
+
+    Returns:
+        The manifest body. The file must already exist.
+    """
+    return json.loads(manifest_path(workdir, run_id).read_text(encoding="utf-8"))
+
+
+def resolve_committed_lineage(
+    workdir: Path, state: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Walk the committed run lineage from ``state["committed_run_id"]``.
+
+    Args:
+        workdir: The skill's workdir root.
+        state: A pinned committed state snapshot, as returned by
+            :func:`read_state`.
+
+    Returns:
+        Manifests on the committed lineage, newest first. A ``complete``
+        manifest not reachable through this walk is uncommitted orphan
+        evidence and must never be treated as canonical.
+
+    Raises:
+        CommittedLineageError: If the lineage chain is broken, for example
+            a referenced manifest is missing or not ``complete``.
+    """
+    lineage: list[dict[str, Any]] = []
+    run_id = state.get("committed_run_id")
+    while run_id is not None:
+        try:
+            manifest = read_manifest(workdir, run_id)
+        except FileNotFoundError as exc:
+            msg = f"committed lineage references missing manifest {run_id}"
+            raise CommittedLineageError(msg) from exc
+        if manifest.get("status") != "complete":
+            msg = f"committed lineage references non-complete manifest {run_id}"
+            raise CommittedLineageError(msg)
+        lineage.append(manifest)
+        run_id = manifest.get("previous_committed_run_id")
+    return lineage
+
+
+def coverage_gaps(
+    state: dict[str, Any] | None,
+    *,
+    start: datetime,
+    end: datetime,
+    overlap_hours: int,
+    collection_affecting_fingerprint: str,
+) -> list[str]:
+    """Determine why a committed state does not cover a requested interval.
+
+    Args:
+        state: A pinned committed state snapshot, or ``None`` if no
+            collection has ever committed.
+        start: The requested observation interval's inclusive UTC start.
+        end: The requested observation interval's exclusive UTC end.
+        overlap_hours: The deterministic overlap applied to discovery
+            boundaries.
+        collection_affecting_fingerprint: The fingerprint of the
+            collection-affecting configuration (for example selected CI
+            workflow IDs) the caller requires.
+
+    Returns:
+        Human-readable gap descriptions. Empty when ``state`` fully covers
+        the requested interval and configuration; a non-empty result means
+        the caller must fail closed rather than use this state.
+    """
+    if state is None:
+        return ["no committed state exists yet"]
+    gaps: list[str] = []
+    if (
+        state.get("collection_affecting_fingerprint")
+        != collection_affecting_fingerprint
+    ):
+        gaps.append("collection-affecting configuration does not match committed state")
+    required_boundary = start.timestamp() - (overlap_hours * 3600)
+    repositories: dict[str, Any] = state.get("repositories", {})
+    for repository_id, repo_state in repositories.items():
+        history_boundary = repo_state.get("history_boundary")
+        watermark = repo_state.get("discovery_watermark")
+        if history_boundary is None or history_boundary > required_boundary:
+            gaps.append(
+                f"repository {repository_id} lacks historical coverage back to "
+                f"{start.isoformat()}"
+            )
+        if watermark is None or watermark < end.timestamp():
+            gaps.append(
+                f"repository {repository_id} discovery watermark is behind "
+                f"{end.isoformat()}"
+            )
+    return gaps

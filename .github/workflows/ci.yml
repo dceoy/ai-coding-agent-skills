@@ -28,12 +28,28 @@ jobs:
     uses: dceoy/gha-for-devops/.github/workflows/markdown-lint.yml@main  # zizmor: ignore[unpinned-uses]
     with:
       search-path: .
+  python-lint:
+    if: >
+      github.event_name == 'push'
+      || github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: dceoy/gha-for-devops/.github/workflows/python-package-lint-and-scan.yml@main  # zizmor: ignore[unpinned-uses]
+  python-test:
+    if: >
+      github.event_name == 'push'
+      || github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: dceoy/gha-for-devops/.github/workflows/python-package-test.yml@main  # zizmor: ignore[unpinned-uses]
   dependabot-auto-merge:
     if: >
       github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
     needs:
       - shell-lint
       - markdown-lint
+      - python-lint
+      - python-test
     uses: dceoy/gha-for-devops/.github/workflows/dependabot-auto-merge.yml@main  # zizmor: ignore[unpinned-uses]
     permissions:
       contents: write

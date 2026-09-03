@@ -46,6 +46,10 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `oracle-chatgpt` - Send one arbitrary prompt to ChatGPT through Oracle browser mode and return the captured response without reinterpretation
 - `x-timeline` - Read authenticated X timelines through agent-browser without engagement actions
 
+### Delivery Analytics
+
+- `github-productivity` - Collect and retain GitHub organization PR/review/timeline/commit data via `gh api` with transactional run provenance (normalization and analysis land in a follow-up)
+
 ### Skill Management
 
 - `claude-agent-converter` - Convert Claude Code agents to portable skills
