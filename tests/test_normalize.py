@@ -218,6 +218,41 @@ def test_already_current_tree_is_not_rewritten(tmp_path: Path) -> None:
     assert outcome.status == "already-current"
 
 
+def test_interrupted_regeneration_cannot_report_stale_already_current(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crash mid-rewrite must not leave a marker attesting to the old tree."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    assert (tmp_path / "normalized" / "derivation.json").exists()
+
+    real_atomic_write_ndjson = workdir.atomic_write_ndjson
+    calls = {"count": 0}
+
+    def _boom_after_first(path: Path, rows: list[dict[str, Any]]) -> None:
+        calls["count"] += 1
+        if calls["count"] == 2:
+            msg = "simulated crash mid-regeneration"
+            raise RuntimeError(msg)
+        real_atomic_write_ndjson(path, rows)
+
+    monkeypatch.setattr(normalize.workdir, "atomic_write_ndjson", _boom_after_first)
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        normalize.run_normalize(workdir_path=tmp_path, force=True)
+    assert not (tmp_path / "normalized" / "derivation.json").exists()
+
+    monkeypatch.setattr(
+        normalize.workdir, "atomic_write_ndjson", real_atomic_write_ndjson
+    )
+    outcome = normalize.run_normalize(workdir_path=tmp_path)
+    assert outcome.status == "written"
+
+
 def test_newer_bundle_replaces_earlier_one_wholesale(tmp_path: Path) -> None:
     """A later run touching a PR wins for the PR object, reviews, and timeline."""
     commit_run(

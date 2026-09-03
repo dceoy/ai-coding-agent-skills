@@ -921,6 +921,7 @@ def run_normalize(
     bundles = _gather_bundles(workdir_path, ordered_runs)
     out_dir = workdir_path / "normalized"
     out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "derivation.json").unlink(missing_ok=True)
     _write_entities(out_dir, state, bundles, actor_map)
     workdir.atomic_write_json(out_dir / "derivation.json", derivation)
     return NormalizeOutcome(committed_run_id, "written", derivation)
