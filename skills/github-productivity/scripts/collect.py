@@ -247,6 +247,11 @@ def _discover_issues(
 def _fetch_pr_bundle(ctx: _RunContext, repo: dict[str, Any], pr_number: int) -> None:
     """Refetch one PR's canonical snapshot bundle: PR, reviews, commits, timeline.
 
+    An unverifiable or short commits page (see
+    ``_raise_if_commit_bundle_truncated``) is recorded as a failure,
+    making the run ``incomplete`` rather than silently committing a
+    truncated bundle.
+
     Args:
         ctx: The active run context.
         repo: The repository summary the PR belongs to.
@@ -275,38 +280,20 @@ def _fetch_pr_bundle(ctx: _RunContext, repo: dict[str, Any], pr_number: int) -> 
             True,
         ),
     )
+    pr_payload: dict[str, Any] | None = None
     for tag, endpoint, filename, paged in endpoints:
         try:
-            if paged:
-                for page in ghapi.paginate(
-                    endpoint=endpoint,
-                    params={},
-                    repository_id=repo["id"],
-                    run_id=ctx.run_id,
-                ):
-                    workdir.append_ndjson(
-                        raw_root / filename,
-                        {
-                            "pr_number": pr_number,
-                            "provenance": page.provenance,
-                            "payload": page.payload,
-                        },
-                    )
-            else:
-                response = ghapi.request(
-                    endpoint=endpoint,
-                    params={},
-                    repository_id=repo["id"],
-                    run_id=ctx.run_id,
-                )
-                workdir.append_ndjson(
-                    raw_root / filename,
-                    {
-                        "pr_number": pr_number,
-                        "provenance": response.provenance,
-                        "payload": response.payload,
-                    },
-                )
+            pr_payload = _fetch_bundle_entry(
+                ctx,
+                repo,
+                pr_number,
+                tag,
+                endpoint,
+                filename,
+                raw_root,
+                paged,
+                pr_payload,
+            )
         except ghapi.GhApiError as exc:
             ctx.failures.append({
                 "endpoint": tag,
@@ -314,6 +301,86 @@ def _fetch_pr_bundle(ctx: _RunContext, repo: dict[str, Any], pr_number: int) -> 
                 "pr_number": pr_number,
                 "reason": str(exc),
             })
+
+
+def _fetch_bundle_entry(
+    ctx: _RunContext,
+    repo: dict[str, Any],
+    pr_number: int,
+    tag: str,
+    endpoint: str,
+    filename: str,
+    raw_root: Path,
+    paged: bool,
+    pr_payload: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Fetch and append one bundle endpoint, returning the PR payload to carry forward.
+
+    Returns:
+        ``pr_payload``, updated to the fetched payload when ``tag`` is
+        ``"pulls"``; otherwise unchanged.
+    """
+    if paged:
+        collected = 0
+        for page in ghapi.paginate(
+            endpoint=endpoint, params={}, repository_id=repo["id"], run_id=ctx.run_id
+        ):
+            collected += len(page.payload)
+            workdir.append_ndjson(
+                raw_root / filename,
+                {
+                    "pr_number": pr_number,
+                    "provenance": page.provenance,
+                    "payload": page.payload,
+                },
+            )
+        if tag == "commits":
+            _raise_if_commit_bundle_truncated(pr_payload, pr_number, collected)
+        return pr_payload
+    response = ghapi.request(
+        endpoint=endpoint, params={}, repository_id=repo["id"], run_id=ctx.run_id
+    )
+    workdir.append_ndjson(
+        raw_root / filename,
+        {
+            "pr_number": pr_number,
+            "provenance": response.provenance,
+            "payload": response.payload,
+        },
+    )
+    if tag == "pulls" and isinstance(response.payload, dict):
+        return response.payload
+    return pr_payload
+
+
+def _raise_if_commit_bundle_truncated(
+    pr_payload: dict[str, Any] | None, pr_number: int, collected: int
+) -> None:
+    """Raise unless the collected commit count exactly matches the PR's own count.
+
+    GitHub's commits-on-a-pull-request endpoint caps at 250 results, so a
+    short final page can mean either natural end-of-list or truncation
+    past that cap; comparing against the PR's own ``commits`` count tells
+    them apart. An unreadable expected count (a missing ``pulls`` fetch,
+    or a payload without an integer ``commits`` field) is treated the same
+    as a mismatch: it cannot be verified as complete, so it must not be
+    committed as if it were. Any mismatch -- short or over-count -- is
+    rejected rather than only a shortfall, since either means the commits
+    list and the PR's own count were not observed as one coherent
+    snapshot (for example a commit pushed between the two fetches).
+
+    Raises:
+        ghapi.GhApiError: If the PR's commit count cannot be read, or
+            does not exactly match the number of commits collected.
+    """
+    expected = pr_payload.get("commits") if pr_payload else None
+    if not isinstance(expected, int) or collected != expected:
+        msg = (
+            f"expected {expected!r} commits for PR #{pr_number} but collected "
+            f"{collected}; the commits endpoint caps at 250 results and cannot "
+            "be fully paginated past it"
+        )
+        raise ghapi.GhApiError(msg)
 
 
 def _collect_repository(

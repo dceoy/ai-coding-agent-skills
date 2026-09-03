@@ -135,6 +135,7 @@ def test_initial_backfill_stops_at_boundary_via_descending_sort(
         sort="updated",
         direction="desc",
     )
+    fake_gh.set_object("/repos/acme/repo1/pulls/5", {"number": 5, "commits": 0})
     outcome = collect.run_collect(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
     )
@@ -434,6 +435,7 @@ def test_watermark_advances_to_refresh_started_at_not_max_updated_at(
         sort="updated",
         direction="desc",
     )
+    fake_gh.set_object("/repos/acme/repo1/pulls/1", {"number": 1, "commits": 0})
     outcome = collect.run_collect(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
     )
@@ -470,7 +472,9 @@ def test_touched_pr_bundle_is_written_to_raw_evidence(
         sort="updated",
         direction="desc",
     )
-    fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7, "id": 700})
+    fake_gh.set_object(
+        "/repos/acme/repo1/pulls/7", {"number": 7, "id": 700, "commits": 1}
+    )
     fake_gh.set_list(
         "/repos/acme/repo1/pulls/7/reviews", [[{"id": 1, "state": "APPROVED"}]]
     )
@@ -481,7 +485,7 @@ def test_touched_pr_bundle_is_written_to_raw_evidence(
     )
     raw_root = workdir.raw_dir(tmp_path, outcome.run_id)
     expected_payloads = {
-        "pulls.ndjson": {"number": 7, "id": 700},
+        "pulls.ndjson": {"number": 7, "id": 700, "commits": 1},
         "reviews.ndjson": [{"id": 1, "state": "APPROVED"}],
         "commits.ndjson": [{"sha": "abc123"}],
         "timeline.ndjson": [{"event": "reviewed"}],
@@ -494,6 +498,94 @@ def test_touched_pr_bundle_is_written_to_raw_evidence(
         assert matching[0]["payload"] == expected_payload, (
             f"{filename} must retain the actual fetched bundle content"
         )
+
+
+def test_truncated_commit_bundle_beyond_250_fails_closed(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A PR with >250 commits cannot be silently committed with a truncated bundle.
+
+    GitHub's commits-on-a-pull-request endpoint caps at 250 results, so a
+    400-commit PR yields pages of 100, 100, 50 (a short final page) even
+    though 150 commits are missing. The short page must not be mistaken
+    for natural end-of-pagination.
+    """
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/pulls",
+        [[_pr(7, "2026-01-10T00:00:00Z")]],
+        sort="updated",
+        direction="desc",
+    )
+    fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7, "commits": 400})
+    fake_gh.set_list("/repos/acme/repo1/pulls/7/reviews", [[]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/pulls/7/commits",
+        [[{"sha": str(i)} for i in range(100)]] * 2
+        + [[{"sha": str(i)} for i in range(50)]],
+    )
+    fake_gh.set_list("/repos/acme/repo1/issues/7/timeline", [[]])
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.status == "incomplete"
+    failure = next(
+        f for f in outcome.manifest["failures"] if f["endpoint"] == "commits"
+    )
+    assert failure["pr_number"] == 7
+    assert workdir.read_state(tmp_path) is None
+
+
+def test_commit_bundle_without_a_readable_pr_commit_count_fails_closed(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A PR payload missing an integer ``commits`` field cannot be verified complete.
+
+    An unreadable expected count must not be treated as "no check needed";
+    that would silently accept truncation whenever the PR object happens
+    to omit or malform the field.
+    """
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/pulls",
+        [[_pr(7, "2026-01-10T00:00:00Z")]],
+        sort="updated",
+        direction="desc",
+    )
+    fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7})
+    fake_gh.set_list("/repos/acme/repo1/pulls/7/reviews", [[]])
+    fake_gh.set_list("/repos/acme/repo1/pulls/7/commits", [[{"sha": "abc123"}]])
+    fake_gh.set_list("/repos/acme/repo1/issues/7/timeline", [[]])
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.status == "incomplete"
+    failure = next(
+        f for f in outcome.manifest["failures"] if f["endpoint"] == "commits"
+    )
+    assert failure["pr_number"] == 7
+    assert workdir.read_state(tmp_path) is None
+
+
+def test_complete_commit_bundle_matching_pr_count_stays_complete(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A fully collected commit bundle whose count matches the PR stays complete."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/pulls",
+        [[_pr(7, "2026-01-10T00:00:00Z")]],
+        sort="updated",
+        direction="desc",
+    )
+    fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7, "commits": 1})
+    fake_gh.set_list("/repos/acme/repo1/pulls/7/reviews", [[]])
+    fake_gh.set_list("/repos/acme/repo1/pulls/7/commits", [[{"sha": "abc123"}]])
+    fake_gh.set_list("/repos/acme/repo1/issues/7/timeline", [[]])
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.status == "complete"
 
 
 def test_history_boundary_is_never_pulled_forward(
