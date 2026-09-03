@@ -234,10 +234,20 @@ def _parse_manifest_ts(manifest: dict[str, Any]) -> str:
         manifest: A finalized run manifest.
 
     Returns:
-        The ISO-8601 ``refresh_started_at`` string; empty if absent.
+        The ISO-8601 ``refresh_started_at`` string.
+
+    Raises:
+        NormalizeError: If ``refresh_started_at`` is missing or not a
+            non-empty string -- it drives the ``(refresh_started_at, run_id)``
+            winner ordering and ``derivation.json.as_of``, so a malformed
+            committed manifest must fail closed rather than silently sort as
+            the oldest run.
     """
     value = manifest.get("refresh_started_at")
-    return value if isinstance(value, str) else ""
+    if not isinstance(value, str) or not value:
+        msg = f"manifest 'refresh_started_at' must be a non-empty string, got {value!r}"
+        raise NormalizeError(msg)
+    return value
 
 
 def _touched_prs(manifest: dict[str, Any]) -> set[tuple[int, int]]:
@@ -628,6 +638,12 @@ def _commit_rows(bundle: _Bundle) -> list[dict[str, Any]]:
         Either one availability row (``available: false``) when the PR's
         commit list exceeded GitHub's endpoint cap, or one ``available``
         row per commit with its 0-based ordered position.
+
+    Raises:
+        NormalizeError: If the PR is not capped and the flattened
+            ``commits.ndjson`` bundle's length does not match the winning
+            PR object's ``commits`` count -- a truncated or partially lost
+            commits bundle must not be published as complete commit data.
     """
     common = {
         "repository_id": bundle.repo_id,
@@ -638,6 +654,16 @@ def _commit_rows(bundle: _Bundle) -> list[dict[str, Any]]:
         return [
             {**common, "available": False, "reason": "pr_commits_exceed_endpoint_cap"}
         ]
+    expected = bundle.pr_object.get("commits")
+    actual = len(bundle.commits)
+    if not isinstance(expected, int) or expected != actual:
+        msg = (
+            f"{bundle.repo_id}#{bundle.pr_number}: PR object reports "
+            f"{expected!r} commits but the committed commits.ndjson bundle "
+            f"has {actual}; the committed lineage points at damaged or "
+            "truncated evidence"
+        )
+        raise NormalizeError(msg)
     return [
         {**common, "available": True, "position": position, "sha": commit.get("sha")}
         for position, commit in enumerate(bundle.commits)

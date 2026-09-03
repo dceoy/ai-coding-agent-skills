@@ -660,7 +660,9 @@ def test_same_pr_number_in_two_repos_is_not_cross_contaminated(tmp_path: Path) -
         repos={
             1: {
                 1: {
-                    "pr": _pr_object(1, additions=1, user=_user(10, "alice")),
+                    "pr": _pr_object(
+                        1, additions=1, commits=1, user=_user(10, "alice")
+                    ),
                     "reviews": [
                         {"id": 100, "user": _user(11, "bob"), "state": "APPROVED"}
                     ],
@@ -669,7 +671,9 @@ def test_same_pr_number_in_two_repos_is_not_cross_contaminated(tmp_path: Path) -
             },
             2: {
                 1: {
-                    "pr": _pr_object(1, additions=99, user=_user(20, "dave")),
+                    "pr": _pr_object(
+                        1, additions=99, commits=1, user=_user(20, "dave")
+                    ),
                     "reviews": [
                         {"id": 200, "user": _user(21, "eve"), "state": "APPROVED"}
                     ],
@@ -884,6 +888,62 @@ def test_raw_bundle_wrong_typed_pr_identity_fails_closed(tmp_path: Path) -> None
             + "\n"
         )
     with pytest.raises(normalize.NormalizeError, match="pr_number"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_manifest_ts_fails_closed_on_missing_refresh_started_at(
+    tmp_path: Path,
+) -> None:
+    """A manifest missing ``refresh_started_at`` raises instead of sorting last."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    manifest_path = workdir.manifest_path(tmp_path, "run-a")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["refresh_started_at"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="refresh_started_at"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_manifest_ts_fails_closed_on_non_string_refresh_started_at(
+    tmp_path: Path,
+) -> None:
+    """A non-string ``refresh_started_at`` raises instead of sorting last."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    manifest_path = workdir.manifest_path(tmp_path, "run-a")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["refresh_started_at"] = 12345
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="refresh_started_at"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_commit_rows_fails_closed_on_commit_count_mismatch(tmp_path: Path) -> None:
+    """An uncapped PR's flattened commit count must match the PR object's.
+
+    A mismatch raises instead of publishing truncated commit data.
+    """
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={
+            7: {
+                "pr": _pr_object(7, commits=3),
+                "commits": [{"sha": "a"}, {"sha": "b"}],
+            }
+        },
+    )
+    with pytest.raises(normalize.NormalizeError, match="reports 3 commits"):
         normalize.run_normalize(workdir_path=tmp_path)
 
 
