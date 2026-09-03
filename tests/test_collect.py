@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -374,6 +375,10 @@ def test_archived_and_fork_repositories_are_retained(
     )
     assert outcome.manifest["repositories"]["1"]["archived"] is True
     assert outcome.manifest["repositories"]["2"]["fork"] is True
+    repos_call = next(c for c in fake_gh.calls if c[1] == "/orgs/acme/repos")
+    assert repos_call[2]["type"] == "all", (
+        "enumeration must not filter out archived/forks"
+    )
 
 
 def test_repository_rename_preserves_single_state_entry(
@@ -448,3 +453,66 @@ def test_second_concurrent_collector_is_rejected(
     ):
         collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
     assert workdir.read_state(tmp_path) is None
+    assert fake_gh.calls == [], "rejection must happen before any live collection call"
+
+
+def test_touched_pr_bundle_is_written_to_raw_evidence(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """Each touched PR's bundle is appended to that run's raw NDJSON evidence."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/pulls",
+        [[_pr(7, "2026-01-10T00:00:00Z")]],
+        sort="updated",
+        direction="desc",
+    )
+    fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7, "id": 700})
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    raw_root = workdir.raw_dir(tmp_path, outcome.run_id)
+    for filename in (
+        "pulls.ndjson",
+        "reviews.ndjson",
+        "commits.ndjson",
+        "timeline.ndjson",
+    ):
+        lines = (raw_root / filename).read_text(encoding="utf-8").splitlines()
+        records = [json.loads(line) for line in lines]
+        assert any(record["pr_number"] == 7 for record in records), (
+            f"{filename} must retain a record for the touched PR"
+        )
+    pulls_record = next(
+        json.loads(line)
+        for line in (raw_root / "pulls.ndjson").read_text(encoding="utf-8").splitlines()
+        if json.loads(line)["pr_number"] == 7
+    )
+    assert pulls_record["payload"] == {"number": 7, "id": 700}
+
+
+def test_history_boundary_is_never_pulled_forward(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A later --start after an earlier committed boundary keeps that boundary."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    first = collect.run_collect(
+        org="acme",
+        workdir_path=tmp_path,
+        start=datetime(2020, 1, 8, tzinfo=UTC),
+        end=_END,
+    )
+    first_boundary = first.manifest["repositories"]["1"]["required_history_boundary"]
+
+    fake_gh.set_list("/repos/acme/repo1/issues", [[]], sort="created", direction="asc")
+    second = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    state = workdir.read_state(tmp_path)
+    assert state is not None
+    assert state["repositories"]["1"]["history_boundary"] == first_boundary
+    assert (
+        second.manifest["repositories"]["1"]["required_history_boundary"]
+        != first_boundary
+    )

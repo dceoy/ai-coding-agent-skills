@@ -186,10 +186,24 @@ class CollectionLock:
         return self
 
     def __exit__(self, *_exc_info: object) -> None:
-        """Release the lock if held."""
-        if self._acquired:
-            lock_path(self.workdir).unlink(missing_ok=True)
+        """Release the lock if held, but only if it still names this run.
+
+        A lock manually cleared by an operator (v1 has no automatic
+        stale-lock recovery) could already have been re-acquired by a
+        different run by the time this releases; unlinking unconditionally
+        would delete that other run's lock instead of this one's.
+        """
+        if not self._acquired:
+            return
+        path = lock_path(self.workdir)
+        try:
+            content = json.loads(path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
             self._acquired = False
+            return
+        if content.get("run_id") == self.run_id:
+            path.unlink(missing_ok=True)
+        self._acquired = False
 
 
 def read_state(workdir: Path) -> dict[str, Any] | None:
@@ -291,55 +305,3 @@ def resolve_committed_lineage(
         lineage.append(manifest)
         run_id = manifest.get("previous_committed_run_id")
     return lineage
-
-
-def coverage_gaps(
-    state: dict[str, Any] | None,
-    *,
-    start: datetime,
-    end: datetime,
-    overlap_hours: int,
-    collection_affecting_fingerprint: str,
-) -> list[str]:
-    """Determine why a committed state does not cover a requested interval.
-
-    Args:
-        state: A pinned committed state snapshot, or ``None`` if no
-            collection has ever committed.
-        start: The requested observation interval's inclusive UTC start.
-        end: The requested observation interval's exclusive UTC end.
-        overlap_hours: The deterministic overlap applied to discovery
-            boundaries.
-        collection_affecting_fingerprint: The fingerprint of the
-            collection-affecting configuration (for example selected CI
-            workflow IDs) the caller requires.
-
-    Returns:
-        Human-readable gap descriptions. Empty when ``state`` fully covers
-        the requested interval and configuration; a non-empty result means
-        the caller must fail closed rather than use this state.
-    """
-    if state is None:
-        return ["no committed state exists yet"]
-    gaps: list[str] = []
-    if (
-        state.get("collection_affecting_fingerprint")
-        != collection_affecting_fingerprint
-    ):
-        gaps.append("collection-affecting configuration does not match committed state")
-    required_boundary = start.timestamp() - (overlap_hours * 3600)
-    repositories: dict[str, Any] = state.get("repositories", {})
-    for repository_id, repo_state in repositories.items():
-        history_boundary = repo_state.get("history_boundary")
-        watermark = repo_state.get("discovery_watermark")
-        if history_boundary is None or history_boundary > required_boundary:
-            gaps.append(
-                f"repository {repository_id} lacks historical coverage back to "
-                f"{start.isoformat()}"
-            )
-        if watermark is None or watermark < end.timestamp():
-            gaps.append(
-                f"repository {repository_id} discovery watermark is behind "
-                f"{end.isoformat()}"
-            )
-    return gaps

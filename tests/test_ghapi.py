@@ -156,3 +156,16 @@ def test_paginate_raises_on_non_list_payload(monkeypatch: pytest.MonkeyPatch) ->
                 endpoint="/repos/o/r/pulls", params={}, repository_id=1, run_id="run-1"
             )
         )
+
+
+def test_request_raises_gh_api_error_on_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A wedged ``gh api`` call times out into ``GhApiError`` rather than hanging."""
+
+    def fake_run(argv: list[str], **_kwargs: object) -> _FakeCompletedProcess:
+        raise subprocess.TimeoutExpired(cmd=argv, timeout=120.0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with pytest.raises(ghapi.GhApiError, match="timed out"):
+        ghapi.request(endpoint="/repos/o/r", params={}, repository_id=1, run_id="run-1")

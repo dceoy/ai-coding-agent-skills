@@ -26,6 +26,10 @@ GITHUB_API_VERSION = "2026-03-10"
 
 _DEFAULT_PER_PAGE = 100
 
+#: Bounds a single ``gh api`` call so a wedged process cannot block a
+#: collection run (and the exclusive workdir lock it holds) indefinitely.
+_REQUEST_TIMEOUT_SECONDS = 120
+
 _SECRET_KEY_PATTERN = re.compile(
     r"authorization|token|password|secret|cookie", re.IGNORECASE
 )
@@ -115,8 +119,8 @@ def request(
         suitable for append-only raw persistence.
 
     Raises:
-        GhApiError: If ``gh`` exits non-zero or its stdout is not valid
-            JSON.
+        GhApiError: If ``gh`` exits non-zero, times out, or its stdout is
+            not valid JSON.
     """
     query = urlencode(sorted(params.items()))
     path = f"{endpoint}?{query}" if query else endpoint
@@ -132,7 +136,17 @@ def request(
         path,
     ]
     requested_at = datetime.now(UTC).isoformat()
-    result = subprocess.run(argv, capture_output=True, text=True, check=False)
+    try:
+        result = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_REQUEST_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        msg = f"gh api timed out for {endpoint} after {_REQUEST_TIMEOUT_SECONDS}s"
+        raise GhApiError(msg) from exc
     provenance = scrub_provenance({
         "endpoint": endpoint,
         "repository_id": repository_id,

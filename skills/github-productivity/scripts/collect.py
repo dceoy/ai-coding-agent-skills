@@ -20,8 +20,6 @@ import workdir
 if TYPE_CHECKING:
     from pathlib import Path
 
-_BOT_LOGIN_SUFFIX = "[bot]"
-
 
 @dataclass(slots=True)
 class CollectOutcome:

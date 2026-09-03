@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -129,71 +128,19 @@ def test_resolve_committed_lineage_rejects_missing_manifest(tmp_path: Path) -> N
         )
 
 
-def test_coverage_gaps_empty_state_is_never_covered() -> None:
-    """No committed state means no coverage."""
-    gaps = workdir.coverage_gaps(
-        None,
-        start=datetime(2026, 1, 1, tzinfo=UTC),
-        end=datetime(2026, 2, 1, tzinfo=UTC),
-        overlap_hours=24,
-        collection_affecting_fingerprint="fp",
-    )
-    assert gaps
+def test_lock_exit_never_deletes_a_lock_it_no_longer_owns(tmp_path: Path) -> None:
+    """Releasing a lock this instance no longer owns must not delete it.
 
-
-def test_coverage_gaps_fingerprint_mismatch() -> None:
-    """A collection-affecting configuration change is an uncovered gap."""
-    state = {
-        "collection_affecting_fingerprint": "old-fp",
-        "repositories": {},
-    }
-    gaps = workdir.coverage_gaps(
-        state,
-        start=datetime(2026, 1, 1, tzinfo=UTC),
-        end=datetime(2026, 2, 1, tzinfo=UTC),
-        overlap_hours=24,
-        collection_affecting_fingerprint="new-fp",
-    )
-    assert any("configuration" in gap for gap in gaps)
-
-
-def test_coverage_gaps_fully_covered_repository_has_no_gaps() -> None:
-    """A repository whose boundary/watermark fully bracket the interval has no gaps."""
-    state = {
-        "collection_affecting_fingerprint": "fp",
-        "repositories": {
-            "1": {
-                "history_boundary": datetime(2025, 1, 1, tzinfo=UTC).timestamp(),
-                "discovery_watermark": datetime(2026, 3, 1, tzinfo=UTC).timestamp(),
-            }
-        },
-    }
-    gaps = workdir.coverage_gaps(
-        state,
-        start=datetime(2026, 1, 1, tzinfo=UTC),
-        end=datetime(2026, 2, 1, tzinfo=UTC),
-        overlap_hours=24,
-        collection_affecting_fingerprint="fp",
-    )
-    assert gaps == []
-
-
-def test_coverage_gaps_reports_insufficient_history_and_stale_watermark() -> None:
-    """A repository behind on either boundary or watermark reports a gap for each."""
-    state = {
-        "collection_affecting_fingerprint": "fp",
-        "repositories": {
-            "1": {
-                "history_boundary": datetime(2026, 1, 15, tzinfo=UTC).timestamp(),
-                "discovery_watermark": datetime(2026, 1, 15, tzinfo=UTC).timestamp(),
-            }
-        },
-    }
-    gaps = workdir.coverage_gaps(
-        state,
-        start=datetime(2026, 1, 1, tzinfo=UTC),
-        end=datetime(2026, 2, 1, tzinfo=UTC),
-        overlap_hours=24,
-        collection_affecting_fingerprint="fp",
-    )
-    assert len(gaps) == 2
+    Simulates an operator manually clearing a stale lock (v1 has no
+    automatic stale-lock recovery) followed by a different run acquiring
+    it, then the original, now-stale ``CollectionLock`` instance exiting.
+    """
+    original = workdir.CollectionLock(tmp_path, "run-a")
+    original.__enter__()  # noqa: PLC2801 -- exercising the protocol without exiting yet
+    workdir.lock_path(tmp_path).unlink()
+    with workdir.CollectionLock(tmp_path, "run-b"):
+        original.__exit__(None, None, None)
+        assert workdir.lock_path(tmp_path).exists()
+        content = json.loads(workdir.lock_path(tmp_path).read_text(encoding="utf-8"))
+        assert content["run_id"] == "run-b"
+    assert not workdir.lock_path(tmp_path).exists()
