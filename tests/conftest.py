@@ -345,13 +345,16 @@ def write_normalized(
     draft_lifecycle: list[dict[str, Any]] | None = None,
     as_of: str = "2026-06-01T00:00:00Z",
     committed_run_id: str = "run1",
+    actor_classification_fingerprint: str = "test",
 ) -> None:
     """Write a synthetic ``<workdir>/normalized/`` tree directly.
 
     Bypasses ``collect``/``normalize`` entirely -- ``aggregate``/``analyze``/
     ``report`` only ever read the normalized entity files and
     ``derivation.json``, so tests build those directly for speed and
-    clarity.
+    clarity. ``actor_classification_fingerprint`` is exposed so tests can
+    simulate a re-normalization that keeps the same committed run but
+    changes the derivation identity.
     """
     out = workdir_path / "normalized"
     workdir.atomic_write_ndjson(out / "repositories.ndjson", repositories)
@@ -369,7 +372,7 @@ def write_normalized(
             "requested_interval": None,
             "schema_version": workdir.SCHEMA_VERSION,
             "normalizer_schema_version": 1,
-            "actor_classification_fingerprint": "test",
+            "actor_classification_fingerprint": actor_classification_fingerprint,
             "actor_map": {"actor_ids": [], "logins": []},
             "normalizer_revision": "test",
         },

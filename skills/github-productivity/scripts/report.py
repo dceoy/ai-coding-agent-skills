@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 from aggregate import (
     build_panel,
     load_entities,
+    normalized_derivation_identity,
     panel_to_rows,
     resolve_effective_observation_end,
 )
@@ -35,7 +36,11 @@ if TYPE_CHECKING:
 plt.rcParams["svg.hashsalt"] = "github-productivity"
 
 #: Bump when the report/chart output shape changes.
-REPORT_SCHEMA_VERSION = 1
+#: v2 renders the full ITS statistics table (beta1/beta2/beta3 + 95% CIs +
+#: pre/post week and coverage counts), overlays the persisted fitted ITS
+#: trend on eligible chart series, and pins the report to the full
+#: normalized-derivation identity.
+REPORT_SCHEMA_VERSION = 2
 
 _DELIVERY_METRICS = ("merged_prs", "median_queue_to_merge", "median_changed_lines")
 _REVIEW_METRICS = (
@@ -90,6 +95,7 @@ def _draw_chart(
     *,
     title: str,
     intervention_at: datetime | None,
+    fitted: dict[str, list[float | None]] | None = None,
 ) -> None:
     """Draw one fixed line chart and save it as a deterministic SVG.
 
@@ -99,6 +105,8 @@ def _draw_chart(
         series: Metric name -> parallel y-values (``None`` gaps allowed).
         title: The chart title.
         intervention_at: When given, drawn as a vertical marker line.
+        fitted: Optional label -> parallel fitted-trend y-values, drawn as a
+            dashed overlay for the ITS-modeled series (``None`` gaps allowed).
     """
     fig, ax = plt.subplots(figsize=(8, 4))
     for name, values in series.items():
@@ -112,6 +120,17 @@ def _draw_chart(
                 ys,
                 marker="o",
                 markersize=2,
+                linewidth=1,
+                label=name,
+            )
+    for name, values in (fitted or {}).items():
+        xs = [w for w, v in zip(weeks, values, strict=True) if v is not None]
+        ys = [v for v in values if v is not None]
+        if xs:
+            ax.plot(
+                xs,  # pyright: ignore[reportArgumentType]
+                ys,
+                linestyle="--",
                 linewidth=1,
                 label=name,
             )
@@ -136,6 +155,74 @@ def _draw_chart(
     finally:
         plt.close(fig)
     tmp_path.replace(path)
+
+
+_CHART_SPECS = (
+    ("delivery.svg", "Delivery", _DELIVERY_METRICS),
+    ("review.svg", "Review flow", _REVIEW_METRICS),
+    ("rework.svg", "Review burden / rework", _REWORK_METRICS),
+)
+
+
+def _draw_all_charts(
+    report_dir: Path,
+    rows: list[dict[str, Any]],
+    weeks: list[datetime],
+    analysis: dict[str, Any],
+    *,
+    intervention_at: datetime | None,
+) -> list[Path]:
+    """Draw the fixed chart set, overlaying each modeled series' fitted trend.
+
+    Returns:
+        The written chart paths, in fixed order.
+    """
+    fitted_by_metric = _fitted_trends(analysis.get("its", {}), weeks)
+    chart_paths: list[Path] = []
+    for filename, title, metrics in _CHART_SPECS:
+        path = report_dir / filename
+        _draw_chart(
+            path,
+            weeks,
+            {m: _series_for(rows, m) for m in metrics},
+            title=title,
+            intervention_at=intervention_at,
+            fitted={
+                f"{m} (fitted)": fitted_by_metric[m]
+                for m in metrics
+                if m in fitted_by_metric
+            },
+        )
+        chart_paths.append(path)
+    return chart_paths
+
+
+def _fitted_trends(
+    its_results: dict[str, Any], weeks: list[datetime]
+) -> dict[str, list[float | None]]:
+    """Map each fitted metric's persisted ITS trend onto the panel's weeks.
+
+    ``analyze`` writes ``fitted_series`` as ``[[week_start_iso, y_hat], ...]``
+    for exactly the weekly rows it fit; ``report`` only aligns them to the
+    x-axis so the modeled trend can be overlaid without re-fitting.
+
+    Args:
+        its_results: ``analysis["its"]`` -- metric -> result JSON.
+        weeks: The ordered panel week-start instants (the chart x-axis).
+
+    Returns:
+        Metric -> parallel fitted y-values, ``None`` where no fit row exists.
+        Only metrics with a non-empty ``fitted_series`` appear.
+    """
+    week_keys = [w.strftime("%Y-%m-%dT%H:%M:%SZ") for w in weeks]
+    out: dict[str, list[float | None]] = {}
+    for metric, result in its_results.items():
+        series = (result or {}).get("fitted_series")
+        if not series:
+            continue
+        by_week = {str(week): float(y_hat) for week, y_hat in series}
+        out[metric] = [by_week.get(key) for key in week_keys]
+    return out
 
 
 def _series_for(panel_rows: list[dict[str, Any]], metric: str) -> list[float | None]:
@@ -174,6 +261,16 @@ def _rebuild_panel_rows(
         ReportError: If ``meta`` lacks a valid ``requested_start``/``requested_end``.
     """
     entities = load_entities(workdir_path)
+    entities_identity = normalized_derivation_identity(entities.derivation)
+    if meta.get("normalized_derivation") != entities_identity:
+        msg = (
+            f"the aggregate window sidecar pins normalized derivation "
+            f"{meta.get('normalized_derivation')!r} but the current normalized tree "
+            f"is {entities_identity!r}; 'normalize' has re-run since 'aggregate'. "
+            "Re-run 'aggregate' and 'analyze' so the report renders against one "
+            "committed normalization"
+        )
+        raise ReportError(msg)
     try:
         start = datetime.fromisoformat(meta["requested_start"])
         end = datetime.fromisoformat(meta["requested_end"])
@@ -212,10 +309,10 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
     analysis = _read_json(report_dir / "analysis.json", what="analyze")
     expected = analysis.get("aggregate_derivation")
     actual = {
-        "committed_run_id": meta.get("committed_run_id"),
         "requested_start": meta.get("requested_start"),
         "requested_end": meta.get("requested_end"),
         "include_forks": meta.get("include_forks"),
+        "normalized_derivation": meta.get("normalized_derivation"),
     }
     if expected != actual:
         msg = (
@@ -235,17 +332,9 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
         msg = f"analyze's analysis.json has an invalid intervention_at: {exc}"
         raise ReportError(msg) from exc
 
-    chart_specs = (
-        ("delivery.svg", "Delivery", _DELIVERY_METRICS),
-        ("review.svg", "Review flow", _REVIEW_METRICS),
-        ("rework.svg", "Review burden / rework", _REWORK_METRICS),
+    chart_paths = _draw_all_charts(
+        report_dir, rows, weeks, analysis, intervention_at=intervention_at
     )
-    chart_paths: list[Path] = []
-    for filename, title, metrics in chart_specs:
-        path = report_dir / filename
-        series = {m: _series_for(rows, m) for m in metrics}
-        _draw_chart(path, weeks, series, title=title, intervention_at=intervention_at)
-        chart_paths.append(path)
 
     report_path = report_dir / "report.md"
     report_tmp = report_path.with_name(f"{report_path.name}.tmp.{secrets.token_hex(4)}")
@@ -329,7 +418,7 @@ def _its_section(analysis: dict[str, Any]) -> str:
             f"minimum guard {analysis.get('min_guard_weeks')} non-missing "
             "complete weeks per side."
         )
-        body = "\n".join([intro, "", *_its_table(analysis.get("its", {}))])
+        body = "\n".join([intro, "", *_its_primary_table(analysis.get("its", {}))])
     interpretation = (
         "> Interpretation: any fitted level/slope change reflects an "
         "organization-level structural change associated with the "
@@ -339,8 +428,62 @@ def _its_section(analysis: dict[str, Any]) -> str:
     return f"## Modeled structural changes (ITS)\n\n{body}\n\n{interpretation}\n"
 
 
+def _ci_cell(result: dict[str, Any], key: str) -> str:
+    """Format ``beta<key> [lo, hi]`` for one coefficient, or ``NA``.
+
+    Returns:
+        The Markdown table cell text.
+    """
+    beta = (result.get("beta") or {}).get(f"beta{key}")
+    if beta is None:
+        return "NA"
+    ci = (result.get("conf_int") or {}).get(f"beta{key}")
+    if not ci:
+        return _fmt(beta)
+    return f"{_fmt(beta)} [{_fmt(ci[0])}, {_fmt(ci[1])}]"
+
+
+def _its_primary_table(results: dict[str, Any]) -> list[str]:
+    """Render the full pre-specified ITS statistics table for the primary fit.
+
+    One row per eligible metric with the reporting fields Issue #98 requires:
+    the pre-intervention trend ``beta1``, the immediate level change
+    ``beta2``, the post-intervention trend change ``beta3``, each with its
+    95% confidence interval, the complete pre/post calendar-week counts, the
+    metric-specific non-missing week count actually fit, and the
+    denominator/coverage totals over the fit weeks.
+
+    Returns:
+        Markdown table lines (header plus one row per metric), or an empty
+        list if ``results`` is empty.
+    """
+    if not results:
+        return []
+    header = (
+        "| metric | fitted | beta1 (pre-trend) [95% CI] | beta2 (level) [95% CI] "
+        "| beta3 (slope change) [95% CI] | complete pre/post wks | non-missing rows "
+        "| denominator (unavailable) | reason |"
+    )
+    rows = [header, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+    for metric, result in results.items():
+        denom = result.get("denominator_total")
+        unavailable = result.get("unavailable_total")
+        denom_cell = "NA" if denom is None else str(denom)
+        if unavailable is not None:
+            denom_cell = f"{denom_cell} ({unavailable})"
+        rows.append(
+            f"| `{metric}` | {result.get('fitted')} | "
+            f"{_ci_cell(result, '1')} | {_ci_cell(result, '2')} | "
+            f"{_ci_cell(result, '3')} | "
+            f"{result.get('pre_complete_weeks')}/{result.get('post_complete_weeks')} | "
+            f"{result.get('non_missing_weeks')} | {denom_cell} | "
+            f"{result.get('reason') or ''} |"
+        )
+    return rows
+
+
 def _its_table(results: dict[str, Any]) -> list[str]:
-    """Render a fitted/beta2/beta3/reason table for a set of ITS results.
+    """Render a compact fitted/beta2/beta3/reason table for sensitivity results.
 
     Returns:
         Markdown table lines (header plus one row per metric), or an

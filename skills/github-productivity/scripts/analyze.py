@@ -26,6 +26,7 @@ from aggregate import (
     AggregateError,
     build_panel,
     load_entities,
+    normalized_derivation_identity,
     panel_to_rows,
     parse_ts,
     resolve_effective_observation_end,
@@ -37,7 +38,10 @@ if TYPE_CHECKING:
     from aggregate import Entities, Panel
 
 #: Bump when the analysis output shape changes.
-ANALYZE_SCHEMA_VERSION = 1
+#: v2 adds per-metric ``beta1``/``conf_int`` reporting fields, the persisted
+#: ``fitted_series`` ITS trend, denominator/coverage totals, and the full
+#: normalized-derivation identity in ``aggregate_derivation``.
+ANALYZE_SCHEMA_VERSION = 2
 
 #: Fixed HAC/Newey-West lag, in observed (non-missing) weekly rows.
 HAC_MAXLAGS = 4
@@ -135,7 +139,17 @@ def build_time_index(panel: Panel, intervention_at: datetime | None) -> TimeInde
 
 @dataclass(slots=True)
 class ITSResult:
-    """The result of fitting (or skipping) one metric's ITS model."""
+    """The result of fitting (or skipping) one metric's ITS model.
+
+    ``pre_complete_weeks``/``post_complete_weeks`` count every complete
+    calendar week on each side of ``p`` (the excluded partial intervention
+    week, when there is one, is not counted). ``non_missing_weeks`` is the
+    number of weekly rows actually fit after dropping this metric's ``NA``
+    weeks. ``fitted_series`` is ``[(week_start_iso, y_hat), ...]`` for exactly
+    those fit rows, so ``report`` can overlay the modeled trend without
+    re-fitting. ``denominator_total``/``unavailable_total`` sum this metric's
+    rate/median denominator and unavailable counts over the fit weeks.
+    """
 
     metric: str
     fitted: bool
@@ -145,11 +159,55 @@ class ITSResult:
     pre_complete_weeks: int
     post_complete_weeks: int
     non_missing_weeks: int
+    fitted_series: list[tuple[str, float]] | None = None
+    denominator_total: int | None = None
+    unavailable_total: int | None = None
 
 
 #: The design matrix's fixed column count: intercept, time_t, post_t,
 #: time_after_t.
 _DESIGN_COLUMNS = 4
+
+#: Per ITS-eligible metric, the organization-week panel column holding its
+#: rate/median denominator (``None`` for a raw count outcome), and the column
+#: holding its explicit "unavailable" count where one exists. Used only for
+#: the ITS report's denominator/coverage diagnostics.
+_METRIC_DENOMINATOR_COLUMN: dict[str, str | None] = {
+    "merged_prs": None,
+    "median_queue_to_merge": "median_queue_to_merge_n",
+    "human_review_coverage_rate": "human_review_coverage_rate_n",
+    "median_time_to_first_human_review": "median_time_to_first_human_review_n",
+    "median_first_human_review_to_merge": "median_first_human_review_to_merge_n",
+    "human_review_events_per_merged_pr": "human_review_events_per_merged_pr_n",
+    "changes_requested_rate": "changes_requested_rate_n",
+    "post_review_commits_per_pr": "post_review_commits_per_pr_n",
+}
+_METRIC_UNAVAILABLE_COLUMN: dict[str, str] = {
+    "changes_requested_rate": "changes_requested_rate_unavailable_n",
+    "post_review_commits_per_pr": "post_review_commits_per_pr_unavailable_n",
+}
+
+
+def its_design_matrix(time_ts: list[int], p: int) -> np.ndarray:
+    """Build the segmented-OLS design matrix ``[1, time_t, post_t, time_after_t]``.
+
+    The single source of the ITS design. Extracted so the full-rank guard
+    (``numpy.linalg.matrix_rank(X) == 4``) can be exercised directly against a
+    degenerate ``(time_ts, p)`` -- after the 12/12 non-missing-week guard the
+    ``rank_deficient`` branch of :func:`fit_its` is unreachable from any panel
+    :func:`aggregate.build_panel` can produce, so it is defense-in-depth that
+    is only testable at this level.
+
+    Args:
+        time_ts: The ordered calendar-week ``time_t`` offsets of the fit rows.
+        p: The ``time_t`` index of ``first_complete_post_week``.
+
+    Returns:
+        An ``(len(time_ts), 4)`` float array.
+    """
+    return np.array([
+        [1.0, float(t), 1.0 if t >= p else 0.0, float(max(0, t - p))] for t in time_ts
+    ])
 
 
 def _skip(
@@ -184,14 +242,7 @@ def fit_its(panel: Panel, time_index: TimeIndex, metric: str) -> ITSResult:
         The fit result, or a descriptive skip reason.
     """
     by_week = {w.week_start: w.metrics.get(metric) for w in panel.weeks}
-    pre_complete = sum(
-        1
-        for t in range(len(time_index.weeks))
-        if time_index.p is not None and t < time_index.p
-    )
-    post_complete = (
-        len(time_index.weeks) - pre_complete if time_index.p is not None else 0
-    )
+    excluded = time_index.excluded_partial_week
     if time_index.p is None:
         reason = (
             "intervention_outside_panel"
@@ -201,15 +252,20 @@ def fit_its(panel: Panel, time_index: TimeIndex, metric: str) -> ITSResult:
         return _skip(
             metric,
             reason,
-            pre_complete=pre_complete,
-            post_complete=post_complete,
+            pre_complete=0,
+            post_complete=0,
             non_missing=0,
         )
+    pre_complete = sum(
+        1 for t, w in enumerate(time_index.weeks) if t < time_index.p and w != excluded
+    )
+    post_complete = sum(
+        1 for t, w in enumerate(time_index.weeks) if t >= time_index.p and w != excluded
+    )
     rows: list[tuple[int, float]] = [
         (t, float(value))
         for t, w in enumerate(time_index.weeks)
-        if w != time_index.excluded_partial_week
-        and (value := by_week.get(w)) is not None
+        if w != excluded and (value := by_week.get(w)) is not None
     ]
     pre_n = sum(1 for t, _ in rows if t < time_index.p)
     post_n = sum(1 for t, _ in rows if t >= time_index.p)
@@ -230,9 +286,7 @@ def fit_its(panel: Panel, time_index: TimeIndex, metric: str) -> ITSResult:
             non_missing=len(rows),
         )
     p = time_index.p
-    design = np.array([
-        [1.0, float(t), 1.0 if t >= p else 0.0, float(max(0, t - p))] for t, _ in rows
-    ])
+    design = its_design_matrix([t for t, _ in rows], p)
     if np.linalg.matrix_rank(design) < _DESIGN_COLUMNS:
         return _skip(
             metric,
@@ -241,28 +295,109 @@ def fit_its(panel: Panel, time_index: TimeIndex, metric: str) -> ITSResult:
             post_complete=post_complete,
             non_missing=len(rows),
         )
-    y = np.array([v for _, v in rows])
-    fit = sm.OLS(y, design).fit(
+    return _fit_result(
+        design,
+        panel,
+        time_index,
+        metric,
+        rows,
+        pre_complete=pre_complete,
+        post_complete=post_complete,
+        excluded=excluded,
+    )
+
+
+def _fit_result(
+    design: np.ndarray,
+    panel: Panel,
+    time_index: TimeIndex,
+    metric: str,
+    rows: list[tuple[int, float]],
+    *,
+    pre_complete: int,
+    post_complete: int,
+    excluded: datetime | None,
+) -> ITSResult:
+    """Fit the OLS/HAC model for a full-rank design and build the result.
+
+    Split out of :func:`fit_its` so the guard-and-skip logic there stays flat.
+
+    Returns:
+        The fitted :class:`ITSResult`, including the persisted ``fitted_series``
+        trend and the denominator/coverage totals over the fit weeks.
+    """
+    names = ("beta0", "beta1", "beta2", "beta3")
+    fit = sm.OLS(np.array([v for _, v in rows]), design).fit(
         cov_type="HAC", cov_kwds={"maxlags": HAC_MAXLAGS, "use_correction": True}
     )
-    names = ("beta0", "beta1", "beta2", "beta3")
-    beta: dict[str, float] = dict(
-        zip(names, (float(v) for v in fit.params), strict=True)
-    )
     ci = fit.conf_int(alpha=0.05)
-    conf_int = {
-        name: (float(ci[i][0]), float(ci[i][1])) for i, name in enumerate(names)
-    }
+    denom_total, unavailable_total = _coverage_totals(
+        panel, time_index, metric, rows, excluded=excluded
+    )
     return ITSResult(
         metric=metric,
         fitted=True,
         reason=None,
-        beta=beta,
-        conf_int=conf_int,
+        beta=dict(zip(names, (float(v) for v in fit.params), strict=True)),
+        conf_int={
+            name: (float(ci[i][0]), float(ci[i][1])) for i, name in enumerate(names)
+        },
         pre_complete_weeks=pre_complete,
         post_complete_weeks=post_complete,
         non_missing_weeks=len(rows),
+        fitted_series=[
+            (time_index.weeks[t].strftime("%Y-%m-%dT%H:%M:%SZ"), float(y_hat))
+            for (t, _), y_hat in zip(
+                rows, np.asarray(design @ fit.params).ravel(), strict=True
+            )
+        ],
+        denominator_total=denom_total,
+        unavailable_total=unavailable_total,
     )
+
+
+def _coverage_totals(
+    panel: Panel,
+    time_index: TimeIndex,
+    metric: str,
+    rows: list[tuple[int, float]],
+    *,
+    excluded: datetime | None,
+) -> tuple[int | None, int | None]:
+    """Sum ``metric``'s denominator and unavailable counts over the fit weeks.
+
+    Args:
+        panel: The panel the fit read from.
+        time_index: The fixed ``time_t``/``p`` index.
+        metric: The ITS-eligible metric.
+        rows: The ``(time_t, value)`` rows actually fit.
+        excluded: The excluded partial intervention week, if any.
+
+    Returns:
+        ``(denominator_total, unavailable_total)``. ``denominator_total`` is
+        ``None`` for a raw count outcome with no separate denominator; the
+        unavailable total is ``None`` when the metric has no explicit
+        "unavailable" column.
+    """
+    denom_col = _METRIC_DENOMINATOR_COLUMN.get(metric)
+    unavailable_col = _METRIC_UNAVAILABLE_COLUMN.get(metric)
+    fit_weeks = {time_index.weeks[t] for t, _ in rows}
+    metrics_by_week = {
+        w.week_start: w.metrics
+        for w in panel.weeks
+        if w.week_start in fit_weeks and w.week_start != excluded
+    }
+    denom_total = (
+        sum(int(m.get(denom_col) or 0) for m in metrics_by_week.values())
+        if denom_col is not None
+        else None
+    )
+    unavailable_total = (
+        sum(int(m.get(unavailable_col) or 0) for m in metrics_by_week.values())
+        if unavailable_col is not None
+        else None
+    )
+    return denom_total, unavailable_total
 
 
 def _primary_cohort_repository_ids(
@@ -391,6 +526,13 @@ def _result_to_json(result: ITSResult) -> dict[str, Any]:
         "pre_complete_weeks": result.pre_complete_weeks,
         "post_complete_weeks": result.post_complete_weeks,
         "non_missing_weeks": result.non_missing_weeks,
+        "denominator_total": result.denominator_total,
+        "unavailable_total": result.unavailable_total,
+        "fitted_series": (
+            [[week, y_hat] for week, y_hat in result.fitted_series]
+            if result.fitted_series is not None
+            else None
+        ),
     }
 
 
@@ -521,12 +663,15 @@ def run_analyze(
     except AggregateError as exc:
         msg = str(exc)
         raise AnalyzeError(msg) from exc
-    if meta.get("committed_run_id") != entities.derivation.get("committed_run_id"):
+    meta_identity = meta.get("normalized_derivation")
+    if meta_identity != normalized_derivation_identity(entities.derivation):
         msg = (
-            f"normalized entities are from committed run "
-            f"{entities.derivation.get('committed_run_id')!r} but 'aggregate' derived "
-            f"its window from run {meta.get('committed_run_id')!r}; run 'aggregate' "
-            "again before analyzing so they reflect the same generation"
+            f"normalized entities are derivation "
+            f"{normalized_derivation_identity(entities.derivation)!r} but 'aggregate' "
+            f"derived its window from {meta_identity!r}; re-run 'aggregate' before "
+            "analyzing so the panel, ITS models, and coverage all reflect one "
+            "committed normalization (committed run + actor-classification "
+            "fingerprint + normalizer schema version)"
         )
         raise AnalyzeError(msg)
     try:
@@ -565,10 +710,10 @@ def run_analyze(
     analysis = {
         "schema_version": ANALYZE_SCHEMA_VERSION,
         "aggregate_derivation": {
-            "committed_run_id": meta.get("committed_run_id"),
             "requested_start": meta.get("requested_start"),
             "requested_end": meta.get("requested_end"),
             "include_forks": meta.get("include_forks"),
+            "normalized_derivation": meta_identity,
         },
         "intervention_at": intervention_at.strftime("%Y-%m-%dT%H:%M:%SZ")
         if intervention_at

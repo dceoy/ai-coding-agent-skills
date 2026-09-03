@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import aggregate
 import analyze
+import numpy as np
 import pytest
 
 from tests.conftest import (
@@ -479,3 +480,102 @@ def test_run_analyze_fails_closed_on_advanced_normalized_generation(
     )
     with pytest.raises(analyze.AnalyzeError, match="committed run"):
         analyze.run_analyze(workdir_path=tmp_path)
+
+
+def test_run_analyze_fails_closed_on_changed_actor_fingerprint(
+    tmp_path: Path,
+) -> None:
+    """A changed actor fingerprint invalidates aggregate's window sidecar.
+
+    Even when the committed run is unchanged, re-running ``normalize`` with a
+    different actor map produces a new derivation identity that ``analyze``
+    must reject.
+    """
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run1")
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[],
+        committed_run_id="run1",
+        actor_classification_fingerprint="fp-a",
+    )
+    start = _monday(0)
+    end = _monday(4)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[],
+        committed_run_id="run1",
+        actor_classification_fingerprint="fp-b",
+    )
+    with pytest.raises(analyze.AnalyzeError, match="actor-classification fingerprint"):
+        analyze.run_analyze(workdir_path=tmp_path)
+
+
+def test_its_design_matrix_columns_and_rank() -> None:
+    """The extracted ITS design exposes its four columns and full-rank guard.
+
+    A normal ``(ts, p)`` yields the four fixed columns at full rank; a
+    one-sided ``(ts, p)`` degenerates to rank < 4, which is the genuine
+    trip case for the ``rank_deficient`` guard.
+    """
+    ts = [0, 1, 2, 3, 4]
+    p = 3
+    design = analyze.its_design_matrix(ts, p)
+    assert design.shape == (5, 4)
+    # columns: intercept, time_t, post_t, time_after_t
+    assert design[:, 0].tolist() == [1.0, 1.0, 1.0, 1.0, 1.0]
+    assert design[:, 1].tolist() == [0.0, 1.0, 2.0, 3.0, 4.0]
+    assert design[:, 2].tolist() == [0.0, 0.0, 0.0, 1.0, 1.0]
+    assert design[:, 3].tolist() == [0.0, 0.0, 0.0, 0.0, 1.0]
+    assert np.linalg.matrix_rank(design) == 4
+    # Every row before p: post_t and time_after_t are all-zero, so only two
+    # independent columns remain -- the full-rank guard's genuine trip case.
+    singular = analyze.its_design_matrix([0, 1, 2, 3], p=9)
+    assert np.linalg.matrix_rank(singular) < 4
+
+
+def test_its_persists_fitted_series_matching_the_fit_rows(tmp_path: Path) -> None:
+    """fitted_series has one (week, y_hat) per fit row and recovers the level."""
+    workdir_path, start, end, intervention_at = _synthetic_workdir(
+        tmp_path, n_pre_weeks=20, n_post_weeks=20, level_shift=5
+    )
+    entities = aggregate.load_entities(workdir_path)
+    effective_end = aggregate.resolve_effective_observation_end(entities, end)
+    panel = aggregate.build_panel(
+        entities, start=start, end=end, effective_observation_end=effective_end
+    )
+    time_index = analyze.build_time_index(panel, intervention_at)
+    result = analyze.fit_its(panel, time_index, "merged_prs")
+    assert result.fitted
+    assert result.fitted_series is not None
+    assert len(result.fitted_series) == result.non_missing_weeks == 40
+    weeks = [w for w, _ in result.fitted_series]
+    assert weeks == sorted(weeks)
+    assert len(set(weeks)) == len(weeks)
+    y_hat = [y for _w, y in result.fitted_series]
+    pre_hat = y_hat[:20]
+    post_hat = y_hat[20:]
+    # ~2/week pre, ~7/week post.
+    assert sum(pre_hat) / len(pre_hat) == pytest.approx(2.0, abs=0.5)
+    assert sum(post_hat) / len(post_hat) == pytest.approx(7.0, abs=0.5)
+    # merged_prs is a raw count: no separate denominator column.
+    assert result.denominator_total is None
+
+
+def test_its_reports_denominator_total_for_rate_metric(tmp_path: Path) -> None:
+    """A rate metric's ITS result carries its denominator total over fit weeks."""
+    workdir_path, start, end, intervention_at = _synthetic_workdir(
+        tmp_path, n_pre_weeks=20, n_post_weeks=20, level_shift=0
+    )
+    entities = aggregate.load_entities(workdir_path)
+    effective_end = aggregate.resolve_effective_observation_end(entities, end)
+    panel = aggregate.build_panel(
+        entities, start=start, end=end, effective_observation_end=effective_end
+    )
+    time_index = analyze.build_time_index(panel, intervention_at)
+    result = analyze.fit_its(panel, time_index, "human_review_coverage_rate")
+    assert result.fitted
+    # 40 fit weeks * 2 merged PRs/week = 80 qualifying merged PRs in the denom.
+    assert result.denominator_total == 80

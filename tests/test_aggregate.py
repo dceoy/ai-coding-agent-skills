@@ -551,6 +551,29 @@ def test_meta_does_not_flag_failure_when_committed_run_is_latest(
     assert meta["last_refresh_attempt_failed"] is False
 
 
+def test_meta_records_full_normalized_derivation_identity(tmp_path: Path) -> None:
+    """meta.json pins committed run + actor fingerprint + normalizer schema."""
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run1")
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[],
+        committed_run_id="run1",
+        actor_classification_fingerprint="fp-xyz",
+    )
+    outcome = aggregate.run_aggregate(
+        workdir_path=tmp_path,
+        start=_ts("2026-01-05T00:00:00Z"),
+        end=_ts("2026-01-12T00:00:00Z"),
+    )
+    meta = json.loads(outcome.meta_path.read_text(encoding="utf-8"))
+    assert meta["normalized_derivation"] == {
+        "committed_run_id": "run1",
+        "actor_classification_fingerprint": "fp-xyz",
+        "normalizer_schema_version": 1,
+    }
+
+
 def test_history_coverage_gate_ignores_excluded_forks(tmp_path: Path) -> None:
     """A fork's insufficient history doesn't block aggregating the non-fork cohort."""
     workdir.write_state(

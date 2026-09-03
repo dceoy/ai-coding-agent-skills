@@ -32,7 +32,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 #: Bump when the panel's column set or derivation rules change.
-AGGREGATE_SCHEMA_VERSION = 1
+#: v2 adds ``normalized_derivation`` (the full derivation identity, not just
+#: ``committed_run_id``) to ``organization-week.meta.json``.
+AGGREGATE_SCHEMA_VERSION = 2
 
 _HUMAN = "human"
 _AI = "explicit-ai-agent"
@@ -229,6 +231,32 @@ def resolve_effective_observation_end(
     if as_of.tzinfo is None:
         as_of = as_of.replace(tzinfo=UTC)
     return min(requested_end, as_of)
+
+
+def normalized_derivation_identity(derivation: dict[str, Any]) -> dict[str, Any]:
+    """Extract the full identity that pins one committed normalized derivation.
+
+    ``normalize`` treats ``(committed_run_id, actor_classification_fingerprint,
+    normalizer_schema_version)`` as the identity of a current normalized tree:
+    re-running ``normalize`` for the same committed run with a different actor
+    map (or a bumped normalizer schema) produces a different derivation that
+    can change author/reviewer classifications. ``aggregate``/``analyze``/
+    ``report`` persist and compare this whole triple so a stale aggregate or
+    analysis can never be silently paired with a re-normalized entity tree.
+
+    Args:
+        derivation: A parsed ``normalized/derivation.json`` document.
+
+    Returns:
+        The identity dict, with ``None`` for any missing field.
+    """
+    return {
+        "committed_run_id": derivation.get("committed_run_id"),
+        "actor_classification_fingerprint": derivation.get(
+            "actor_classification_fingerprint"
+        ),
+        "normalizer_schema_version": derivation.get("normalizer_schema_version"),
+    }
 
 
 def check_history_coverage(
@@ -1064,6 +1092,9 @@ def run_aggregate(
             "overlap_hours": overlap_hours,
             "include_forks": include_forks,
             "committed_run_id": entities.derivation.get("committed_run_id"),
+            "normalized_derivation": normalized_derivation_identity(
+                entities.derivation
+            ),
             "as_of": entities.derivation.get("as_of"),
             "last_refresh_attempt_failed": last_refresh_attempt_failed,
         },

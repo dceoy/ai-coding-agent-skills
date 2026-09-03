@@ -16,6 +16,20 @@ one row per continuous UTC ISO week (Monday 00:00 UTC) in range.
 
 `effective_observation_end = min(requested_end, derivation.json["as_of"])`.
 
+### Derivation lineage identity
+
+`normalize` treats a normalized tree's identity as the triple
+`(committed_run_id, actor_classification_fingerprint, normalizer_schema_version)`
+— re-running `normalize` for the same committed run with a different
+`--actor-map` (or a bumped normalizer schema) yields different
+author/reviewer classifications. `aggregate` records this whole triple as
+`organization-week.meta.json["normalized_derivation"]`; `analyze` copies it
+into `analysis.json["aggregate_derivation"]["normalized_derivation"]` and
+fails closed unless the loaded entities still match it; `report` fails
+closed unless `meta`, `analysis.json`, and the freshly loaded entities all
+agree. A stale panel or analysis can therefore never be paired silently
+with a re-normalized entity tree.
+
 A week is **complete** (`complete_week: true`) iff its whole half-open
 `[week_start, week_end)` interval is inside `[requested_start, requested_end)`
 and `week_end <= effective_observation_end`. Partial-boundary weeks, the
@@ -154,6 +168,18 @@ y_t = β0 + β1*time_t + β2*post_t + β3*time_after_t + ε_t
 - Report `β1`, `β2`, `β3`, their 95% confidence intervals
   (`fit.conf_int(alpha=0.05)`), complete pre/post calendar-week counts, the
   metric's non-missing week count, and denominator/coverage diagnostics.
+  `report.md`'s "Modeled structural changes (ITS)" table renders every one
+  of these fields per eligible metric (`complete pre/post wks` counts each
+  complete calendar week per side, excluding any partial intervention week;
+  `denominator (unavailable)` sums the metric's `<metric>_n` and, where it
+  exists, `<metric>_unavailable_n` over the fit weeks).
+- For each fitted metric, `analyze` also persists `fitted_series` in
+  `analysis.json`: `[[week_start_iso, y_hat], …]` for exactly the weekly
+  rows the model was fit on (`design @ params`). `report` overlays this as
+  a dashed `<metric> (fitted)` trend on every chart series whose metric was
+  modeled — at minimum the Delivery view's `merged_prs` and
+  `median_queue_to_merge` (`median_changed_lines` is descriptive-only). The
+  trend is read straight from `analysis.json`; `report` never re-fits.
 
 ### Execution guard (per metric)
 

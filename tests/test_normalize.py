@@ -941,7 +941,7 @@ def test_manifest_ts_fails_closed_on_invalid_timestamp_string(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["refresh_started_at"] = "not-a-timestamp"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    with pytest.raises(normalize.NormalizeError, match="not a valid ISO-8601"):
+    with pytest.raises(normalize.NormalizeError, match="ISO-8601 timestamp"):
         normalize.run_normalize(workdir_path=tmp_path)
 
 
