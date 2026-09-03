@@ -510,8 +510,10 @@ def run_analyze(
         written to.
 
     Raises:
-        AnalyzeError: If ``aggregate`` has not run for this workdir, or
-            entities cannot be loaded.
+        AnalyzeError: If ``aggregate`` has not run for this workdir, entities
+            cannot be loaded, or ``normalize`` has advanced to a different
+            committed generation than the one ``aggregate`` derived its
+            window sidecar from.
     """
     meta = _read_meta(workdir_path)
     try:
@@ -519,6 +521,14 @@ def run_analyze(
     except AggregateError as exc:
         msg = str(exc)
         raise AnalyzeError(msg) from exc
+    if meta.get("committed_run_id") != entities.derivation.get("committed_run_id"):
+        msg = (
+            f"normalized entities are from committed run "
+            f"{entities.derivation.get('committed_run_id')!r} but 'aggregate' derived "
+            f"its window from run {meta.get('committed_run_id')!r}; run 'aggregate' "
+            "again before analyzing so they reflect the same generation"
+        )
+        raise AnalyzeError(msg)
     start = datetime.fromisoformat(meta["requested_start"])
     end = datetime.fromisoformat(meta["requested_end"])
     effective_end = resolve_effective_observation_end(entities, end)

@@ -429,3 +429,22 @@ def test_actor_sensitivity_widens_panel_and_reports_shares(tmp_path: Path) -> No
     assert result["author_classes"] == sorted(aggregate.NOT_KNOWN_BOT_AUTHOR_CLASSES)
     widened_row = next(r for r in result["rows"] if int(r["opened_prs"] or 0) > 0)
     assert int(widened_row["opened_prs"]) == 2
+
+
+def test_run_analyze_fails_closed_on_advanced_normalized_generation(
+    tmp_path: Path,
+) -> None:
+    """Analyze fails closed if normalize advanced past aggregate's generation."""
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run1")
+    write_normalized(
+        tmp_path, repositories=[repo_row(1)], pull_requests=[], committed_run_id="run1"
+    )
+    start = _monday(0)
+    end = _monday(4)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    # Simulate 'normalize' rerunning to a new generation after 'aggregate'.
+    write_normalized(
+        tmp_path, repositories=[repo_row(1)], pull_requests=[], committed_run_id="run2"
+    )
+    with pytest.raises(analyze.AnalyzeError, match="committed run"):
+        analyze.run_analyze(workdir_path=tmp_path)
