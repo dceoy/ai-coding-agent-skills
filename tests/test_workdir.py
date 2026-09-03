@@ -65,6 +65,38 @@ def test_atomic_write_json_round_trips(tmp_path: Path) -> None:
     assert json.loads(target.read_text(encoding="utf-8")) == {"a": 1}
 
 
+def test_atomic_write_ndjson_replaces_whole_file_deterministically(
+    tmp_path: Path,
+) -> None:
+    """Each write fully replaces the file with sorted-key one-line-per-row JSON."""
+    target = tmp_path / "nested" / "rows.ndjson"
+    workdir.atomic_write_ndjson(target, [{"b": 2, "a": 1}, {"c": 3}])
+    assert target.read_text(encoding="utf-8") == '{"a": 1, "b": 2}\n{"c": 3}\n'
+    workdir.atomic_write_ndjson(target, [{"z": 9}])
+    assert target.read_text(encoding="utf-8") == '{"z": 9}\n'
+    workdir.atomic_write_ndjson(target, [])
+    assert not target.read_text(encoding="utf-8")
+    assert not any(
+        p.name.startswith("rows.ndjson.tmp.") for p in target.parent.iterdir()
+    )
+
+
+def test_atomic_writers_clean_up_temp_file_on_serialization_failure(
+    tmp_path: Path,
+) -> None:
+    """A non-serializable payload raises and leaves no orphan temp file behind."""
+    ndjson_target = tmp_path / "rows.ndjson"
+    with pytest.raises(TypeError):
+        workdir.atomic_write_ndjson(ndjson_target, [{"ok": 1}, {"bad": object()}])
+    assert not ndjson_target.exists()
+
+    json_target = tmp_path / "doc.json"
+    with pytest.raises(TypeError):
+        workdir.atomic_write_json(json_target, {"bad": object()})
+    assert not json_target.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_finalize_manifest_is_write_once(tmp_path: Path) -> None:
     """A finalized manifest can never be silently overwritten."""
     workdir.finalize_manifest(tmp_path, "run-a", _base_manifest("run-a"))

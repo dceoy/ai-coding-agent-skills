@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
 """CLI entry point for the ``github-productivity`` skill.
 
-Currently registers only the ``collect`` subcommand. Normalization,
-aggregation, analysis, and reporting subcommands land in follow-up work;
-see ``SKILL.md`` for the current scope.
+Registers the ``collect`` and ``normalize`` subcommands. Aggregation,
+analysis, and reporting subcommands land in follow-up work; see
+``SKILL.md`` for the current scope.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
 import workdir
 from collect import run_collect
+from normalize import NormalizeError, run_normalize
 
 #: Exit codes returned by :func:`main`.
 EXIT_OK = 0
 EXIT_INCOMPLETE = 1
 EXIT_INVALID_ARGS = 2
 EXIT_LOCKED = 3
+EXIT_DERIVATION_FAILED = 4
 
 
 def parse_boundary(value: str) -> datetime:
@@ -87,6 +90,28 @@ def _build_parser() -> argparse.ArgumentParser:
         default=24,
         help="Deterministic overlap applied to discovery boundaries and watermarks.",
     )
+
+    normalize_parser = subparsers.add_parser(
+        "normalize",
+        help="Derive deterministic entities from the committed collection lineage.",
+    )
+    normalize_parser.add_argument(
+        "--workdir",
+        required=True,
+        type=Path,
+        help="Workdir root holding committed collection state.",
+    )
+    normalize_parser.add_argument(
+        "--actor-map",
+        type=Path,
+        default=None,
+        help="Optional JSON file mapping explicit AI coding-agent identities.",
+    )
+    normalize_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Regenerate normalized/ even if it is already current.",
+    )
     return parser
 
 
@@ -152,6 +177,38 @@ def _run_collect_command(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _run_normalize_command(args: argparse.Namespace) -> int:
+    """Handle a parsed ``normalize`` invocation.
+
+    Args:
+        args: Parsed CLI arguments for the ``normalize`` subcommand.
+
+    Returns:
+        The process exit code.
+    """
+    try:
+        outcome = run_normalize(
+            workdir_path=args.workdir,
+            actor_map_path=args.actor_map,
+            force=args.force,
+        )
+    except (
+        NormalizeError,
+        workdir.CommittedLineageError,
+        json.JSONDecodeError,
+        OSError,
+        AttributeError,
+        TypeError,
+    ) as exc:
+        # AttributeError/TypeError are a backstop for committed evidence
+        # corrupted out of band into an unexpected shape: fail closed with
+        # exit 4 rather than surfacing a raw traceback.
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_DERIVATION_FAILED
+    print(f"normalized {outcome.committed_run_id} ({outcome.status})")
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point.
 
@@ -165,6 +222,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "collect":
         return _run_collect_command(args)
+    if args.command == "normalize":
+        return _run_normalize_command(args)
     parser.error(f"unknown command {args.command!r}")
     return EXIT_INVALID_ARGS
 

@@ -176,11 +176,44 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
         data: JSON-serializable data to write.
     """
     tmp_path = path.with_name(f"{path.name}.tmp.{secrets.token_hex(4)}")
-    with tmp_path.open("w", encoding="utf-8") as handle:
-        json.dump(data, handle, sort_keys=True, indent=2)
-        handle.write("\n")
-        handle.flush()
-        os.fsync(handle.fileno())
+    try:
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            json.dump(data, handle, sort_keys=True, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    tmp_path.replace(path)
+
+
+def atomic_write_ndjson(path: Path, rows: list[dict[str, Any]]) -> None:
+    """Write a whole NDJSON file atomically via a temp file plus rename.
+
+    Unlike :func:`append_ndjson`, this replaces the file's entire contents
+    in one atomic rename, so a reader never observes a partially written
+    file and a re-run never leaves stale trailing rows behind. Each row is
+    serialized with ``sort_keys=True`` so identical input produces a
+    byte-identical file.
+
+    Args:
+        path: Destination path. Its parent directory is created if needed.
+        rows: JSON-serializable records, written one per line in the given
+            order.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.tmp.{secrets.token_hex(4)}")
+    try:
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            for row in rows:
+                handle.write(json.dumps(row, sort_keys=True))
+                handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
     tmp_path.replace(path)
 
 
