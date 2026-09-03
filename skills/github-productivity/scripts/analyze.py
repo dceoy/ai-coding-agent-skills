@@ -564,6 +564,12 @@ def run_analyze(
     )
     analysis = {
         "schema_version": ANALYZE_SCHEMA_VERSION,
+        "aggregate_derivation": {
+            "committed_run_id": meta.get("committed_run_id"),
+            "requested_start": meta.get("requested_start"),
+            "requested_end": meta.get("requested_end"),
+            "include_forks": meta.get("include_forks"),
+        },
         "intervention_at": intervention_at.strftime("%Y-%m-%dT%H:%M:%SZ")
         if intervention_at
         else None,

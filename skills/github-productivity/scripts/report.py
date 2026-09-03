@@ -210,6 +210,20 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
     report_dir = workdir_path / "report"
     meta = _read_json(report_dir / "organization-week.meta.json", what="aggregate")
     analysis = _read_json(report_dir / "analysis.json", what="analyze")
+    expected = analysis.get("aggregate_derivation")
+    actual = {
+        "committed_run_id": meta.get("committed_run_id"),
+        "requested_start": meta.get("requested_start"),
+        "requested_end": meta.get("requested_end"),
+        "include_forks": meta.get("include_forks"),
+    }
+    if expected != actual:
+        msg = (
+            f"analysis.json was derived from aggregate window {expected!r} but the "
+            f"current aggregate sidecar is {actual!r}; run 'aggregate' and 'analyze' "
+            "again so report reflects the same derivation"
+        )
+        raise ReportError(msg)
     rows, weeks = _rebuild_panel_rows(workdir_path, meta)
     try:
         intervention_at = (

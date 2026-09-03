@@ -598,6 +598,38 @@ def _in_cohort(
     return include_forks or not repo.get("fork")
 
 
+def cohort_repository_ids(
+    entities: Entities,
+    *,
+    repository_ids: frozenset[int] | None,
+    include_forks: bool,
+) -> frozenset[int]:
+    """Return the repository IDs actually in scope for a panel build.
+
+    Mirrors :func:`_in_cohort`'s membership rule as a set, so callers that
+    need the concrete cohort (for example, scoping the history-coverage
+    gate to only the repositories a panel will actually read) don't have
+    to re-derive it.
+
+    Args:
+        entities: Loaded normalized entities.
+        repository_ids: An explicit cohort override, or ``None`` to derive
+            it from ``include_forks``.
+        include_forks: Include forked repositories when ``repository_ids``
+            is ``None``.
+
+    Returns:
+        The in-scope repository ID set.
+    """
+    if repository_ids is not None:
+        return repository_ids
+    return frozenset(
+        repo_id
+        for repo_id, repo in entities.repositories.items()
+        if include_forks or not repo.get("fork")
+    )
+
+
 def _accumulate_pr(
     entities: Entities,
     counters: dict[int, dict[str, Any]],
@@ -996,7 +1028,12 @@ def run_aggregate(
         )
         raise AggregateError(msg)
     check_history_coverage_for_state(
-        state, start=start, overlap_hours=overlap_hours, repository_ids=None
+        state,
+        start=start,
+        overlap_hours=overlap_hours,
+        repository_ids=cohort_repository_ids(
+            entities, repository_ids=None, include_forks=include_forks
+        ),
     )
     effective_end = resolve_effective_observation_end(entities, end)
     panel = build_panel(

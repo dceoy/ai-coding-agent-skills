@@ -549,3 +549,90 @@ def test_meta_does_not_flag_failure_when_committed_run_is_latest(
     )
     meta = json.loads(outcome.meta_path.read_text(encoding="utf-8"))
     assert meta["last_refresh_attempt_failed"] is False
+
+
+def test_history_coverage_gate_ignores_excluded_forks(tmp_path: Path) -> None:
+    """A fork's insufficient history doesn't block aggregating the non-fork cohort."""
+    workdir.write_state(
+        tmp_path,
+        {
+            "schema_version": workdir.SCHEMA_VERSION,
+            "committed_run_id": "run1",
+            "organization": "acme",
+            "repositories": {
+                "1": {
+                    "name": "repo1",
+                    "archived": False,
+                    "fork": False,
+                    "created_at": "2019-01-01T00:00:00Z",
+                    "discovery_watermark": "2026-01-01T00:00:00Z",
+                    "history_boundary": "2019-01-01T00:00:00Z",
+                    "last_seen_in_enumeration_at": "2026-01-01T00:00:00Z",
+                },
+                "2": {
+                    "name": "repo2",
+                    "archived": False,
+                    "fork": True,
+                    "created_at": "2019-01-01T00:00:00Z",
+                    "discovery_watermark": "2026-01-01T00:00:00Z",
+                    "history_boundary": "2026-01-08T00:00:00Z",
+                    "last_seen_in_enumeration_at": "2026-01-01T00:00:00Z",
+                },
+            },
+        },
+    )
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1), repo_row(2, fork=True)],
+        pull_requests=[],
+    )
+    outcome = aggregate.run_aggregate(
+        workdir_path=tmp_path,
+        start=_ts("2026-01-05T00:00:00Z"),
+        end=_ts("2026-01-12T00:00:00Z"),
+    )
+    assert outcome.panel is not None
+
+
+def test_history_coverage_gate_still_checks_included_forks(tmp_path: Path) -> None:
+    """--include-forks widens the coverage gate to match the widened cohort."""
+    workdir.write_state(
+        tmp_path,
+        {
+            "schema_version": workdir.SCHEMA_VERSION,
+            "committed_run_id": "run1",
+            "organization": "acme",
+            "repositories": {
+                "1": {
+                    "name": "repo1",
+                    "archived": False,
+                    "fork": False,
+                    "created_at": "2019-01-01T00:00:00Z",
+                    "discovery_watermark": "2026-01-01T00:00:00Z",
+                    "history_boundary": "2019-01-01T00:00:00Z",
+                    "last_seen_in_enumeration_at": "2026-01-01T00:00:00Z",
+                },
+                "2": {
+                    "name": "repo2",
+                    "archived": False,
+                    "fork": True,
+                    "created_at": "2019-01-01T00:00:00Z",
+                    "discovery_watermark": "2026-01-01T00:00:00Z",
+                    "history_boundary": "2026-01-08T00:00:00Z",
+                    "last_seen_in_enumeration_at": "2026-01-01T00:00:00Z",
+                },
+            },
+        },
+    )
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1), repo_row(2, fork=True)],
+        pull_requests=[],
+    )
+    with pytest.raises(aggregate.AggregateError, match="historical"):
+        aggregate.run_aggregate(
+            workdir_path=tmp_path,
+            start=_ts("2026-01-05T00:00:00Z"),
+            end=_ts("2026-01-12T00:00:00Z"),
+            include_forks=True,
+        )

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import aggregate
 import analyze
+import pytest
 import report
 import workdir
 
@@ -125,3 +126,19 @@ def test_report_surfaces_failed_refresh_attempt(tmp_path: Path) -> None:
     outcome = report.run_report(workdir_path=tmp_path)
     text = outcome.report_path.read_text(encoding="utf-8")
     assert "Refresh status: a newer refresh attempt failed" in text
+
+
+def test_report_fails_closed_when_analysis_predates_a_rerun_aggregate(
+    tmp_path: Path,
+) -> None:
+    """Report rejects an analysis.json derived from a different aggregate window."""
+    start, end, intervention_at = _build_workdir(tmp_path)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    analyze.run_analyze(workdir_path=tmp_path, intervention_at=intervention_at)
+    # Simulate 'aggregate' being rerun with a narrower window after 'analyze'
+    # already derived analysis.json from the original window.
+    aggregate.run_aggregate(
+        workdir_path=tmp_path, start=start + timedelta(days=7), end=end
+    )
+    with pytest.raises(report.ReportError, match="same derivation"):
+        report.run_report(workdir_path=tmp_path)
