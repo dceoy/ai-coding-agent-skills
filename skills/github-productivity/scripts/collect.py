@@ -434,9 +434,10 @@ def _process_repo(
 def _ensure_matching_organization(org: str, workdir_path: Path) -> None:
     """Fail closed if this workdir already has evidence for a different org.
 
-    Checks every manifest that exists, complete or incomplete, not only
-    committed state — an org mismatch must be rejected even before this
-    workdir has ever successfully committed, so a failed run for one
+    Checks every manifest that exists, complete or incomplete, plus the
+    workdir's organization binding (see :func:`workdir.bind_organization`)
+    — the binding covers a run killed before any manifest, even an
+    incomplete one, was ever finalized, so a failed or crashed run for one
     organization can't be silently followed by a successful run for
     another on the same workdir. Comparison is case-insensitive, since
     GitHub organization logins are.
@@ -446,10 +447,14 @@ def _ensure_matching_organization(org: str, workdir_path: Path) -> None:
         workdir_path: The skill's workdir root.
 
     Raises:
-        workdir.OrganizationMismatchError: If any existing manifest in this
-            workdir recorded a different organization than ``org``.
+        workdir.OrganizationMismatchError: If any existing manifest or the
+            organization binding in this workdir names a different
+            organization than ``org``.
     """
     recorded = workdir.manifest_organizations(workdir_path)
+    bound = workdir.read_organization_binding(workdir_path)
+    if bound is not None:
+        recorded |= {bound}
     mismatched = {o for o in recorded if o.casefold() != org.casefold()}
     if not mismatched:
         return
@@ -489,6 +494,7 @@ def run_collect(
     run_id = workdir.new_run_id()
     with workdir.CollectionLock(workdir_path, run_id):
         _ensure_matching_organization(org, workdir_path)
+        workdir.bind_organization(workdir_path, org)
         refresh_started_at = datetime.now(UTC)
         previous_state = workdir.read_state(workdir_path)
         previous_committed_run_id = (
@@ -526,6 +532,7 @@ def run_collect(
             "refresh_started_at": _fmt_ts(refresh_started_at),
             "collection_ended_at": _fmt_ts(datetime.now(UTC)),
             "github_api_version": ghapi.GITHUB_API_VERSION,
+            "collector_revision": workdir.resolve_collector_revision() or "unavailable",
             "overlap_hours": overlap_hours,
             "collection_affecting_config": {
                 "ci_workflow_ids": sorted(ci_workflow_ids or [])

@@ -102,10 +102,12 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "**/scripts/**/*.py" = [
-    "S404", # subprocess required for git invocation
+    "S404", # subprocess required for git/gh invocation
     "T201", # CLI output via print
+]
+"skills/github-productivity/scripts/{ghapi,workdir}.py" = [
     "S603", # subprocess call with a fixed, non-shell argument vector
-    "S607", # `gh` is invoked via PATH by design, matching the `gh` CLI convention
+    "S607", # `gh`/`git` are invoked via PATH by design, matching CLI convention
 ]
 "tests/**/*.py" = [
     "DOC201", # Missing return documentation

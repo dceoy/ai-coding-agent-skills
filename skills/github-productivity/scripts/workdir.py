@@ -13,18 +13,21 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Self
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path
+from typing import Any, Self
 
 #: Schema version for both run manifests and ``state.json``. Bump when the
 #: on-disk shape changes in a way that is not backward compatible.
 SCHEMA_VERSION = 1
 
 _MANIFEST_STATUSES = frozenset({"complete", "incomplete"})
+
+#: Bounds the local ``git rev-parse`` call used to resolve the collector's
+#: own revision so a wedged or missing ``git`` cannot block a run.
+_REVISION_TIMEOUT_SECONDS = 5
 
 
 class WorkdirLockedError(Exception):
@@ -110,6 +113,18 @@ def lock_path(workdir: Path) -> Path:
     return workdir / ".collect.lock"
 
 
+def organization_binding_path(workdir: Path) -> Path:
+    """Return the path of the workdir's immutable organization binding.
+
+    Args:
+        workdir: The skill's workdir root.
+
+    Returns:
+        The path ``<workdir>/organization.json``.
+    """
+    return workdir / "organization.json"
+
+
 def new_run_id() -> str:
     """Generate a new collection run ID.
 
@@ -119,6 +134,38 @@ def new_run_id() -> str:
     """
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     return f"{stamp}-{secrets.token_hex(4)}"
+
+
+def resolve_collector_revision() -> str | None:
+    """Resolve the executing collector's own git commit revision.
+
+    Recorded in every finalized manifest as ``collector_revision`` so a run
+    can be traced back to the exact collector code that produced it, even
+    for a behavior change that does not bump ``SCHEMA_VERSION``. Best
+    effort: this skill can run from a checkout with no ``git`` binary
+    available, or from a copy with no ``.git`` directory at all.
+
+    Returns:
+        The full commit SHA of the repository containing this script, or
+        ``None`` if it cannot be resolved (``git`` is missing, this script
+        is not inside a git working tree, the call times out, or any other
+        failure).
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True,
+            text=True,
+            timeout=_REVISION_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    revision = result.stdout.strip()
+    return revision or None
 
 
 def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
@@ -317,6 +364,54 @@ def manifest_organizations(workdir: Path) -> set[str]:
         if isinstance(org, str):
             organizations.add(org)
     return organizations
+
+
+def read_organization_binding(workdir: Path) -> str | None:
+    """Read the workdir's bound organization, if one has been recorded.
+
+    Unlike :func:`manifest_organizations`, this binding is written before
+    the first live API call of the workdir's first run — it is the only
+    record of a workdir's organization when that first run is killed
+    before any manifest, even an incomplete one, is ever finalized.
+
+    Args:
+        workdir: The skill's workdir root.
+
+    Returns:
+        The bound organization, or ``None`` if no binding has been
+        recorded yet, or the binding file is missing, unreadable, or does
+        not hold a JSON object with a string ``organization`` field.
+    """
+    try:
+        content = json.loads(
+            organization_binding_path(workdir).read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(content, dict):
+        return None
+    org = content.get("organization")
+    return org if isinstance(org, str) else None
+
+
+def bind_organization(workdir: Path, org: str) -> None:
+    """Record the workdir's organization binding, once, if not already set.
+
+    Must be called under the collection lock, before the first live API
+    call of the workdir's first run, so a process killed before any
+    manifest is finalized still leaves a record of which organization owns
+    this workdir's raw evidence. A no-op if a binding already exists — the
+    binding is immutable for the life of the workdir.
+
+    Args:
+        workdir: The skill's workdir root.
+        org: The organization login to bind this workdir to.
+    """
+    path = organization_binding_path(workdir)
+    if path.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(path, {"organization": org})
 
 
 def resolve_committed_lineage(

@@ -583,6 +583,47 @@ def test_organization_comparison_is_case_insensitive(
     assert outcome.status == "complete"
 
 
+def test_organization_binding_rejects_mismatch_before_any_manifest_exists(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A crash-before-finalize workdir still blocks a different org.
+
+    Simulates a run for org A that was killed after writing raw evidence
+    but before ``finalize_manifest`` ever ran: no manifest exists yet, only
+    the organization binding written before the first live API call. A
+    different org must still be rejected, since ``manifest_organizations``
+    alone would see nothing here.
+    """
+    workdir.bind_organization(tmp_path, "acme")
+    assert workdir.manifest_organizations(tmp_path) == set()
+
+    with pytest.raises(workdir.OrganizationMismatchError):
+        collect.run_collect(
+            org="other-org", workdir_path=tmp_path, start=_START, end=_END
+        )
+    assert fake_gh.calls == []
+
+
+def test_organization_binding_is_written_before_first_live_api_call(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """The binding exists even if collection never reaches a manifest."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    assert workdir.read_organization_binding(tmp_path) == "acme"
+
+
+def test_manifest_records_collector_revision(tmp_path: Path, fake_gh: _FakeGh) -> None:
+    """Every finalized manifest records the collector's own revision."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.manifest["collector_revision"]
+
+
 def test_process_repo_tolerates_missing_history_boundary_field(
     tmp_path: Path, fake_gh: _FakeGh
 ) -> None:

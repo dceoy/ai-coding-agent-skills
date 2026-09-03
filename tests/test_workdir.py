@@ -194,3 +194,57 @@ def test_manifest_organizations_tolerates_non_object_manifest_json(
         "[]", encoding="utf-8"
     )
     assert workdir.manifest_organizations(tmp_path) == {"acme"}
+
+
+def test_read_organization_binding_is_none_before_any_binding(
+    tmp_path: Path,
+) -> None:
+    """A workdir with no binding yet reports no bound organization."""
+    assert workdir.read_organization_binding(tmp_path) is None
+
+
+def test_bind_organization_round_trips(tmp_path: Path) -> None:
+    """A bound organization is readable back from a fresh workdir."""
+    workdir.bind_organization(tmp_path, "acme")
+    assert workdir.read_organization_binding(tmp_path) == "acme"
+
+
+def test_bind_organization_is_immutable_once_set(tmp_path: Path) -> None:
+    """A second bind call never overwrites the first-recorded organization.
+
+    This is what protects a workdir even when the run that first bound it
+    is killed before any manifest, even an incomplete one, is finalized.
+    """
+    workdir.bind_organization(tmp_path, "acme")
+    workdir.bind_organization(tmp_path, "other-org")
+    assert workdir.read_organization_binding(tmp_path) == "acme"
+
+
+def test_read_organization_binding_tolerates_non_object_json(
+    tmp_path: Path,
+) -> None:
+    """A tampered binding file that isn't a JSON object reports no binding."""
+    path = workdir.organization_binding_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("[]", encoding="utf-8")
+    assert workdir.read_organization_binding(tmp_path) is None
+
+
+def test_resolve_collector_revision_returns_a_commit_sha_in_this_checkout() -> None:
+    """Inside this git checkout, the collector's own HEAD SHA is resolvable."""
+    revision = workdir.resolve_collector_revision()
+    assert revision is not None
+    assert len(revision) == 40
+    assert all(char in "0123456789abcdef" for char in revision)
+
+
+def test_resolve_collector_revision_tolerates_missing_git(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing ``git`` binary is a best-effort ``None``, not a crash."""
+
+    def fake_run(*_args: object, **_kwargs: object) -> None:
+        raise FileNotFoundError
+
+    monkeypatch.setattr(workdir.subprocess, "run", fake_run)
+    assert workdir.resolve_collector_revision() is None
