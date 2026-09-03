@@ -258,8 +258,9 @@ def _touched_prs(manifest: dict[str, Any]) -> set[tuple[int, int]]:
             repo_id = int(key)
         except (TypeError, ValueError):
             continue
-        for number in entry.get("touched_pr_numbers", []):
-            if isinstance(number, int):
+        numbers = entry.get("touched_pr_numbers", []) if isinstance(entry, dict) else []
+        for number in numbers:
+            if isinstance(number, int) and not isinstance(number, bool):
                 pairs.add((repo_id, number))
     return pairs
 
@@ -276,9 +277,13 @@ def _cap_exceeded(manifest: dict[str, Any], repo_id: int, pr_number: int) -> boo
         ``True`` if the manifest records a ``pr_commits_exceed_endpoint_cap``
         limitation for this PR.
     """
-    for limitation in manifest.get("limitations", []):
+    limitations = manifest.get("limitations", [])
+    if not isinstance(limitations, list):
+        return False
+    for limitation in limitations:
         if (
-            limitation.get("kind") == "pr_commits_exceed_endpoint_cap"
+            isinstance(limitation, dict)
+            and limitation.get("kind") == "pr_commits_exceed_endpoint_cap"
             and limitation.get("repository_id") == repo_id
             and limitation.get("pr_number") == pr_number
         ):
@@ -308,36 +313,45 @@ def _read_run_bucket(raw_root: Path, filename: str) -> dict[tuple[int, int], lis
         the order the lines appear on disk.
 
     Raises:
-        NormalizeError: If the file does not exist -- a lineage-committed
-            run is expected to hold every bundle endpoint -- or a line is
-            not valid JSON.
+        NormalizeError: If the file does not exist or is unreadable -- a
+            lineage-committed run is expected to hold every bundle endpoint
+            -- or a line is not valid JSON.
     """
     path = raw_root / filename
-    if not path.exists():
+    try:
+        handle = path.open(encoding="utf-8")
+    except FileNotFoundError as exc:
         msg = (
             f"committed run evidence file {path} is missing; the committed "
             "lineage points at incomplete or damaged evidence"
         )
-        raise NormalizeError(msg)
+        raise NormalizeError(msg) from exc
+    except OSError as exc:
+        msg = f"committed run evidence file {path} is unreadable: {exc}"
+        raise NormalizeError(msg) from exc
     buckets: dict[tuple[int, int], list[Any]] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError as exc:
-            msg = f"raw evidence line in {path} is not valid JSON: {exc}"
-            raise NormalizeError(msg) from exc
-        if not isinstance(record, dict):
-            continue
-        pr_number = record.get("pr_number")
-        provenance = record.get("provenance")
-        repo_id = (
-            provenance.get("repository_id") if isinstance(provenance, dict) else None
-        )
-        if not isinstance(pr_number, int) or not isinstance(repo_id, int):
-            continue
-        buckets.setdefault((repo_id, pr_number), []).append(record.get("payload"))
+    with handle:
+        for lineno, raw in enumerate(handle, start=1):
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                msg = f"raw evidence in {path} line {lineno} is not valid JSON: {exc}"
+                raise NormalizeError(msg) from exc
+            if not isinstance(record, dict):
+                continue
+            pr_number = record.get("pr_number")
+            provenance = record.get("provenance")
+            repo_id = (
+                provenance.get("repository_id")
+                if isinstance(provenance, dict)
+                else None
+            )
+            if not isinstance(pr_number, int) or not isinstance(repo_id, int):
+                continue
+            buckets.setdefault((repo_id, pr_number), []).append(record.get("payload"))
     return buckets
 
 
@@ -441,12 +455,17 @@ def _select_winning_runs(
         ``(repository_id, pr_number)`` -> winning ``run_id``. Whole-bundle
         replacement: a PR touched by several runs is served entirely from
         the newest one; mutable child rows are never unioned across runs.
+
+    Raises:
+        NormalizeError: If a lineage manifest lacks a string ``run_id`` --
+            dropping its touched PRs silently would fail open.
     """
     winning: dict[tuple[int, int], str] = {}
     for manifest in ordered_runs:
         run_id = manifest.get("run_id")
         if not isinstance(run_id, str):
-            continue
+            msg = "a committed lineage manifest lacks a string 'run_id'"
+            raise NormalizeError(msg)
         for pair in _touched_prs(manifest):
             winning.setdefault(pair, run_id)
     return winning
@@ -716,7 +735,12 @@ def _repository_rows(state: dict[str, Any]) -> list[dict[str, Any]]:
         are a later aggregation-time decision.
     """
     rows: list[dict[str, Any]] = []
-    for key, entry in state.get("repositories", {}).items():
+    repositories = state.get("repositories", {})
+    if not isinstance(repositories, dict):
+        return rows
+    for key, entry in repositories.items():
+        if not isinstance(entry, dict):
+            continue
         try:
             repo_id = int(key)
         except (TypeError, ValueError):
@@ -746,7 +770,9 @@ def _existing_is_current(
     Returns:
         ``True`` if ``normalized/derivation.json`` exists and was derived
         from the same committed run, actor fingerprint, and normalizer
-        schema version.
+        schema version. It trusts ``derivation.json`` alone -- an entity
+        file deleted or truncated out of band is not detected here; rerun
+        with ``force=True`` to rebuild the whole tree.
     """
     path = workdir_path / "normalized" / "derivation.json"
     try:

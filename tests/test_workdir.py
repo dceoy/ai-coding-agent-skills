@@ -81,14 +81,19 @@ def test_atomic_write_ndjson_replaces_whole_file_deterministically(
     )
 
 
-def test_atomic_write_ndjson_cleans_up_temp_file_on_serialization_failure(
+def test_atomic_writers_clean_up_temp_file_on_serialization_failure(
     tmp_path: Path,
 ) -> None:
-    """A non-serializable row raises and leaves no orphan temp file behind."""
-    target = tmp_path / "rows.ndjson"
+    """A non-serializable payload raises and leaves no orphan temp file behind."""
+    ndjson_target = tmp_path / "rows.ndjson"
     with pytest.raises(TypeError):
-        workdir.atomic_write_ndjson(target, [{"ok": 1}, {"bad": object()}])
-    assert not target.exists()
+        workdir.atomic_write_ndjson(ndjson_target, [{"ok": 1}, {"bad": object()}])
+    assert not ndjson_target.exists()
+
+    json_target = tmp_path / "doc.json"
+    with pytest.raises(TypeError):
+        workdir.atomic_write_json(json_target, {"bad": object()})
+    assert not json_target.exists()
     assert list(tmp_path.iterdir()) == []
 
 

@@ -675,6 +675,21 @@ def test_missing_bundle_file_in_committed_run_fails_closed(tmp_path: Path) -> No
         normalize.run_normalize(workdir_path=tmp_path)
 
 
+def test_corrupt_raw_bundle_line_fails_closed(tmp_path: Path) -> None:
+    """A non-JSON line in a committed run's raw evidence raises rather than skips."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    commits = workdir.raw_dir(tmp_path, "run-a") / "commits.ndjson"
+    with commits.open("a", encoding="utf-8") as handle:
+        handle.write("{not json\n")
+    with pytest.raises(normalize.NormalizeError, match="not valid JSON"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
 def test_corrupt_committed_state_fails_closed(tmp_path: Path) -> None:
     """An unreadable ``state.json`` raises instead of crashing with a traceback."""
     commit_run(

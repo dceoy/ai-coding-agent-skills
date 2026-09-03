@@ -197,7 +197,12 @@ def _run_normalize_command(args: argparse.Namespace) -> int:
         workdir.CommittedLineageError,
         json.JSONDecodeError,
         OSError,
+        AttributeError,
+        TypeError,
     ) as exc:
+        # AttributeError/TypeError are a backstop for committed evidence
+        # corrupted out of band into an unexpected shape: fail closed with
+        # exit 4 rather than surfacing a raw traceback.
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_DERIVATION_FAILED
     print(f"normalized {outcome.committed_run_id} ({outcome.status})")
