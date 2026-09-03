@@ -181,3 +181,16 @@ def test_resolve_committed_lineage_rejects_cycle(tmp_path: Path) -> None:
     )
     with pytest.raises(workdir.CommittedLineageError, match="cycle"):
         workdir.resolve_committed_lineage(tmp_path, {"committed_run_id": "run-1"})
+
+
+def test_manifest_organizations_tolerates_non_object_manifest_json(
+    tmp_path: Path,
+) -> None:
+    """A foreign or tampered manifest file that isn't a JSON object is skipped."""
+    workdir.finalize_manifest(
+        tmp_path, "run-1", {**_base_manifest("run-1"), "organization": "acme"}
+    )
+    (workdir.manifests_dir(tmp_path) / "not-a-manifest.json").write_text(
+        "[]", encoding="utf-8"
+    )
+    assert workdir.manifest_organizations(tmp_path) == {"acme"}

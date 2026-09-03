@@ -311,6 +311,8 @@ def manifest_organizations(workdir: Path) -> set[str]:
             manifest = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        if not isinstance(manifest, dict):
+            continue
         org = manifest.get("organization")
         if isinstance(org, str):
             organizations.add(org)
