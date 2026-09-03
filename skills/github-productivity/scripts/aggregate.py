@@ -22,6 +22,7 @@ import json
 import operator
 import secrets
 import statistics
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -144,32 +145,55 @@ def _read_ndjson(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def load_entities(workdir_path: Path) -> Entities:
-    """Load every normalized entity file for one workdir.
+_LOAD_ENTITIES_MAX_ATTEMPTS = 5
+_LOAD_ENTITIES_RETRY_DELAY_SECONDS = 0.2
+
+
+def _read_derivation_text(derivation_path: Path) -> str | None:
+    """Read the raw ``derivation.json`` text, tolerating a transient absence.
+
+    ``normalize`` unlinks this file before rewriting entities and writes it
+    back last, so a missing file is a transient state during a concurrent
+    ``normalize`` run rather than necessarily meaning one never happened.
 
     Args:
-        workdir_path: The skill's workdir root.
+        derivation_path: Path to ``normalized/derivation.json``.
 
     Returns:
-        The loaded entity tables, keyed for efficient panel construction.
+        The file's raw text, or ``None`` if it does not currently exist.
 
     Raises:
-        AggregateError: If ``normalized/derivation.json`` does not exist
-            (``normalize`` has never run) or any entity file is malformed.
+        AggregateError: If the file exists but could not be read.
     """
-    normalized_dir = workdir_path / "normalized"
-    derivation_path = normalized_dir / "derivation.json"
     try:
-        derivation = json.loads(derivation_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        msg = f"{derivation_path} does not exist; run 'normalize' before 'aggregate'"
-        raise AggregateError(msg) from exc
+        return derivation_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
     except OSError as exc:
         msg = f"{derivation_path} could not be read: {exc}"
         raise AggregateError(msg) from exc
-    except json.JSONDecodeError as exc:
-        msg = f"{derivation_path} is not valid JSON: {exc}"
-        raise AggregateError(msg) from exc
+
+
+def _read_entity_tables(
+    normalized_dir: Path,
+) -> tuple[
+    dict[int, dict[str, Any]],
+    dict[tuple[int, int], dict[str, Any]],
+    dict[tuple[int, int], list[dict[str, Any]]],
+    dict[tuple[int, int], list[dict[str, Any]]],
+    dict[tuple[int, int], list[dict[str, Any]]],
+    dict[tuple[int, int], dict[str, Any]],
+]:
+    """Read every entity NDJSON file in ``normalized_dir``, keyed for lookup.
+
+    Args:
+        normalized_dir: The ``normalized/`` directory to read from.
+
+    Returns:
+        The ``(repositories, pull_requests, reviews, pr_commits,
+        timeline_events, draft_lifecycle)`` tables, keyed as in
+        :class:`Entities`.
+    """
     repositories = {
         row["repository_id"]: row
         for row in _read_ndjson(normalized_dir / "repositories.ndjson")
@@ -193,15 +217,83 @@ def load_entities(workdir_path: Path) -> Entities:
         (row["repository_id"], row["pr_number"]): row
         for row in _read_ndjson(normalized_dir / "draft_lifecycle.ndjson")
     }
-    return Entities(
-        repositories=repositories,
-        pull_requests=pull_requests,
-        reviews=reviews,
-        pr_commits=pr_commits,
-        timeline_events=timeline_events,
-        draft_lifecycle=draft_lifecycle,
-        derivation=derivation,
+    return (
+        repositories,
+        pull_requests,
+        reviews,
+        pr_commits,
+        timeline_events,
+        draft_lifecycle,
     )
+
+
+def load_entities(workdir_path: Path) -> Entities:
+    """Load every normalized entity file for one workdir.
+
+    ``normalize`` commits a new generation by unlinking
+    ``normalized/derivation.json``, atomically rewriting each entity NDJSON
+    file, then atomically rewriting ``derivation.json`` last. To avoid
+    reading a mix of old and new entity files under an unchanged (or
+    transiently missing) derivation marker, this re-reads the marker after
+    loading the entity files and retries the whole load unless it is
+    byte-identical to what was read beforehand.
+
+    Args:
+        workdir_path: The skill's workdir root.
+
+    Returns:
+        The loaded entity tables, keyed for efficient panel construction.
+
+    Raises:
+        AggregateError: If ``normalized/derivation.json`` does not exist
+            (``normalize`` has never run), any entity file is malformed, or
+            the derivation marker keeps changing across every retry
+            (``normalize`` appears to be running concurrently).
+    """
+    normalized_dir = workdir_path / "normalized"
+    derivation_path = normalized_dir / "derivation.json"
+    if not normalized_dir.is_dir():
+        msg = f"{derivation_path} does not exist; run 'normalize' before 'aggregate'"
+        raise AggregateError(msg)
+    before_text = _read_derivation_text(derivation_path)
+    for attempt in range(_LOAD_ENTITIES_MAX_ATTEMPTS):
+        if before_text is not None:
+            (
+                repositories,
+                pull_requests,
+                reviews,
+                pr_commits,
+                timeline_events,
+                draft_lifecycle,
+            ) = _read_entity_tables(normalized_dir)
+            after_text = _read_derivation_text(derivation_path)
+            if after_text == before_text:
+                try:
+                    derivation = json.loads(before_text)
+                except json.JSONDecodeError as exc:
+                    msg = f"{derivation_path} is not valid JSON: {exc}"
+                    raise AggregateError(msg) from exc
+                return Entities(
+                    repositories=repositories,
+                    pull_requests=pull_requests,
+                    reviews=reviews,
+                    pr_commits=pr_commits,
+                    timeline_events=timeline_events,
+                    draft_lifecycle=draft_lifecycle,
+                    derivation=derivation,
+                )
+            before_text = after_text
+        if attempt < _LOAD_ENTITIES_MAX_ATTEMPTS - 1:
+            time.sleep(_LOAD_ENTITIES_RETRY_DELAY_SECONDS)
+    if before_text is None:
+        msg = f"{derivation_path} does not exist; run 'normalize' before 'aggregate'"
+        raise AggregateError(msg)
+    msg = (
+        f"{derivation_path} changed while loading normalized entities after "
+        f"{_LOAD_ENTITIES_MAX_ATTEMPTS} attempts; 'normalize' appears to be "
+        "running concurrently"
+    )
+    raise AggregateError(msg)
 
 
 def resolve_effective_observation_end(

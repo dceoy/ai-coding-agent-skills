@@ -372,6 +372,44 @@ def test_load_entities_requires_normalize_to_have_run(tmp_path: Path) -> None:
         aggregate.load_entities(tmp_path)
 
 
+def test_load_entities_retries_on_concurrent_normalize_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A derivation marker that changes mid-read is retried, not trusted."""
+    write_state(tmp_path, repository_ids=[1])
+    write_normalized(tmp_path, repositories=[repo_row(1)], pull_requests=[])
+    monkeypatch.setattr(aggregate.time, "sleep", lambda _seconds: None)
+    derivation_reads = iter([
+        '{"committed_run_id": "run1"}',
+        '{"committed_run_id": "run2"}',
+        '{"committed_run_id": "run2"}',
+    ])
+    monkeypatch.setattr(
+        aggregate, "_read_derivation_text", lambda _path: next(derivation_reads)
+    )
+    entities = aggregate.load_entities(tmp_path)
+    assert entities.derivation == {"committed_run_id": "run2"}
+    with pytest.raises(StopIteration):
+        next(derivation_reads)
+
+
+def test_load_entities_fails_closed_on_persistent_concurrent_normalize(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A derivation marker that never stabilizes fails closed after retries."""
+    write_state(tmp_path, repository_ids=[1])
+    write_normalized(tmp_path, repositories=[repo_row(1)], pull_requests=[])
+    monkeypatch.setattr(aggregate.time, "sleep", lambda _seconds: None)
+    counter = iter(range(1_000))
+    monkeypatch.setattr(
+        aggregate,
+        "_read_derivation_text",
+        lambda _path: f'{{"committed_run_id": "run{next(counter)}"}}',
+    )
+    with pytest.raises(aggregate.AggregateError, match="running concurrently"):
+        aggregate.load_entities(tmp_path)
+
+
 def test_repository_id_filter_overrides_fork_default(tmp_path: Path) -> None:
     """An explicit repository_ids cohort is used verbatim, ignoring fork status."""
     write_state(tmp_path, repository_ids=[1, 2])
