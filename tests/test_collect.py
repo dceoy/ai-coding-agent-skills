@@ -348,6 +348,41 @@ def test_watermark_advances_to_refresh_started_at_not_max_updated_at(
     assert watermark != "2030-06-15T00:00:00Z"
 
 
+def test_refresh_started_at_persists_microsecond_precision(
+    tmp_path: Path, fake_gh: FakeGh, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The persisted watermark keeps sub-second precision, not just whole seconds.
+
+    ``workdir.latest_manifest_run_id_and_status`` breaks same-second-run ties
+    using ``refresh_started_at``; if the production formatter truncated it to
+    whole seconds, two runs started in the same second would be
+    indistinguishable in the actual manifest even though this ordering logic
+    is unit-tested against hand-written microsecond timestamps.
+    """
+    fixed_now = datetime(2026, 6, 15, 12, 0, 0, 654321, tzinfo=UTC)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:
+            del tz
+            return fixed_now
+
+    monkeypatch.setattr(collect, "datetime", _FixedDatetime)
+    fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    persisted = workdir.parse_manifest_started_at(outcome.manifest)
+    assert persisted is not None
+    assert persisted.microsecond == fixed_now.microsecond
+    state = workdir.read_state(tmp_path)
+    assert state is not None
+    assert state["repositories"]["1"]["discovery_watermark"] == (
+        outcome.manifest["refresh_started_at"]
+    )
+
+
 def test_second_concurrent_collector_is_rejected(
     tmp_path: Path, fake_gh: FakeGh
 ) -> None:

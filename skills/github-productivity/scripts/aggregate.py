@@ -257,6 +257,8 @@ def load_entities(workdir_path: Path) -> Entities:
         raise AggregateError(msg)
     before_text = _read_derivation_text(derivation_path)
     for attempt in range(_LOAD_ENTITIES_MAX_ATTEMPTS):
+        if before_text is None:
+            before_text = _read_derivation_text(derivation_path)
         if before_text is not None:
             (
                 repositories,
