@@ -39,6 +39,15 @@ class CommittedLineageError(Exception):
     """Raised when the committed run lineage cannot be resolved from disk."""
 
 
+class OrganizationMismatchError(Exception):
+    """Raised when a workdir's committed state belongs to a different org.
+
+    A workdir is scoped to one organization. Reusing it for a different
+    ``--org`` would silently carry the prior organization's repositories
+    forward into state now labeled with the new one.
+    """
+
+
 def raw_dir(workdir: Path, run_id: str) -> Path:
     """Return the append-only raw evidence directory for one run.
 
@@ -163,6 +172,8 @@ class CollectionLock:
 
         Raises:
             WorkdirLockedError: If another run already holds the lock.
+            OSError: If the lock file is created but writing its content
+                fails; the just-created file is removed before re-raising.
         """
         path = lock_path(self.workdir)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -171,17 +182,21 @@ class CollectionLock:
         except FileExistsError as exc:
             msg = f"workdir {self.workdir} is already locked by another collection run"
             raise WorkdirLockedError(msg) from exc
-        path.write_text(
-            json.dumps(
-                {
-                    "pid": os.getpid(),
-                    "run_id": self.run_id,
-                    "acquired_at": datetime.now(UTC).isoformat(),
-                },
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
+        try:
+            path.write_text(
+                json.dumps(
+                    {
+                        "pid": os.getpid(),
+                        "run_id": self.run_id,
+                        "acquired_at": datetime.now(UTC).isoformat(),
+                    },
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+        except OSError:
+            path.unlink(missing_ok=True)
+            raise
         self._acquired = True
         return self
 
@@ -198,10 +213,10 @@ class CollectionLock:
         path = lock_path(self.workdir)
         try:
             content = json.loads(path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError):
             self._acquired = False
             return
-        if content.get("run_id") == self.run_id:
+        if isinstance(content, dict) and content.get("run_id") == self.run_id:
             path.unlink(missing_ok=True)
         self._acquired = False
 
@@ -289,11 +304,17 @@ def resolve_committed_lineage(
 
     Raises:
         CommittedLineageError: If the lineage chain is broken, for example
-            a referenced manifest is missing or not ``complete``.
+            a referenced manifest is missing, not ``complete``, or the
+            chain cycles back to a run already visited.
     """
     lineage: list[dict[str, Any]] = []
+    seen: set[str] = set()
     run_id = state.get("committed_run_id")
     while run_id is not None:
+        if run_id in seen:
+            msg = f"committed lineage cycles back to already-visited run {run_id}"
+            raise CommittedLineageError(msg)
+        seen.add(run_id)
         try:
             manifest = read_manifest(workdir, run_id)
         except FileNotFoundError as exc:

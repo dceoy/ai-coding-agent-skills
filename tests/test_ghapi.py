@@ -120,6 +120,22 @@ def test_scrub_provenance_removes_credential_keys(
     assert forbidden_key not in json.dumps(scrubbed)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        'error: {"Authorization": "Bearer ghp_123456789012345678901234567890123456"}',
+        "error: Authorization\tBearer ghp_123456789012345678901234567890123456",
+        "Bad credentials (ghp_123456789012345678901234567890123456)",
+        "Bad credentials (github_pat_1234567890123456789012345)",
+    ],
+)
+def test_redact_secret_values_catches_shapes_the_key_pattern_misses(text: str) -> None:
+    """A bare or unusually-delimited GitHub token is redacted independent of any key."""
+    redacted = ghapi._redact_secret_values(text)  # pyright: ignore[reportPrivateUsage]
+    assert "ghp_" not in redacted
+    assert "github_pat_" not in redacted
+
+
 def test_paginate_stops_below_full_page(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pagination stops once a page returns fewer than ``per_page`` items."""
     pages = {1: [{"id": 1}, {"id": 2}], 2: [{"id": 3}]}
@@ -162,10 +178,14 @@ def test_request_raises_gh_api_error_on_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A wedged ``gh api`` call times out into ``GhApiError`` rather than hanging."""
+    captured_kwargs: dict[str, object] = {}
 
-    def fake_run(argv: list[str], **_kwargs: object) -> _FakeCompletedProcess:
+    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompletedProcess:
+        captured_kwargs.update(kwargs)
         raise subprocess.TimeoutExpired(cmd=argv, timeout=120.0)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     with pytest.raises(ghapi.GhApiError, match="timed out"):
         ghapi.request(endpoint="/repos/o/r", params={}, repository_id=1, run_id="run-1")
+    expected_timeout = ghapi._REQUEST_TIMEOUT_SECONDS  # pyright: ignore[reportPrivateUsage]
+    assert captured_kwargs["timeout"] == expected_timeout

@@ -119,6 +119,9 @@ def _run_collect_command(args: argparse.Namespace) -> int:
     except workdir.WorkdirLockedError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_LOCKED
+    except workdir.OrganizationMismatchError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_INVALID_ARGS
     if outcome.status != "complete":
         print(
             f"run {outcome.run_id} incomplete: {outcome.manifest['failures']}",

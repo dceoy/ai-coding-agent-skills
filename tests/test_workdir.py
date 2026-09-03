@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 import workdir
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _base_manifest(
@@ -144,3 +141,42 @@ def test_lock_exit_never_deletes_a_lock_it_no_longer_owns(tmp_path: Path) -> Non
         content = json.loads(workdir.lock_path(tmp_path).read_text(encoding="utf-8"))
         assert content["run_id"] == "run-b"
     assert not workdir.lock_path(tmp_path).exists()
+
+
+@pytest.mark.parametrize("lock_content", ["null", "[]", '"x"'])
+def test_lock_exit_does_not_raise_on_non_object_lock_content(
+    tmp_path: Path, lock_content: str
+) -> None:
+    """A lock file holding valid, non-object JSON is treated as not-ours."""
+    lock = workdir.CollectionLock(tmp_path, "run-a")
+    lock.__enter__()  # noqa: PLC2801 -- exercising the protocol directly
+    workdir.lock_path(tmp_path).write_text(lock_content, encoding="utf-8")
+    lock.__exit__(None, None, None)
+    assert workdir.lock_path(tmp_path).exists()
+
+
+def test_lock_enter_cleans_up_touched_file_on_write_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A write failure after acquiring the lock file does not leak an empty lock."""
+
+    def fail_write(_self: Path, *_args: object, **_kwargs: object) -> int:
+        msg = "simulated write failure"
+        raise OSError(msg)
+
+    monkeypatch.setattr(Path, "write_text", fail_write)
+    with pytest.raises(OSError, match="simulated write failure"):
+        workdir.CollectionLock(tmp_path, "run-a").__enter__()  # noqa: PLC2801
+    assert not workdir.lock_path(tmp_path).exists()
+
+
+def test_resolve_committed_lineage_rejects_cycle(tmp_path: Path) -> None:
+    """A manifest chain that cycles back to an already-visited run is rejected."""
+    workdir.finalize_manifest(
+        tmp_path, "run-1", _base_manifest("run-1", previous="run-2")
+    )
+    workdir.finalize_manifest(
+        tmp_path, "run-2", _base_manifest("run-2", previous="run-1")
+    )
+    with pytest.raises(workdir.CommittedLineageError, match="cycle"):
+        workdir.resolve_committed_lineage(tmp_path, {"committed_run_id": "run-1"})

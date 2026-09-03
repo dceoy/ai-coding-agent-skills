@@ -35,7 +35,7 @@ Re-running `collect` against the same `--workdir` incrementally extends coverage
 
 ```text
 <workdir>/
-├── .collect.lock          # held only while a collect run is in progress
+├── .collect.lock          # held while a run is in progress; see methodology.md if it outlives one
 ├── raw/<run-id>/...       # append-only NDJSON per endpoint family
 ├── manifests/<run-id>.json  # finalized, immutable run provenance
 └── state.json              # committed_run_id + per-repository coverage

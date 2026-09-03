@@ -410,8 +410,9 @@ def _process_repo(
     repo_state = previous_repositories.get(key)
     entry = _collect_repository(ctx, repo, repo_state, start=start)
     required_boundary = _parse_ts(entry["required_history_boundary"])
+    previous_boundary_raw = repo_state.get("history_boundary") if repo_state else None
     previous_boundary = (
-        _parse_ts(repo_state["history_boundary"]) if repo_state else None
+        _parse_ts(previous_boundary_raw) if previous_boundary_raw else None
     )
     history_boundary = (
         min(previous_boundary, required_boundary)
@@ -428,6 +429,30 @@ def _process_repo(
         "last_seen_in_enumeration_at": _fmt_ts(ctx.refresh_started_at),
     }
     return entry, state_entry
+
+
+def _ensure_matching_organization(
+    previous_state: dict[str, Any] | None, org: str, workdir_path: Path
+) -> None:
+    """Fail closed if a committed state belongs to a different organization.
+
+    Args:
+        previous_state: A pinned committed state snapshot, or ``None``.
+        org: The requested organization login.
+        workdir_path: The skill's workdir root, for the error message.
+
+    Raises:
+        workdir.OrganizationMismatchError: If ``previous_state`` exists and
+            was committed for a different organization than ``org``.
+    """
+    if previous_state is None or previous_state.get("organization") == org:
+        return
+    msg = (
+        f"workdir {workdir_path} is committed to organization "
+        f"{previous_state.get('organization')!r}, not {org!r}; "
+        "use a different --workdir per organization"
+    )
+    raise workdir.OrganizationMismatchError(msg)
 
 
 def run_collect(
@@ -460,6 +485,7 @@ def run_collect(
     with workdir.CollectionLock(workdir_path, run_id):
         refresh_started_at = datetime.now(UTC)
         previous_state = workdir.read_state(workdir_path)
+        _ensure_matching_organization(previous_state, org, workdir_path)
         previous_committed_run_id = (
             previous_state.get("committed_run_id") if previous_state else None
         )

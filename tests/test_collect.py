@@ -153,6 +153,7 @@ def test_backward_range_expansion_triggers_backfill(
         tmp_path,
         {
             "committed_run_id": "prior",
+            "organization": "acme",
             "collection_affecting_fingerprint": (
                 collect.collection_affecting_fingerprint([])
             ),
@@ -185,6 +186,7 @@ def test_incremental_discovery_uses_created_ascending_since_watermark(
         tmp_path,
         {
             "committed_run_id": "prior",
+            "organization": "acme",
             "collection_affecting_fingerprint": (
                 collect.collection_affecting_fingerprint([])
             ),
@@ -227,6 +229,7 @@ def test_reconciliation_adds_pr_missed_by_incremental_scan(
         tmp_path,
         {
             "committed_run_id": "prior",
+            "organization": "acme",
             "collection_affecting_fingerprint": (
                 collect.collection_affecting_fingerprint([])
             ),
@@ -468,27 +471,29 @@ def test_touched_pr_bundle_is_written_to_raw_evidence(
         direction="desc",
     )
     fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7, "id": 700})
+    fake_gh.set_list(
+        "/repos/acme/repo1/pulls/7/reviews", [[{"id": 1, "state": "APPROVED"}]]
+    )
+    fake_gh.set_list("/repos/acme/repo1/pulls/7/commits", [[{"sha": "abc123"}]])
+    fake_gh.set_list("/repos/acme/repo1/issues/7/timeline", [[{"event": "reviewed"}]])
     outcome = collect.run_collect(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
     )
     raw_root = workdir.raw_dir(tmp_path, outcome.run_id)
-    for filename in (
-        "pulls.ndjson",
-        "reviews.ndjson",
-        "commits.ndjson",
-        "timeline.ndjson",
-    ):
+    expected_payloads = {
+        "pulls.ndjson": {"number": 7, "id": 700},
+        "reviews.ndjson": [{"id": 1, "state": "APPROVED"}],
+        "commits.ndjson": [{"sha": "abc123"}],
+        "timeline.ndjson": [{"event": "reviewed"}],
+    }
+    for filename, expected_payload in expected_payloads.items():
         lines = (raw_root / filename).read_text(encoding="utf-8").splitlines()
         records = [json.loads(line) for line in lines]
-        assert any(record["pr_number"] == 7 for record in records), (
-            f"{filename} must retain a record for the touched PR"
+        matching = [record for record in records if record["pr_number"] == 7]
+        assert matching, f"{filename} must retain a record for the touched PR"
+        assert matching[0]["payload"] == expected_payload, (
+            f"{filename} must retain the actual fetched bundle content"
         )
-    pulls_record = next(
-        json.loads(line)
-        for line in (raw_root / "pulls.ndjson").read_text(encoding="utf-8").splitlines()
-        if json.loads(line)["pr_number"] == 7
-    )
-    assert pulls_record["payload"] == {"number": 7, "id": 700}
 
 
 def test_history_boundary_is_never_pulled_forward(
@@ -516,3 +521,23 @@ def test_history_boundary_is_never_pulled_forward(
         second.manifest["repositories"]["1"]["required_history_boundary"]
         != first_boundary
     )
+
+
+def test_organization_mismatch_is_rejected_before_live_collection(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """Reusing a workdir for a different org fails closed before any collection."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    committed_before = workdir.read_state(tmp_path)
+    calls_before = len(fake_gh.calls)
+
+    with pytest.raises(workdir.OrganizationMismatchError):
+        collect.run_collect(
+            org="other-org", workdir_path=tmp_path, start=_START, end=_END
+        )
+    assert len(fake_gh.calls) == calls_before, (
+        "rejection must happen before any live collection call"
+    )
+    assert workdir.read_state(tmp_path) == committed_before

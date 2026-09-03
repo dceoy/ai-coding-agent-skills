@@ -41,6 +41,14 @@ _SECRET_VALUE_PATTERN = re.compile(
     r"(authorization|token|password|secret|cookie)(\s*[:=]\s*).+", re.IGNORECASE
 )
 
+#: Matches GitHub credential token shapes directly, independent of any
+#: surrounding key. Catches forms the key-anchored pattern above misses:
+#: JSON-quoted keys, tab-separated headers, and bare tokens with no key
+#: prefix at all (for example ``gh``'s "Bad credentials (ghp_...)").
+_SECRET_TOKEN_PATTERN = re.compile(
+    r"gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}"
+)
+
 
 class GhApiError(Exception):
     """Raised when a ``gh api`` invocation fails or returns unparseable JSON."""
@@ -90,10 +98,12 @@ def _redact_secret_values(text: str) -> str:
             as ``gh``'s stderr output.
 
     Returns:
-        ``text`` with any ``key: value`` or ``key=value`` fragment whose
-        key looks credential-shaped replaced by a redacted placeholder.
+        ``text`` with any ``key: value``/``key=value`` fragment whose key
+        looks credential-shaped, and any bare GitHub token shape regardless
+        of surrounding key context, replaced by a redacted placeholder.
     """
-    return _SECRET_VALUE_PATTERN.sub(r"\1\2[REDACTED]", text)
+    redacted = _SECRET_VALUE_PATTERN.sub(r"\1\2[REDACTED]", text)
+    return _SECRET_TOKEN_PATTERN.sub("[REDACTED]", redacted)
 
 
 def request(
