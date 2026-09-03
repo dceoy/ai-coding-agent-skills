@@ -49,26 +49,26 @@ primary ITS and the symmetric-window sensitivities.
 
 ### Scale / composition diagnostics (descriptive only, never modeled)
 
-| Metric | Definition |
-| --- | --- |
-| `active_repositories` | Count of distinct `repository_id` with >=1 qualifying PR-authorship or merge event that week. |
-| `active_pr_authors` | Count of distinct authors (`human`/`explicit-ai-agent`) with >=1 PR opened that week. |
-| `active_human_reviewers` | Count of distinct `human`, `independent: true` reviewers with >=1 submitted review that week. |
-| `opened_prs` | Count of cohort PRs with `created_at` in week, author in `human + explicit-ai-agent`. |
+| Metric                             | Definition                                                                                         |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `active_repositories`              | Count of distinct `repository_id` with >=1 qualifying PR-authorship or merge event that week.      |
+| `active_pr_authors`                | Count of distinct authors (`human`/`explicit-ai-agent`) with >=1 PR opened that week.              |
+| `active_human_reviewers`           | Count of distinct `human`, `independent: true` reviewers with >=1 submitted review that week.      |
+| `opened_prs`                       | Count of cohort PRs with `created_at` in week, author in `human + explicit-ai-agent`.              |
 | `opened_prs_by_<class>` / `_share` | Count and share of opened PRs by each of `human`/`bot`/`explicit-ai-agent`/`unknown` author class. |
-| `reviews_by_<class>` / `_share` | Count and share of submitted reviews by each actor class. |
+| `reviews_by_<class>` / `_share`    | Count and share of submitted reviews by each actor class.                                          |
 
 These are workload/composition diagnostics, not productivity outcomes, and are
 never fit with ITS.
 
 ### Delivery and size
 
-| Metric | Definition | ITS-eligible |
-| --- | --- | --- |
-| `merged_prs` | Count of qualifying merged PRs, assigned to the `merged_at` week. | yes |
-| `median_queue_to_merge` | Median hours from `first_queue_entry` (draft-lifecycle) to `merged_at`, over qualifying merged PRs with `queue_entry_available == true`. `NA` if none that week. | yes |
-| `median_changed_files` | Median `changed_files` over qualifying merged PRs. `NA` if none. | no (diagnostic) |
-| `median_changed_lines` | Median (`additions + deletions`) over qualifying merged PRs. `NA` if none. | no (diagnostic) |
+| Metric                  | Definition                                                                                                                                                       | ITS-eligible    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `merged_prs`            | Count of qualifying merged PRs, assigned to the `merged_at` week.                                                                                                | yes             |
+| `median_queue_to_merge` | Median hours from `first_queue_entry` (draft-lifecycle) to `merged_at`, over qualifying merged PRs with `queue_entry_available == true`. `NA` if none that week. | yes             |
+| `median_changed_files`  | Median `changed_files` over qualifying merged PRs. `NA` if none.                                                                                                 | no (diagnostic) |
+| `median_changed_lines`  | Median (`additions + deletions`) over qualifying merged PRs. `NA` if none.                                                                                       | no (diagnostic) |
 
 `median_queue_to_merge` is queue-based, not creation-to-merge; PRs without a
 reconstructed queue entry are excluded and counted in
@@ -82,13 +82,13 @@ earliest `human`, `independent: true` review with
 `queue_entry_available == true`; otherwise the PR has no first qualifying
 human review for these metrics and is excluded, counted in coverage).
 
-| Metric | Definition |
-| --- | --- |
-| `human_review_coverage_rate` | (qualifying merged PRs with >=1 independent human review `submitted_at <= merged_at`) / (qualifying merged PRs). `NA` if denominator 0. |
-| `median_time_to_first_human_review` | Median hours from `first_queue_entry` to the first qualifying human review's `submitted_at`, over PRs with one. `NA` if none. |
-| `median_first_human_review_to_merge` | Median hours from that same first qualifying human review's `submitted_at` to `merged_at`. `NA` if none. |
-| `human_review_events_per_merged_pr` | (independent human review submissions with `submitted_at <= merged_at`, across qualifying merged PRs) / (qualifying merged PRs). `NA` if denominator 0. |
-| `changes_requested_rate` | (human-reviewed qualifying merged PRs with >=1 reconstructed pre-merge independent human `CHANGES_REQUESTED` state) / (human-reviewed qualifying merged PRs with deterministically available historical review state). PRs whose dismissal history cannot be reconstructed are excluded from both numerator and denominator and counted in `changes_requested_rate_unavailable_n`, never treated as `0`. |
+| Metric                               | Definition                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `human_review_coverage_rate`         | (qualifying merged PRs with >=1 independent human review `submitted_at <= merged_at`) / (qualifying merged PRs). `NA` if denominator 0.                                                                                                                                                                                                                                                                  |
+| `median_time_to_first_human_review`  | Median hours from `first_queue_entry` to the first qualifying human review's `submitted_at`, over PRs with one. `NA` if none.                                                                                                                                                                                                                                                                            |
+| `median_first_human_review_to_merge` | Median hours from that same first qualifying human review's `submitted_at` to `merged_at`. `NA` if none.                                                                                                                                                                                                                                                                                                 |
+| `human_review_events_per_merged_pr`  | (independent human review submissions with `submitted_at <= merged_at`, across qualifying merged PRs) / (qualifying merged PRs). `NA` if denominator 0.                                                                                                                                                                                                                                                  |
+| `changes_requested_rate`             | (human-reviewed qualifying merged PRs with >=1 reconstructed pre-merge independent human `CHANGES_REQUESTED` state) / (human-reviewed qualifying merged PRs with deterministically available historical review state). PRs whose dismissal history cannot be reconstructed are excluded from both numerator and denominator and counted in `changes_requested_rate_unavailable_n`, never treated as `0`. |
 
 `changes_requested_rate`'s pre-merge state reconstruction: for each formal
 review, replay `review_dismissed` timeline events carrying
@@ -100,8 +100,8 @@ unavailable.
 
 ### Pre-merge rework (ITS-eligible)
 
-| Metric | Definition |
-| --- | --- |
+| Metric                       | Definition                                                                                                                                                                                                                                                           |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `post_review_commits_per_pr` | Median, over qualifying merged PRs where the first qualifying human review's `commit_id` is locatable in that PR's ordered, `available: true` commit list, of the count of commits at a later `position` than the reviewed commit. `NA` if none available that week. |
 
 A PR is **unavailable** for this metric (excluded from numerator/denominator,
@@ -159,8 +159,8 @@ y_t = β0 + β1*time_t + β2*post_t + β3*time_after_t + ε_t
 
 Fit a metric only when, after excluding partial-boundary/intervention weeks:
 
-- >=12 non-missing complete weeks before `p` (`time_t < p`);
-- >=12 non-missing complete weeks at/after `p` (`time_t >= p`); and
+- > =12 non-missing complete weeks before `p` (`time_t < p`);
+- > =12 non-missing complete weeks at/after `p` (`time_t >= p`); and
 - the design matrix `[1, time_t, post_t, time_after_t]` has full column rank
   (`numpy.linalg.matrix_rank(X) == 4`).
 
