@@ -449,7 +449,9 @@ def _ensure_matching_organization(org: str, workdir_path: Path) -> None:
     Raises:
         workdir.OrganizationMismatchError: If any existing manifest or the
             organization binding in this workdir names a different
-            organization than ``org``.
+            organization than ``org``, or if the organization binding
+            exists but is corrupted (see
+            :func:`workdir.read_organization_binding`).
     """
     recorded = workdir.manifest_organizations(workdir_path)
     bound = workdir.read_organization_binding(workdir_path)

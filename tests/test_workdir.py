@@ -220,14 +220,31 @@ def test_bind_organization_is_immutable_once_set(tmp_path: Path) -> None:
     assert workdir.read_organization_binding(tmp_path) == "acme"
 
 
-def test_read_organization_binding_tolerates_non_object_json(
+def test_read_organization_binding_fails_closed_on_non_object_json(
     tmp_path: Path,
 ) -> None:
-    """A tampered binding file that isn't a JSON object reports no binding."""
+    """A tampered binding file that isn't a JSON object must not read as unbound.
+
+    Treating a corrupted binding the same as "no binding" would let a run
+    for a different organization silently pass the guard this binding
+    exists to enforce.
+    """
     path = workdir.organization_binding_path(tmp_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("[]", encoding="utf-8")
-    assert workdir.read_organization_binding(tmp_path) is None
+    with pytest.raises(workdir.OrganizationMismatchError):
+        workdir.read_organization_binding(tmp_path)
+
+
+def test_read_organization_binding_fails_closed_on_malformed_json(
+    tmp_path: Path,
+) -> None:
+    """A tampered binding file that isn't valid JSON must not read as unbound."""
+    path = workdir.organization_binding_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not json", encoding="utf-8")
+    with pytest.raises(workdir.OrganizationMismatchError):
+        workdir.read_organization_binding(tmp_path)
 
 
 def test_resolve_collector_revision_returns_a_commit_sha_in_this_checkout() -> None:

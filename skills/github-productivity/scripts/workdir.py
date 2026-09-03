@@ -379,19 +379,37 @@ def read_organization_binding(workdir: Path) -> str | None:
 
     Returns:
         The bound organization, or ``None`` if no binding has been
-        recorded yet, or the binding file is missing, unreadable, or does
-        not hold a JSON object with a string ``organization`` field.
+        recorded yet (the binding file does not exist).
+
+    Raises:
+        OrganizationMismatchError: If the binding file exists but is
+            unreadable, not valid JSON, not a JSON object, or lacks a
+            string ``organization`` field. A corrupted binding must never
+            be treated the same as "no binding" — that would let a run
+            for a different organization silently pass the guard this
+            binding exists to enforce.
     """
+    path = organization_binding_path(workdir)
     try:
-        content = json.loads(
-            organization_binding_path(workdir).read_text(encoding="utf-8")
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        msg = f"organization binding at {path} exists but could not be read: {exc}"
+        raise OrganizationMismatchError(msg) from exc
+    try:
+        content = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        msg = f"organization binding at {path} exists but is not valid JSON: {exc}"
+        raise OrganizationMismatchError(msg) from exc
+    org = content.get("organization") if isinstance(content, dict) else None
+    if not isinstance(org, str):
+        msg = (
+            f"organization binding at {path} exists but does not hold a JSON "
+            "object with a string 'organization' field"
         )
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(content, dict):
-        return None
-    org = content.get("organization")
-    return org if isinstance(org, str) else None
+        raise OrganizationMismatchError(msg)
+    return org
 
 
 def bind_organization(workdir: Path, org: str) -> None:

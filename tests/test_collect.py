@@ -604,6 +604,29 @@ def test_organization_binding_rejects_mismatch_before_any_manifest_exists(
     assert fake_gh.calls == []
 
 
+def test_organization_binding_rejects_run_when_binding_is_corrupted(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A corrupted binding file must fail closed, not read as unbound.
+
+    Simulates a workdir whose ``organization.json`` exists but is not a
+    JSON object with a string ``organization`` field (e.g. truncated by a
+    crash mid-write, outside the atomic replace). Treating that the same
+    as "no binding" would let this run start writing live evidence for a
+    possibly different organization into a workdir another organization
+    may already own.
+    """
+    path = workdir.organization_binding_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(workdir.OrganizationMismatchError):
+        collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    assert fake_gh.calls == []
+    assert workdir.read_state(tmp_path) is None
+    assert workdir.manifest_organizations(tmp_path) == set()
+
+
 def test_organization_binding_is_written_before_first_live_api_call(
     tmp_path: Path, fake_gh: _FakeGh
 ) -> None:
