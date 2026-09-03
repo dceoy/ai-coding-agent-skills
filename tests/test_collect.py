@@ -500,15 +500,48 @@ def test_touched_pr_bundle_is_written_to_raw_evidence(
         )
 
 
-def test_truncated_commit_bundle_beyond_250_fails_closed(
-    tmp_path: Path, fake_gh: _FakeGh
-) -> None:
-    """A PR with >250 commits cannot be silently committed with a truncated bundle.
+def _commit_pages(total: int) -> list[list[dict[str, Any]]]:
+    """Split ``total`` fake commits into GitHub-style pages of up to 100."""
+    return [
+        [{"sha": str(i)} for i in range(offset, min(offset + 100, total))]
+        for offset in range(0, max(total, 1), 100)
+    ]
 
-    GitHub's commits-on-a-pull-request endpoint caps at 250 results, so a
-    400-commit PR yields pages of 100, 100, 50 (a short final page) even
-    though 150 commits are missing. The short page must not be mistaken
-    for natural end-of-pagination.
+
+@pytest.mark.parametrize(
+    ("pr_object", "commit_total", "expect_status", "expect_limitation"),
+    [
+        pytest.param(
+            {"number": 7, "commits": 400}, 250, "complete", True, id="exceeds-250-cap"
+        ),
+        pytest.param(
+            {"number": 7, "commits": 250}, 250, "complete", False, id="at-250-boundary"
+        ),
+        pytest.param(
+            {"number": 7, "commits": 200}, 150, "incomplete", False, id="sub-250-short"
+        ),
+        pytest.param(
+            {"number": 7}, 1, "incomplete", False, id="unreadable-count"
+        ),
+    ],
+)
+def test_commit_bundle_completeness_check(
+    tmp_path: Path,
+    fake_gh: _FakeGh,
+    pr_object: dict[str, Any],
+    commit_total: int,
+    expect_status: str,
+    expect_limitation: bool,
+) -> None:
+    """The collected commit list is verified against the PR's own count.
+
+    A PR whose own count exceeds GitHub's 250-result endpoint cap is a
+    documented availability case (issue #98): the capped bundle is kept,
+    a manifest ``limitations`` entry is recorded, and the run still
+    commits so the PR's watermark advances instead of pinning it inside
+    the discovery window forever. Any other unverifiable or truncated
+    bundle (``expected <= 250`` mismatch, or an unreadable count) fails
+    closed with a ``commits`` failure and no state commit.
     """
     fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
     fake_gh.set_list(
@@ -517,75 +550,45 @@ def test_truncated_commit_bundle_beyond_250_fails_closed(
         sort="updated",
         direction="desc",
     )
-    fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7, "commits": 400})
+    fake_gh.set_object("/repos/acme/repo1/pulls/7", pr_object)
     fake_gh.set_list("/repos/acme/repo1/pulls/7/reviews", [[]])
-    fake_gh.set_list(
-        "/repos/acme/repo1/pulls/7/commits",
-        [[{"sha": str(i)} for i in range(100)]] * 2
-        + [[{"sha": str(i)} for i in range(50)]],
-    )
+    fake_gh.set_list("/repos/acme/repo1/pulls/7/commits", _commit_pages(commit_total))
     fake_gh.set_list("/repos/acme/repo1/issues/7/timeline", [[]])
     outcome = collect.run_collect(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
     )
-    assert outcome.status == "incomplete"
-    failure = next(
+    assert outcome.status == expect_status
+    commits_failures = [
         f for f in outcome.manifest["failures"] if f["endpoint"] == "commits"
-    )
-    assert failure["pr_number"] == 7
-    assert workdir.read_state(tmp_path) is None
-
-
-def test_commit_bundle_without_a_readable_pr_commit_count_fails_closed(
-    tmp_path: Path, fake_gh: _FakeGh
-) -> None:
-    """A PR payload missing an integer ``commits`` field cannot be verified complete.
-
-    An unreadable expected count must not be treated as "no check needed";
-    that would silently accept truncation whenever the PR object happens
-    to omit or malform the field.
-    """
-    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
-    fake_gh.set_list(
-        "/repos/acme/repo1/pulls",
-        [[_pr(7, "2026-01-10T00:00:00Z")]],
-        sort="updated",
-        direction="desc",
-    )
-    fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7})
-    fake_gh.set_list("/repos/acme/repo1/pulls/7/reviews", [[]])
-    fake_gh.set_list("/repos/acme/repo1/pulls/7/commits", [[{"sha": "abc123"}]])
-    fake_gh.set_list("/repos/acme/repo1/issues/7/timeline", [[]])
-    outcome = collect.run_collect(
-        org="acme", workdir_path=tmp_path, start=_START, end=_END
-    )
-    assert outcome.status == "incomplete"
-    failure = next(
-        f for f in outcome.manifest["failures"] if f["endpoint"] == "commits"
-    )
-    assert failure["pr_number"] == 7
-    assert workdir.read_state(tmp_path) is None
-
-
-def test_complete_commit_bundle_matching_pr_count_stays_complete(
-    tmp_path: Path, fake_gh: _FakeGh
-) -> None:
-    """A fully collected commit bundle whose count matches the PR stays complete."""
-    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
-    fake_gh.set_list(
-        "/repos/acme/repo1/pulls",
-        [[_pr(7, "2026-01-10T00:00:00Z")]],
-        sort="updated",
-        direction="desc",
-    )
-    fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7, "commits": 1})
-    fake_gh.set_list("/repos/acme/repo1/pulls/7/reviews", [[]])
-    fake_gh.set_list("/repos/acme/repo1/pulls/7/commits", [[{"sha": "abc123"}]])
-    fake_gh.set_list("/repos/acme/repo1/issues/7/timeline", [[]])
-    outcome = collect.run_collect(
-        org="acme", workdir_path=tmp_path, start=_START, end=_END
-    )
-    assert outcome.status == "complete"
+    ]
+    limitations = [
+        limitation
+        for limitation in outcome.manifest["limitations"]
+        if limitation["kind"] == "pr_commits_exceed_endpoint_cap"
+    ]
+    state = workdir.read_state(tmp_path)
+    if expect_status == "complete":
+        assert commits_failures == []
+        assert state is not None
+        assert (
+            state["repositories"]["1"]["discovery_watermark"]
+            == outcome.manifest["refresh_started_at"]
+        )
+    else:
+        assert commits_failures[0]["pr_number"] == 7
+        assert state is None
+    if expect_limitation:
+        assert limitations == [
+            {
+                "kind": "pr_commits_exceed_endpoint_cap",
+                "repository_id": 1,
+                "pr_number": 7,
+                "expected_commits": 400,
+                "collected_commits": 250,
+            }
+        ]
+    else:
+        assert limitations == []
 
 
 def test_history_boundary_is_never_pulled_forward(

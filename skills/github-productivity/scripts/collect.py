@@ -20,6 +20,11 @@ import workdir
 if TYPE_CHECKING:
     from pathlib import Path
 
+# GitHub's commits-on-a-pull-request endpoint returns at most this many results.
+# A PR whose own commit count exceeds it cannot be paginated in full, so
+# commit-order rework is defined as unavailable for it (issue #98).
+_PR_COMMITS_ENDPOINT_CAP = 250
+
 
 @dataclass(slots=True)
 class CollectOutcome:
@@ -40,6 +45,7 @@ class _RunContext:
     refresh_started_at: datetime
     overlap_hours: int
     failures: list[dict[str, Any]] = field(default_factory=list)
+    limitations: list[dict[str, Any]] = field(default_factory=list)
 
 
 def collection_affecting_fingerprint(ci_workflow_ids: list[int]) -> str:
@@ -247,10 +253,13 @@ def _discover_issues(
 def _fetch_pr_bundle(ctx: _RunContext, repo: dict[str, Any], pr_number: int) -> None:
     """Refetch one PR's canonical snapshot bundle: PR, reviews, commits, timeline.
 
-    An unverifiable or short commits page (see
-    ``_raise_if_commit_bundle_truncated``) is recorded as a failure,
-    making the run ``incomplete`` rather than silently committing a
-    truncated bundle.
+    An unverifiable or truncated commits page for a PR with 250 or fewer
+    commits (see ``_check_commit_bundle_completeness``) is recorded as a
+    failure, making the run ``incomplete`` rather than silently committing
+    a truncated bundle. A PR whose own commit count exceeds GitHub's
+    250-result endpoint cap is instead recorded as a manifest limitation:
+    the capped bundle is kept and the run still progresses, since
+    commit-order rework is defined as unavailable for that PR.
 
     Args:
         ctx: The active run context.
@@ -335,7 +344,9 @@ def _fetch_bundle_entry(
                 },
             )
         if tag == "commits":
-            _raise_if_commit_bundle_truncated(pr_payload, pr_number, collected)
+            _check_commit_bundle_completeness(
+                ctx, repo, pr_number, pr_payload, collected
+            )
         return pr_payload
     response = ghapi.request(
         endpoint=endpoint, params={}, repository_id=repo["id"], run_id=ctx.run_id
@@ -353,32 +364,59 @@ def _fetch_bundle_entry(
     return pr_payload
 
 
-def _raise_if_commit_bundle_truncated(
-    pr_payload: dict[str, Any] | None, pr_number: int, collected: int
+def _check_commit_bundle_completeness(
+    ctx: _RunContext,
+    repo: dict[str, Any],
+    pr_number: int,
+    pr_payload: dict[str, Any] | None,
+    collected: int,
 ) -> None:
-    """Raise unless the collected commit count exactly matches the PR's own count.
+    """Verify a PR's commit bundle against the PR's own commit count.
 
-    GitHub's commits-on-a-pull-request endpoint caps at 250 results, so a
-    short final page can mean either natural end-of-list or truncation
-    past that cap; comparing against the PR's own ``commits`` count tells
-    them apart. An unreadable expected count (a missing ``pulls`` fetch,
-    or a payload without an integer ``commits`` field) is treated the same
-    as a mismatch: it cannot be verified as complete, so it must not be
-    committed as if it were. Any mismatch -- short or over-count -- is
-    rejected rather than only a shortfall, since either means the commits
-    list and the PR's own count were not observed as one coherent
-    snapshot (for example a commit pushed between the two fetches).
+    The collected commits are compared with the PR object's ``commits``
+    field to tell a naturally short final page apart from a truncated one:
+
+    - An unreadable expected count (a missing ``pulls`` fetch, or a
+      payload without an integer ``commits`` field) fails closed -- it
+      cannot be verified complete, so it must not be committed as if it
+      were.
+    - ``expected > 250`` is GitHub's documented commits-on-a-pull-request
+      endpoint cap. Per issue #98, commit-order-based rework is simply
+      unavailable for such a PR; the capped bundle is retained as
+      evidence and the limitation is recorded, but the run is **not**
+      failed. Failing here would leave the PR permanently inside the
+      discovery window (an unadvanced watermark is retried every run),
+      stalling every future refresh of the workdir.
+    - Otherwise (``expected <= 250``) any mismatch -- short or over-count
+      -- fails closed, since either means the commits list and the PR's
+      own count were not observed as one coherent snapshot (for example a
+      commit pushed between the two fetches).
 
     Raises:
-        ghapi.GhApiError: If the PR's commit count cannot be read, or
-            does not exactly match the number of commits collected.
+        ghapi.GhApiError: If the PR's commit count cannot be read, or is
+            ``<= 250`` and does not exactly match the number collected.
     """
     expected = pr_payload.get("commits") if pr_payload else None
-    if not isinstance(expected, int) or collected != expected:
+    if not isinstance(expected, int):
         msg = (
-            f"expected {expected!r} commits for PR #{pr_number} but collected "
-            f"{collected}; the commits endpoint caps at 250 results and cannot "
-            "be fully paginated past it"
+            f"could not read an integer commit count for PR #{pr_number}; "
+            "the commits bundle cannot be verified complete"
+        )
+        raise ghapi.GhApiError(msg)
+    if expected > _PR_COMMITS_ENDPOINT_CAP:
+        ctx.limitations.append({
+            "kind": "pr_commits_exceed_endpoint_cap",
+            "repository_id": repo["id"],
+            "pr_number": pr_number,
+            "expected_commits": expected,
+            "collected_commits": collected,
+        })
+        return
+    if collected != expected:
+        msg = (
+            f"expected {expected} commits for PR #{pr_number} but collected "
+            f"{collected}; the commit bundle is truncated or was not observed "
+            "as a coherent snapshot"
         )
         raise ghapi.GhApiError(msg)
 
@@ -609,6 +647,7 @@ def run_collect(
             "collection_affecting_fingerprint": fingerprint,
             "repositories": manifest_repositories,
             "failures": ctx.failures,
+            "limitations": ctx.limitations,
         }
         workdir.finalize_manifest(workdir_path, run_id, manifest)
         if status == "complete":

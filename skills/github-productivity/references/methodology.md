@@ -38,6 +38,8 @@ Either path is always followed by a **reconciliation pass**: the Issues endpoint
 
 Every touched PR gets its canonical snapshot bundle refetched in the same run: the PR object, its formal reviews, its commits, and its issue timeline — all fetched fresh and appended to that run's raw evidence. (Bundle _selection_ across runs — choosing the newest eligible bundle and replacing rather than unioning child rows — is normalization work, deferred to the follow-up PR.)
 
+The collected commit list is checked against the PR object's own `commits` count. If the count cannot be read, or is 250 or fewer and does not match what was collected, the bundle is treated as truncated: the endpoint call is recorded in `failures` and the run is `incomplete`. If the PR's own count exceeds 250 — GitHub's documented cap for the commits-on-a-pull-request endpoint — the capped list is retained as-is and an entry is added to the manifest's `limitations` list (`kind: "pr_commits_exceed_endpoint_cap"`, with `repository_id`, `pr_number`, `expected_commits`, and `collected_commits`); the run stays `complete` and its watermarks advance. Per issue #98, commit-order-based rework is simply unavailable for such a PR, so failing the run instead would only keep that PR pinned inside the discovery window and stall every future refresh of the workdir.
+
 ## Observation-range semantics
 
 The requested observation interval is half-open UTC `[start, end)`; `end <= start` is rejected. A date-only CLI value (`YYYY-MM-DD`) converts deterministically to UTC midnight (`YYYY-MM-DDT00:00:00Z`); any other value must carry an explicit UTC offset.
