@@ -248,20 +248,35 @@ def _touched_prs(manifest: dict[str, Any]) -> set[tuple[int, int]]:
 
     Returns:
         The set of touched PR identities recorded in the manifest.
+
+    Raises:
+        NormalizeError: If ``repositories`` is not a dict, an entry is not a
+            dict, or a ``touched_pr_numbers`` element is not an int -- a
+            malformed committed manifest must fail closed rather than
+            silently drop PR identities.
     """
     pairs: set[tuple[int, int]] = set()
     repositories = manifest.get("repositories", {})
     if not isinstance(repositories, dict):
-        return pairs
+        msg = f"manifest 'repositories' must be an object, got {repositories!r}"
+        raise NormalizeError(msg)
     for key, entry in repositories.items():
         try:
             repo_id = int(key)
         except (TypeError, ValueError):
             continue
-        numbers = entry.get("touched_pr_numbers", []) if isinstance(entry, dict) else []
+        if not isinstance(entry, dict):
+            msg = f"manifest repository entry {key!r} must be an object, got {entry!r}"
+            raise NormalizeError(msg)
+        numbers = entry.get("touched_pr_numbers", [])
         for number in numbers:
-            if isinstance(number, int) and not isinstance(number, bool):
-                pairs.add((repo_id, number))
+            if isinstance(number, bool) or not isinstance(number, int):
+                msg = (
+                    f"manifest repository {key!r} 'touched_pr_numbers' entry "
+                    f"must be an integer, got {number!r}"
+                )
+                raise NormalizeError(msg)
+            pairs.add((repo_id, number))
     return pairs
 
 
@@ -733,14 +748,21 @@ def _repository_rows(state: dict[str, Any]) -> list[dict[str, Any]]:
         One row per committed repository ID, sorted by numeric ID. Forks
         and archived repositories are retained and flagged; cohort choices
         are a later aggregation-time decision.
+
+    Raises:
+        NormalizeError: If ``repositories`` is not a dict or an entry is not
+            a dict -- a malformed committed ``state.json`` must fail closed
+            rather than silently drop repositories.
     """
     rows: list[dict[str, Any]] = []
     repositories = state.get("repositories", {})
     if not isinstance(repositories, dict):
-        return rows
+        msg = f"state 'repositories' must be an object, got {repositories!r}"
+        raise NormalizeError(msg)
     for key, entry in repositories.items():
         if not isinstance(entry, dict):
-            continue
+            msg = f"state repository entry {key!r} must be an object, got {entry!r}"
+            raise NormalizeError(msg)
         try:
             repo_id = int(key)
         except (TypeError, ValueError):

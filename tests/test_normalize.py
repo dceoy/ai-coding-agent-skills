@@ -748,6 +748,41 @@ def test_null_committed_run_id_raises_rather_than_writing_empty_tree(
     assert not (tmp_path / "normalized").exists()
 
 
+def test_touched_prs_fails_closed_on_malformed_manifest_repositories(
+    tmp_path: Path,
+) -> None:
+    """A non-int ``touched_pr_numbers`` entry raises instead of being dropped."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    manifest_path = workdir.manifest_path(tmp_path, "run-a")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["repositories"]["1"]["touched_pr_numbers"] = ["not-an-int"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="touched_pr_numbers"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_repository_rows_fails_closed_on_malformed_state_repositories(
+    tmp_path: Path,
+) -> None:
+    """A non-dict repository entry in committed state raises, not silently drops."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    state = json.loads(workdir.state_path(tmp_path).read_text(encoding="utf-8"))
+    state["repositories"]["1"] = "not-a-dict"
+    workdir.state_path(tmp_path).write_text(json.dumps(state), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="must be an object"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
 def test_actors_registry_dedupes_by_id_first_login_wins(tmp_path: Path) -> None:
     """One actor ID under two logins keeps the first; login-only actors sort last."""
     commit_run(
