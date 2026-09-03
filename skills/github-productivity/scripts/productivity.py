@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """CLI entry point for the ``github-productivity`` skill.
 
-Registers the ``collect`` and ``normalize`` subcommands. Aggregation,
-analysis, and reporting subcommands land in follow-up work; see
-``SKILL.md`` for the current scope.
+Registers the ``collect``, ``normalize``, ``aggregate``, ``analyze``, and
+``report`` subcommands.
 """
 
 from __future__ import annotations
@@ -15,8 +14,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import workdir
+from aggregate import AggregateError, run_aggregate
+from analyze import AnalyzeError, run_analyze
 from collect import run_collect
 from normalize import NormalizeError, run_normalize
+from report import ReportError, run_report
 
 #: Exit codes returned by :func:`main`.
 EXIT_OK = 0
@@ -111,6 +113,65 @@ def _build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="Regenerate normalized/ even if it is already current.",
+    )
+
+    aggregate_parser = subparsers.add_parser(
+        "aggregate",
+        help="Build the organization-week panel from normalized entities.",
+    )
+    aggregate_parser.add_argument(
+        "--workdir",
+        required=True,
+        type=Path,
+        help="Workdir root holding normalized entities.",
+    )
+    aggregate_parser.add_argument(
+        "--start",
+        required=True,
+        help="Inclusive UTC interval start (date-only or timestamp).",
+    )
+    aggregate_parser.add_argument(
+        "--end",
+        required=True,
+        help="Exclusive UTC interval end (date-only or timestamp).",
+    )
+    aggregate_parser.add_argument(
+        "--overlap-hours",
+        type=int,
+        default=24,
+        help="Overlap used to check committed historical coverage against --start.",
+    )
+    aggregate_parser.add_argument(
+        "--include-forks",
+        action="store_true",
+        help="Include forked repositories in the primary cohort.",
+    )
+
+    analyze_parser = subparsers.add_parser(
+        "analyze",
+        help="Fit the pre-specified ITS models and required sensitivities.",
+    )
+    analyze_parser.add_argument(
+        "--workdir",
+        required=True,
+        type=Path,
+        help="Workdir root holding an 'aggregate' panel.",
+    )
+    analyze_parser.add_argument(
+        "--intervention-at",
+        default=None,
+        help="UTC intervention timestamp; omit for a descriptive-only run.",
+    )
+
+    report_parser = subparsers.add_parser(
+        "report",
+        help="Generate the fixed chart set and Markdown report.",
+    )
+    report_parser.add_argument(
+        "--workdir",
+        required=True,
+        type=Path,
+        help="Workdir root holding an 'analyze' output.",
     )
     return parser
 
@@ -209,6 +270,104 @@ def _run_normalize_command(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _validate_window_args(args: argparse.Namespace) -> tuple[datetime, datetime] | int:
+    """Parse and validate a subcommand's shared ``--start``/``--end`` window.
+
+    Args:
+        args: Parsed CLI arguments carrying ``start``/``end`` strings.
+
+    Returns:
+        The parsed ``(start, end)`` boundaries if valid, otherwise the
+        exit code to return for the first validation failure found.
+    """
+    try:
+        start = parse_boundary(args.start)
+        end = parse_boundary(args.end)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_INVALID_ARGS
+    if end <= start:
+        print("error: --end must be strictly after --start", file=sys.stderr)
+        return EXIT_INVALID_ARGS
+    return start, end
+
+
+def _run_aggregate_command(args: argparse.Namespace) -> int:
+    """Handle a parsed ``aggregate`` invocation.
+
+    Args:
+        args: Parsed CLI arguments for the ``aggregate`` subcommand.
+
+    Returns:
+        The process exit code.
+    """
+    validated = _validate_window_args(args)
+    if isinstance(validated, int):
+        return validated
+    start, end = validated
+    if args.overlap_hours < 0:
+        print("error: --overlap-hours must not be negative", file=sys.stderr)
+        return EXIT_INVALID_ARGS
+    try:
+        outcome = run_aggregate(
+            workdir_path=args.workdir,
+            start=start,
+            end=end,
+            overlap_hours=args.overlap_hours,
+            include_forks=args.include_forks,
+        )
+    except AggregateError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_DERIVATION_FAILED
+    print(f"aggregated {len(outcome.panel.weeks)} weeks to {outcome.csv_path}")
+    return EXIT_OK
+
+
+def _run_analyze_command(args: argparse.Namespace) -> int:
+    """Handle a parsed ``analyze`` invocation.
+
+    Args:
+        args: Parsed CLI arguments for the ``analyze`` subcommand.
+
+    Returns:
+        The process exit code.
+    """
+    intervention_at = None
+    if args.intervention_at is not None:
+        try:
+            intervention_at = parse_boundary(args.intervention_at)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_INVALID_ARGS
+    try:
+        outcome = run_analyze(
+            workdir_path=args.workdir, intervention_at=intervention_at
+        )
+    except AnalyzeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_DERIVATION_FAILED
+    print(f"analyzed to {outcome.path}")
+    return EXIT_OK
+
+
+def _run_report_command(args: argparse.Namespace) -> int:
+    """Handle a parsed ``report`` invocation.
+
+    Args:
+        args: Parsed CLI arguments for the ``report`` subcommand.
+
+    Returns:
+        The process exit code.
+    """
+    try:
+        outcome = run_report(workdir_path=args.workdir)
+    except ReportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_DERIVATION_FAILED
+    print(f"reported to {outcome.report_path}")
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point.
 
@@ -224,6 +383,12 @@ def main(argv: list[str] | None = None) -> int:
         return _run_collect_command(args)
     if args.command == "normalize":
         return _run_normalize_command(args)
+    if args.command == "aggregate":
+        return _run_aggregate_command(args)
+    if args.command == "analyze":
+        return _run_analyze_command(args)
+    if args.command == "report":
+        return _run_report_command(args)
     parser.error(f"unknown command {args.command!r}")
     return EXIT_INVALID_ARGS
 
