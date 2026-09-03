@@ -783,6 +783,160 @@ def test_repository_rows_fails_closed_on_malformed_state_repositories(
         normalize.run_normalize(workdir_path=tmp_path)
 
 
+def test_repository_rows_fails_closed_on_non_numeric_key(tmp_path: Path) -> None:
+    """A non-numeric repository key in committed state raises, not silently drops."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    state = json.loads(workdir.state_path(tmp_path).read_text(encoding="utf-8"))
+    state["repositories"]["not-a-number"] = state["repositories"].pop("1")
+    workdir.state_path(tmp_path).write_text(json.dumps(state), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="numeric repository ID"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_touched_prs_fails_closed_on_non_numeric_repository_key(
+    tmp_path: Path,
+) -> None:
+    """A non-numeric repository key in a manifest raises, not silently drops PRs."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    manifest_path = workdir.manifest_path(tmp_path, "run-a")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["repositories"]["not-a-number"] = manifest["repositories"].pop("1")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="numeric repository ID"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_cap_exceeded_fails_closed_on_non_list_limitations(tmp_path: Path) -> None:
+    """A non-list ``limitations`` value raises instead of reading as "not capped"."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    manifest_path = workdir.manifest_path(tmp_path, "run-a")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["limitations"] = "not-a-list"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="limitations"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_cap_exceeded_fails_closed_on_non_dict_limitation_entry(
+    tmp_path: Path,
+) -> None:
+    """A non-object ``limitations`` entry raises instead of being skipped."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    manifest_path = workdir.manifest_path(tmp_path, "run-a")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["limitations"] = ["not-an-object"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(normalize.NormalizeError, match="limitations"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_raw_bundle_non_dict_record_fails_closed(tmp_path: Path) -> None:
+    """A raw evidence line that is valid JSON but not an object raises."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    commits = workdir.raw_dir(tmp_path, "run-a") / "commits.ndjson"
+    with commits.open("a", encoding="utf-8") as handle:
+        handle.write("[1, 2, 3]\n")
+    with pytest.raises(normalize.NormalizeError, match="must be an object"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_raw_bundle_wrong_typed_pr_identity_fails_closed(tmp_path: Path) -> None:
+    """A raw evidence line with a non-int pr_number/repository_id raises."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    commits = workdir.raw_dir(tmp_path, "run-a") / "commits.ndjson"
+    with commits.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "pr_number": "not-an-int",
+                    "provenance": {"repository_id": 1},
+                    "payload": [{"sha": "z1"}],
+                }
+            )
+            + "\n"
+        )
+    with pytest.raises(normalize.NormalizeError, match="pr_number"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_flatten_rejects_non_dict_page_element(tmp_path: Path) -> None:
+    """A page payload list containing a non-object element raises."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    commits = workdir.raw_dir(tmp_path, "run-a") / "commits.ndjson"
+    with commits.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "pr_number": 7,
+                    "provenance": {"repository_id": 1},
+                    "payload": ["not-an-object"],
+                }
+            )
+            + "\n"
+        )
+    with pytest.raises(normalize.NormalizeError, match=r"commits\.ndjson"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+def test_flatten_rejects_wrong_typed_page_payload(tmp_path: Path) -> None:
+    """A page payload that is neither an object nor an array raises."""
+    commit_run(
+        tmp_path,
+        run_id="run-a",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    commits = workdir.raw_dir(tmp_path, "run-a") / "commits.ndjson"
+    with commits.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "pr_number": 7,
+                    "provenance": {"repository_id": 1},
+                    "payload": "not-an-object-or-array",
+                }
+            )
+            + "\n"
+        )
+    with pytest.raises(normalize.NormalizeError, match=r"commits\.ndjson"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
 def test_actors_registry_dedupes_by_id_first_login_wins(tmp_path: Path) -> None:
     """One actor ID under two logins keeps the first; login-only actors sort last."""
     commit_run(

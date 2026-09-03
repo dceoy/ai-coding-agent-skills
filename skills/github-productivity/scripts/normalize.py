@@ -250,10 +250,11 @@ def _touched_prs(manifest: dict[str, Any]) -> set[tuple[int, int]]:
         The set of touched PR identities recorded in the manifest.
 
     Raises:
-        NormalizeError: If ``repositories`` is not a dict, an entry is not a
-            dict, or a ``touched_pr_numbers`` element is not an int -- a
-            malformed committed manifest must fail closed rather than
-            silently drop PR identities.
+        NormalizeError: If ``repositories`` is not a dict, a key is not a
+            numeric repository ID, an entry is not a dict, or a
+            ``touched_pr_numbers`` element is not an int -- a malformed
+            committed manifest must fail closed rather than silently drop
+            PR identities.
     """
     pairs: set[tuple[int, int]] = set()
     repositories = manifest.get("repositories", {})
@@ -263,8 +264,9 @@ def _touched_prs(manifest: dict[str, Any]) -> set[tuple[int, int]]:
     for key, entry in repositories.items():
         try:
             repo_id = int(key)
-        except (TypeError, ValueError):
-            continue
+        except (TypeError, ValueError) as exc:
+            msg = f"manifest repository key {key!r} must be a numeric repository ID"
+            raise NormalizeError(msg) from exc
         if not isinstance(entry, dict):
             msg = f"manifest repository entry {key!r} must be an object, got {entry!r}"
             raise NormalizeError(msg)
@@ -291,14 +293,22 @@ def _cap_exceeded(manifest: dict[str, Any], repo_id: int, pr_number: int) -> boo
     Returns:
         ``True`` if the manifest records a ``pr_commits_exceed_endpoint_cap``
         limitation for this PR.
+
+    Raises:
+        NormalizeError: If ``limitations`` is not a list or an entry is not
+            an object -- a malformed committed manifest must fail closed
+            rather than being silently read as "this PR was not capped".
     """
     limitations = manifest.get("limitations", [])
     if not isinstance(limitations, list):
-        return False
+        msg = f"manifest 'limitations' must be an array, got {limitations!r}"
+        raise NormalizeError(msg)
     for limitation in limitations:
+        if not isinstance(limitation, dict):
+            msg = f"manifest 'limitations' entry must be an object, got {limitation!r}"
+            raise NormalizeError(msg)
         if (
-            isinstance(limitation, dict)
-            and limitation.get("kind") == "pr_commits_exceed_endpoint_cap"
+            limitation.get("kind") == "pr_commits_exceed_endpoint_cap"
             and limitation.get("repository_id") == repo_id
             and limitation.get("pr_number") == pr_number
         ):
@@ -330,7 +340,10 @@ def _read_run_bucket(raw_root: Path, filename: str) -> dict[tuple[int, int], lis
     Raises:
         NormalizeError: If the file does not exist or is unreadable -- a
             lineage-committed run is expected to hold every bundle endpoint
-            -- or a line is not valid JSON.
+            -- or a line is not valid JSON, not an object, or missing a
+            well-typed ``pr_number``/``provenance.repository_id`` -- a
+            damaged committed record must fail closed rather than silently
+            disappear.
     """
     path = raw_root / filename
     try:
@@ -356,7 +369,11 @@ def _read_run_bucket(raw_root: Path, filename: str) -> dict[tuple[int, int], lis
                 msg = f"raw evidence in {path} line {lineno} is not valid JSON: {exc}"
                 raise NormalizeError(msg) from exc
             if not isinstance(record, dict):
-                continue
+                msg = (
+                    f"raw evidence in {path} line {lineno} must be an object, "
+                    f"got {record!r}"
+                )
+                raise NormalizeError(msg)
             pr_number = record.get("pr_number")
             provenance = record.get("provenance")
             repo_id = (
@@ -365,27 +382,45 @@ def _read_run_bucket(raw_root: Path, filename: str) -> dict[tuple[int, int], lis
                 else None
             )
             if not isinstance(pr_number, int) or not isinstance(repo_id, int):
-                continue
+                msg = (
+                    f"raw evidence in {path} line {lineno} must have an integer "
+                    f"'pr_number' and 'provenance.repository_id', got "
+                    f"pr_number={pr_number!r} provenance={provenance!r}"
+                )
+                raise NormalizeError(msg)
             buckets.setdefault((repo_id, pr_number), []).append(record.get("payload"))
     return buckets
 
 
-def _flatten(payloads: list[Any]) -> list[dict[str, Any]]:
+def _flatten(payloads: list[Any], *, source: str) -> list[dict[str, Any]]:
     """Flatten a list of page payloads into a single ordered record list.
 
     Args:
         payloads: Page payloads, each a list of records (or a single
             record).
+        source: A description of the payloads' origin, for error messages.
 
     Returns:
         Every record, in page then in-page order.
+
+    Raises:
+        NormalizeError: If a payload is neither a list nor an object, or a
+            list element is not an object -- malformed committed page data
+            must fail closed rather than being silently filtered out.
     """
     records: list[dict[str, Any]] = []
     for payload in payloads:
         if isinstance(payload, list):
-            records.extend(item for item in payload if isinstance(item, dict))
+            for item in payload:
+                if not isinstance(item, dict):
+                    msg = f"{source} page element must be an object, got {item!r}"
+                    raise NormalizeError(msg)
+                records.append(item)
         elif isinstance(payload, dict):
             records.append(payload)
+        else:
+            msg = f"{source} page payload must be an object or array, got {payload!r}"
+            raise NormalizeError(msg)
     return records
 
 
@@ -448,9 +483,15 @@ def _build_run_bundles(
                 pr_number=key[1],
                 source_run_id=run_id,
                 pr_object=pr_object,
-                reviews=_flatten(files["reviews.ndjson"].get(key, [])),
-                commits=_flatten(files["commits.ndjson"].get(key, [])),
-                timeline=_flatten(files["timeline.ndjson"].get(key, [])),
+                reviews=_flatten(
+                    files["reviews.ndjson"].get(key, []), source="reviews.ndjson"
+                ),
+                commits=_flatten(
+                    files["commits.ndjson"].get(key, []), source="commits.ndjson"
+                ),
+                timeline=_flatten(
+                    files["timeline.ndjson"].get(key, []), source="timeline.ndjson"
+                ),
                 commits_capped=_cap_exceeded(manifest, key[0], key[1]),
             )
         )
@@ -750,9 +791,10 @@ def _repository_rows(state: dict[str, Any]) -> list[dict[str, Any]]:
         are a later aggregation-time decision.
 
     Raises:
-        NormalizeError: If ``repositories`` is not a dict or an entry is not
-            a dict -- a malformed committed ``state.json`` must fail closed
-            rather than silently drop repositories.
+        NormalizeError: If ``repositories`` is not a dict, an entry is not a
+            dict, or a key is not a numeric repository ID -- a malformed
+            committed ``state.json`` must fail closed rather than silently
+            drop repositories.
     """
     rows: list[dict[str, Any]] = []
     repositories = state.get("repositories", {})
@@ -765,8 +807,9 @@ def _repository_rows(state: dict[str, Any]) -> list[dict[str, Any]]:
             raise NormalizeError(msg)
         try:
             repo_id = int(key)
-        except (TypeError, ValueError):
-            continue
+        except (TypeError, ValueError) as exc:
+            msg = f"state repository key {key!r} must be a numeric repository ID"
+            raise NormalizeError(msg) from exc
         rows.append({
             "repository_id": repo_id,
             "name": entry.get("name"),
