@@ -520,9 +520,7 @@ def _commit_pages(total: int) -> list[list[dict[str, Any]]]:
         pytest.param(
             {"number": 7, "commits": 200}, 150, "incomplete", False, id="sub-250-short"
         ),
-        pytest.param(
-            {"number": 7}, 1, "incomplete", False, id="unreadable-count"
-        ),
+        pytest.param({"number": 7}, 1, "incomplete", False, id="unreadable-count"),
     ],
 )
 def test_commit_bundle_completeness_check(
