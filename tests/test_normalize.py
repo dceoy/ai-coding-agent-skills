@@ -876,13 +876,11 @@ def test_raw_bundle_wrong_typed_pr_identity_fails_closed(tmp_path: Path) -> None
     commits = workdir.raw_dir(tmp_path, "run-a") / "commits.ndjson"
     with commits.open("a", encoding="utf-8") as handle:
         handle.write(
-            json.dumps(
-                {
-                    "pr_number": "not-an-int",
-                    "provenance": {"repository_id": 1},
-                    "payload": [{"sha": "z1"}],
-                }
-            )
+            json.dumps({
+                "pr_number": "not-an-int",
+                "provenance": {"repository_id": 1},
+                "payload": [{"sha": "z1"}],
+            })
             + "\n"
         )
     with pytest.raises(normalize.NormalizeError, match="pr_number"):
@@ -900,13 +898,11 @@ def test_flatten_rejects_non_dict_page_element(tmp_path: Path) -> None:
     commits = workdir.raw_dir(tmp_path, "run-a") / "commits.ndjson"
     with commits.open("a", encoding="utf-8") as handle:
         handle.write(
-            json.dumps(
-                {
-                    "pr_number": 7,
-                    "provenance": {"repository_id": 1},
-                    "payload": ["not-an-object"],
-                }
-            )
+            json.dumps({
+                "pr_number": 7,
+                "provenance": {"repository_id": 1},
+                "payload": ["not-an-object"],
+            })
             + "\n"
         )
     with pytest.raises(normalize.NormalizeError, match=r"commits\.ndjson"):
@@ -924,13 +920,11 @@ def test_flatten_rejects_wrong_typed_page_payload(tmp_path: Path) -> None:
     commits = workdir.raw_dir(tmp_path, "run-a") / "commits.ndjson"
     with commits.open("a", encoding="utf-8") as handle:
         handle.write(
-            json.dumps(
-                {
-                    "pr_number": 7,
-                    "provenance": {"repository_id": 1},
-                    "payload": "not-an-object-or-array",
-                }
-            )
+            json.dumps({
+                "pr_number": 7,
+                "provenance": {"repository_id": 1},
+                "payload": "not-an-object-or-array",
+            })
             + "\n"
         )
     with pytest.raises(normalize.NormalizeError, match=r"commits\.ndjson"):
