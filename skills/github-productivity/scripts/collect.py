@@ -431,26 +431,31 @@ def _process_repo(
     return entry, state_entry
 
 
-def _ensure_matching_organization(
-    previous_state: dict[str, Any] | None, org: str, workdir_path: Path
-) -> None:
-    """Fail closed if a committed state belongs to a different organization.
+def _ensure_matching_organization(org: str, workdir_path: Path) -> None:
+    """Fail closed if this workdir already has evidence for a different org.
+
+    Checks every manifest that exists, complete or incomplete, not only
+    committed state — an org mismatch must be rejected even before this
+    workdir has ever successfully committed, so a failed run for one
+    organization can't be silently followed by a successful run for
+    another on the same workdir. Comparison is case-insensitive, since
+    GitHub organization logins are.
 
     Args:
-        previous_state: A pinned committed state snapshot, or ``None``.
         org: The requested organization login.
-        workdir_path: The skill's workdir root, for the error message.
+        workdir_path: The skill's workdir root.
 
     Raises:
-        workdir.OrganizationMismatchError: If ``previous_state`` exists and
-            was committed for a different organization than ``org``.
+        workdir.OrganizationMismatchError: If any existing manifest in this
+            workdir recorded a different organization than ``org``.
     """
-    if previous_state is None or previous_state.get("organization") == org:
+    recorded = workdir.manifest_organizations(workdir_path)
+    mismatched = {o for o in recorded if o.casefold() != org.casefold()}
+    if not mismatched:
         return
     msg = (
-        f"workdir {workdir_path} is committed to organization "
-        f"{previous_state.get('organization')!r}, not {org!r}; "
-        "use a different --workdir per organization"
+        f"workdir {workdir_path} already has evidence for organization(s) "
+        f"{sorted(mismatched)!r}, not {org!r}; use a different --workdir per org"
     )
     raise workdir.OrganizationMismatchError(msg)
 
@@ -483,9 +488,9 @@ def run_collect(
     """
     run_id = workdir.new_run_id()
     with workdir.CollectionLock(workdir_path, run_id):
+        _ensure_matching_organization(org, workdir_path)
         refresh_started_at = datetime.now(UTC)
         previous_state = workdir.read_state(workdir_path)
-        _ensure_matching_organization(previous_state, org, workdir_path)
         previous_committed_run_id = (
             previous_state.get("committed_run_id") if previous_state else None
         )

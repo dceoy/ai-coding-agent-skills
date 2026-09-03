@@ -41,10 +41,14 @@ _SECRET_VALUE_PATTERN = re.compile(
     r"(authorization|token|password|secret|cookie)(\s*[:=]\s*).+", re.IGNORECASE
 )
 
-#: Matches GitHub credential token shapes directly, independent of any
-#: surrounding key. Catches forms the key-anchored pattern above misses:
-#: JSON-quoted keys, tab-separated headers, and bare tokens with no key
-#: prefix at all (for example ``gh``'s "Bad credentials (ghp_...)").
+#: Matches GitHub token shapes directly (``ghp_``/``gho_``/``ghu_``/``ghs_``/
+#: ``ghr_``/``github_pat_``), independent of any surrounding key. Catches a
+#: token in a delimiter shape the key-anchored pattern above misses (a
+#: JSON-quoted key, a tab-separated header) or with no key at all (for
+#: example ``gh``'s "Bad credentials (ghp_...)"). Does not redact
+#: non-GitHub-shaped bearer values (a JWT, say) in those same delimiter
+#: shapes; that residual gap is defense-in-depth only, since `gh` does not
+#: normally echo request headers back into its own stderr.
 _SECRET_TOKEN_PATTERN = re.compile(
     r"gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}"
 )

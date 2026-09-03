@@ -134,6 +134,7 @@ def test_redact_secret_values_catches_shapes_the_key_pattern_misses(text: str) -
     redacted = ghapi._redact_secret_values(text)  # pyright: ignore[reportPrivateUsage]
     assert "ghp_" not in redacted
     assert "github_pat_" not in redacted
+    assert "[REDACTED]" in redacted, "the token must be replaced, not merely absent"
 
 
 def test_paginate_stops_below_full_page(monkeypatch: pytest.MonkeyPatch) -> None:

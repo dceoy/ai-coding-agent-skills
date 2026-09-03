@@ -131,6 +131,30 @@ def test_collect_command_returns_locked_exit_code(
     assert exit_code == productivity.EXIT_LOCKED
 
 
+def test_collect_command_returns_invalid_args_exit_code_on_organization_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A workdir committed to a different organization returns the invalid-args code."""
+
+    def fake_run_collect(**_kwargs: Any) -> Any:  # noqa: ANN401
+        msg = "organization mismatch"
+        raise workdir.OrganizationMismatchError(msg)
+
+    monkeypatch.setattr(productivity, "run_collect", fake_run_collect)
+    exit_code = productivity.main([
+        "collect",
+        "--org",
+        "acme",
+        "--workdir",
+        str(tmp_path),
+        "--start",
+        "2026-01-01",
+        "--end",
+        "2026-02-01",
+    ])
+    assert exit_code == productivity.EXIT_INVALID_ARGS
+
+
 def test_only_collect_subcommand_is_registered() -> None:
     """Follow-up subcommands are not registered until they are implemented."""
     with pytest.raises(SystemExit):

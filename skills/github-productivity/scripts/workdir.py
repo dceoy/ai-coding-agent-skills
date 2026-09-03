@@ -287,6 +287,36 @@ def read_manifest(workdir: Path, run_id: str) -> dict[str, Any]:
     return json.loads(manifest_path(workdir, run_id).read_text(encoding="utf-8"))
 
 
+def manifest_organizations(workdir: Path) -> set[str]:
+    """Collect every organization recorded across this workdir's manifests.
+
+    Unlike :func:`read_state`, this looks at every manifest that exists,
+    complete or incomplete, not just the committed lineage — a workdir
+    should never mix evidence for more than one organization, even before
+    its first successful commit.
+
+    Args:
+        workdir: The skill's workdir root.
+
+    Returns:
+        The set of ``organization`` values found. Empty if no manifest
+        exists yet, or none records an organization.
+    """
+    directory = manifests_dir(workdir)
+    if not directory.exists():
+        return set()
+    organizations: set[str] = set()
+    for path in directory.glob("*.json"):
+        try:
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        org = manifest.get("organization")
+        if isinstance(org, str):
+            organizations.add(org)
+    return organizations
+
+
 def resolve_committed_lineage(
     workdir: Path, state: dict[str, Any]
 ) -> list[dict[str, Any]]:

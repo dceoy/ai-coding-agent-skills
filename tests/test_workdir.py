@@ -148,10 +148,8 @@ def test_lock_exit_does_not_raise_on_non_object_lock_content(
     tmp_path: Path, lock_content: str
 ) -> None:
     """A lock file holding valid, non-object JSON is treated as not-ours."""
-    lock = workdir.CollectionLock(tmp_path, "run-a")
-    lock.__enter__()  # noqa: PLC2801 -- exercising the protocol directly
-    workdir.lock_path(tmp_path).write_text(lock_content, encoding="utf-8")
-    lock.__exit__(None, None, None)
+    with workdir.CollectionLock(tmp_path, "run-a"):
+        workdir.lock_path(tmp_path).write_text(lock_content, encoding="utf-8")
     assert workdir.lock_path(tmp_path).exists()
 
 
@@ -165,8 +163,11 @@ def test_lock_enter_cleans_up_touched_file_on_write_failure(
         raise OSError(msg)
 
     monkeypatch.setattr(Path, "write_text", fail_write)
-    with pytest.raises(OSError, match="simulated write failure"):
-        workdir.CollectionLock(tmp_path, "run-a").__enter__()  # noqa: PLC2801
+    with (
+        pytest.raises(OSError, match="simulated write failure"),
+        workdir.CollectionLock(tmp_path, "run-a"),
+    ):
+        pass
     assert not workdir.lock_path(tmp_path).exists()
 
 

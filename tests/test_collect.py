@@ -541,3 +541,79 @@ def test_organization_mismatch_is_rejected_before_live_collection(
         "rejection must happen before any live collection call"
     )
     assert workdir.read_state(tmp_path) == committed_before
+
+
+def test_organization_mismatch_is_rejected_even_before_first_commit(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """An incomplete first run still blocks a different org on the same workdir.
+
+    A workdir with only a failed (incomplete) run has no committed state
+    yet, so this must not rely on ``state.json`` alone -- otherwise a
+    failed run for one org could be silently followed by a successful run
+    for a different org on the same workdir.
+    """
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    fake_gh.fail("/orgs/acme/repos")
+    first = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert first.status == "incomplete"
+    assert workdir.read_state(tmp_path) is None
+
+    with pytest.raises(workdir.OrganizationMismatchError):
+        collect.run_collect(
+            org="other-org", workdir_path=tmp_path, start=_START, end=_END
+        )
+    assert workdir.read_state(tmp_path) is None
+
+
+def test_organization_comparison_is_case_insensitive(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """GitHub org logins are case-insensitive, so the guard must be too."""
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+
+    outcome = collect.run_collect(
+        org="ACME", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.status == "complete"
+
+
+def test_process_repo_tolerates_missing_history_boundary_field(
+    tmp_path: Path, fake_gh: _FakeGh
+) -> None:
+    """A repo state entry missing history_boundary does not crash the run.
+
+    Simulates an older-schema or hand-edited ``state.json`` entry. Using
+    ``repo_state["history_boundary"]`` instead of ``.get()`` here would
+    raise ``KeyError`` before any manifest could record the failure.
+    """
+    workdir.write_state(
+        tmp_path,
+        {
+            "committed_run_id": "prior",
+            "organization": "acme",
+            "collection_affecting_fingerprint": (
+                collect.collection_affecting_fingerprint([])
+            ),
+            "repositories": {
+                "1": {
+                    "name": "repo1",
+                    "archived": False,
+                    "fork": False,
+                    "created_at": "2020-01-01T00:00:00Z",
+                    "discovery_watermark": "2026-01-05T00:00:00Z",
+                }
+            },
+        },
+    )
+    fake_gh.set_list("/orgs/acme/repos", [[_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]], sort="updated", direction="desc")
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.status == "complete"

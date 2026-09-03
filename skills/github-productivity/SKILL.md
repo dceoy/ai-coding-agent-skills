@@ -27,7 +27,7 @@ uv run skills/github-productivity/scripts/productivity.py collect \
 
 - `--start` / `--end` accept either a date-only value (`YYYY-MM-DD`, converted to UTC midnight) or a timestamp with an explicit UTC offset. The interval is half-open `[start, end)`; `--end` must be strictly after `--start`.
 - `--overlap-hours` (default `24`) is the deterministic overlap applied to discovery boundaries and watermarks.
-- Exit codes: `0` success, `1` the run was incomplete (fail closed; committed state is unchanged), `2` invalid arguments, `3` the workdir is already locked by another collection run.
+- Exit codes: `0` success, `1` the run was incomplete (fail closed; committed state is unchanged), `2` invalid arguments — including reusing a `--workdir` for a different `--org` than it already has evidence for — `3` the workdir is already locked by another collection run.
 
 Re-running `collect` against the same `--workdir` incrementally extends coverage. Requesting an earlier `--start` than previously covered triggers a bounded backward backfill before that range counts as covered. See [references/methodology.md](references/methodology.md) for the full transaction, discovery, and time-semantics contract.
 
