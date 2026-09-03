@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import aggregate
 import analyze
 import report
+import workdir
 
 from tests.conftest import draft_row, pr_row, repo_row, write_normalized, write_state
 
@@ -69,6 +70,7 @@ def test_report_generates_expected_sections_and_charts(tmp_path: Path) -> None:
     ):
         assert heading in text
     assert "AI caused" not in text
+    assert "Refresh status: no newer refresh attempt has failed" in text
 
     chart_names = {p.name for p in outcome.chart_paths}
     assert chart_names == {"delivery.svg", "review.svg", "rework.svg"}
@@ -103,3 +105,23 @@ def test_report_omits_ci_chart_when_ci_not_configured(tmp_path: Path) -> None:
     outcome = report.run_report(workdir_path=tmp_path)
     assert not (tmp_path / "report" / "ci.svg").exists()
     assert all(p.name != "ci.svg" for p in outcome.chart_paths)
+
+
+def test_report_surfaces_failed_refresh_attempt(tmp_path: Path) -> None:
+    """A newer incomplete run after the committed one is surfaced in report.md."""
+    start, end, intervention_at = _build_workdir(tmp_path)
+    workdir.finalize_manifest(
+        tmp_path,
+        "run2",
+        {
+            "run_id": "run2",
+            "status": "incomplete",
+            "organization": "acme",
+            "refresh_started_at": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+    )
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    analyze.run_analyze(workdir_path=tmp_path, intervention_at=intervention_at)
+    outcome = report.run_report(workdir_path=tmp_path)
+    text = outcome.report_path.read_text(encoding="utf-8")
+    assert "Refresh status: a newer refresh attempt failed" in text

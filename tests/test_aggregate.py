@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 import aggregate
 import pytest
+import workdir
 
 from tests.conftest import (
     commit_rows,
@@ -84,9 +86,9 @@ def test_complete_week_flag_respects_boundaries_and_as_of(tmp_path: Path) -> Non
     )
     # Week 1 (Jan 5-12): partial boundary (start mid-week) -> incomplete.
     # Week 2 (Jan 12-19): as_of cutoff (Jan 13) falls inside it -> incomplete.
-    # Week 3 (Jan 19-26): fully inside [start, end) but end == effective_end's
-    # week-end never reached since as_of caps it -> incomplete.
-    assert [w.complete_week for w in panel.weeks] == [False, False, False]
+    # Week 3 (Jan 19-26) is entirely beyond effective_observation_end (Jan 13),
+    # so the panel doesn't materialize it at all.
+    assert [w.complete_week for w in panel.weeks] == [False, False]
 
 
 def test_half_open_interval_excludes_end_boundary_event(tmp_path: Path) -> None:
@@ -489,3 +491,61 @@ def test_run_aggregate_fails_closed_on_advanced_committed_state(tmp_path: Path) 
             start=_ts("2026-01-05T00:00:00Z"),
             end=_ts("2026-01-12T00:00:00Z"),
         )
+
+
+def test_meta_flags_last_refresh_attempt_failed(tmp_path: Path) -> None:
+    """A newer incomplete run after the committed one is surfaced in meta.json."""
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run1")
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[],
+        committed_run_id="run1",
+    )
+    workdir.finalize_manifest(
+        tmp_path,
+        "run2",
+        {
+            "run_id": "run2",
+            "status": "incomplete",
+            "organization": "acme",
+            "refresh_started_at": "2026-01-10T00:00:00Z",
+        },
+    )
+    outcome = aggregate.run_aggregate(
+        workdir_path=tmp_path,
+        start=_ts("2026-01-05T00:00:00Z"),
+        end=_ts("2026-01-12T00:00:00Z"),
+    )
+    meta = json.loads(outcome.meta_path.read_text(encoding="utf-8"))
+    assert meta["last_refresh_attempt_failed"] is True
+
+
+def test_meta_does_not_flag_failure_when_committed_run_is_latest(
+    tmp_path: Path,
+) -> None:
+    """No newer manifest after the committed run means no failure to surface."""
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run1")
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[],
+        committed_run_id="run1",
+    )
+    workdir.finalize_manifest(
+        tmp_path,
+        "run1",
+        {
+            "run_id": "run1",
+            "status": "complete",
+            "organization": "acme",
+            "refresh_started_at": "2026-01-05T00:00:00Z",
+        },
+    )
+    outcome = aggregate.run_aggregate(
+        workdir_path=tmp_path,
+        start=_ts("2026-01-05T00:00:00Z"),
+        end=_ts("2026-01-12T00:00:00Z"),
+    )
+    meta = json.loads(outcome.meta_path.read_text(encoding="utf-8"))
+    assert meta["last_refresh_attempt_failed"] is False

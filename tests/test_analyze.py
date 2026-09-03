@@ -104,6 +104,37 @@ def test_guard_rejects_insufficient_pre_weeks(tmp_path: Path) -> None:
     assert result.reason == "insufficient_pre_weeks"
 
 
+def test_guard_boundary_11_pre_weeks_is_insufficient(tmp_path: Path) -> None:
+    """Exactly one week short of the 12-week guard still skips the fit."""
+    workdir_path, start, end, intervention_at = _synthetic_workdir(
+        tmp_path, n_pre_weeks=11, n_post_weeks=20, level_shift=5
+    )
+    entities = aggregate.load_entities(workdir_path)
+    effective_end = aggregate.resolve_effective_observation_end(entities, end)
+    panel = aggregate.build_panel(
+        entities, start=start, end=end, effective_observation_end=effective_end
+    )
+    time_index = analyze.build_time_index(panel, intervention_at)
+    result = analyze.fit_its(panel, time_index, "merged_prs")
+    assert not result.fitted
+    assert result.reason == "insufficient_pre_weeks"
+
+
+def test_guard_boundary_12_pre_weeks_fits(tmp_path: Path) -> None:
+    """Exactly 12 pre-intervention complete weeks meets the guard."""
+    workdir_path, start, end, intervention_at = _synthetic_workdir(
+        tmp_path, n_pre_weeks=12, n_post_weeks=20, level_shift=5
+    )
+    entities = aggregate.load_entities(workdir_path)
+    effective_end = aggregate.resolve_effective_observation_end(entities, end)
+    panel = aggregate.build_panel(
+        entities, start=start, end=end, effective_observation_end=effective_end
+    )
+    time_index = analyze.build_time_index(panel, intervention_at)
+    result = analyze.fit_its(panel, time_index, "merged_prs")
+    assert result.fitted
+
+
 def test_guard_rejects_insufficient_post_weeks(tmp_path: Path) -> None:
     """Fewer than 12 post-intervention complete weeks skips the fit."""
     workdir_path, start, end, intervention_at = _synthetic_workdir(

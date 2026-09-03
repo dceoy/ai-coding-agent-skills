@@ -27,6 +27,7 @@ from aggregate import (
     build_panel,
     load_entities,
     panel_to_rows,
+    parse_ts,
     resolve_effective_observation_end,
 )
 
@@ -300,8 +301,12 @@ def _stable_cohort_repository_ids(
     """
     if time_index.p is None:
         return frozenset()
-    pre_weeks = set(time_index.weeks[: time_index.p])
-    post_weeks = set(time_index.weeks[time_index.p :])
+    pre_weeks = set(time_index.weeks[: time_index.p]) - {
+        time_index.excluded_partial_week
+    }
+    post_weeks = set(time_index.weeks[time_index.p :]) - {
+        time_index.excluded_partial_week
+    }
     primary_ids = _primary_cohort_repository_ids(entities, include_forks=include_forks)
     pre_repos: set[int] = set()
     post_repos: set[int] = set()
@@ -311,14 +316,9 @@ def _stable_cohort_repository_ids(
             or pr.get("author_classification") not in PRIMARY_AUTHOR_CLASSES
         ):
             continue
-        merged_at = pr.get("merged_at")
-        if not isinstance(merged_at, str):
+        merged = parse_ts(pr.get("merged_at"))
+        if merged is None:
             continue
-        try:
-            merged = datetime.fromisoformat(merged_at)
-        except ValueError:
-            continue
-        merged = merged if merged.tzinfo else merged.replace(tzinfo=UTC)
         w = _week_start(merged)
         if w in pre_weeks:
             pre_repos.add(repo_id)
@@ -327,9 +327,9 @@ def _stable_cohort_repository_ids(
     created_ok = {
         repo_id
         for repo_id in primary_ids
-        if isinstance((c := entities.repositories[repo_id].get("created_at")), str)
-        and (dt := datetime.fromisoformat(c)).replace(tzinfo=dt.tzinfo or UTC)
-        < requested_start
+        if (dt := parse_ts(entities.repositories[repo_id].get("created_at")))
+        is not None
+        and dt < requested_start
     }
     return frozenset(created_ok & pre_repos & post_repos)
 
@@ -529,8 +529,12 @@ def run_analyze(
             "again before analyzing so they reflect the same generation"
         )
         raise AnalyzeError(msg)
-    start = datetime.fromisoformat(meta["requested_start"])
-    end = datetime.fromisoformat(meta["requested_end"])
+    try:
+        start = datetime.fromisoformat(meta["requested_start"])
+        end = datetime.fromisoformat(meta["requested_end"])
+    except (KeyError, ValueError) as exc:
+        msg = f"aggregate's window sidecar has an invalid requested_start/end: {exc}"
+        raise AnalyzeError(msg) from exc
     effective_end = resolve_effective_observation_end(entities, end)
     include_forks = bool(meta.get("include_forks", False))
     panel = build_panel(

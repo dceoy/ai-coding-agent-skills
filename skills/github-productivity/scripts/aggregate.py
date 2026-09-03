@@ -304,7 +304,14 @@ def check_history_coverage_for_state(
         if not isinstance(boundary_raw, str):
             msg = f"repository {repo_id} has no committed 'history_boundary'"
             raise AggregateError(msg)
-        boundary = datetime.fromisoformat(boundary_raw)
+        try:
+            boundary = datetime.fromisoformat(boundary_raw)
+        except ValueError as exc:
+            msg = (
+                f"repository {repo_id} 'history_boundary' is not a valid "
+                f"timestamp: {boundary_raw!r}"
+            )
+            raise AggregateError(msg) from exc
         if boundary.tzinfo is None:
             boundary = boundary.replace(tzinfo=UTC)
         if boundary > required_boundary:
@@ -335,7 +342,7 @@ def _week_starts(start: datetime, end: datetime) -> list[datetime]:
     return weeks
 
 
-def _parse_ts(value: object) -> datetime | None:
+def parse_ts(value: object) -> datetime | None:
     """Parse an ISO-8601 UTC timestamp field, or return ``None`` if absent/invalid.
 
     Returns:
@@ -437,7 +444,7 @@ def _first_qualifying_human_review(
             "independent"
         ):
             continue
-        submitted_at = _parse_ts(review.get("submitted_at"))
+        submitted_at = parse_ts(review.get("submitted_at"))
         if submitted_at is None or not (queue_entry <= submitted_at <= merged_at):
             continue
         candidates.append((submitted_at, review.get("review_id") or 0, review))
@@ -472,7 +479,7 @@ def _pr_metrics(
         AggregateError: If the PR row lacks a ``merged_at`` timestamp --
             it must already be known to qualify as merged by the caller.
     """
-    merged_at = _parse_ts(pr["merged_at"])
+    merged_at = parse_ts(pr["merged_at"])
     if merged_at is None:
         msg = (
             f"qualifying merged PR {pr['repository_id']}#{pr['pr_number']} "
@@ -480,7 +487,7 @@ def _pr_metrics(
         )
         raise AggregateError(msg)
     queue_entry = (
-        _parse_ts(draft.get("first_queue_entry"))
+        parse_ts(draft.get("first_queue_entry"))
         if draft and draft.get("queue_entry_available")
         else None
     )
@@ -494,7 +501,7 @@ def _pr_metrics(
         for r in reviews
         if r.get("reviewer_classification") == _HUMAN
         and r.get("independent")
-        and (ts := _parse_ts(r.get("submitted_at"))) is not None
+        and (ts := parse_ts(r.get("submitted_at"))) is not None
         and ts <= merged_at
     ]
     human_review_events = len(eligible_reviews)
@@ -504,7 +511,7 @@ def _pr_metrics(
     time_to_first_hours = None
     first_to_merge_hours = None
     if first_review is not None and queue_entry is not None:
-        submitted_at = _parse_ts(first_review["submitted_at"])
+        submitted_at = parse_ts(first_review["submitted_at"])
         if submitted_at is not None:
             time_to_first_hours = (submitted_at - queue_entry).total_seconds() / 3600.0
             first_to_merge_hours = (merged_at - submitted_at).total_seconds() / 3600.0
@@ -617,7 +624,7 @@ def _accumulate_pr(
         author_classes: The author-classification set counted as
             delivery/review activity.
     """
-    created_at = _parse_ts(pr.get("created_at"))
+    created_at = parse_ts(pr.get("created_at"))
     author_class = pr.get("author_classification")
     if (
         created_at is not None
@@ -634,7 +641,7 @@ def _accumulate_pr(
             actor_key = (pr.get("author_id"), pr.get("author_login"))
             counters[idx]["active_pr_authors"].add(actor_key)
     for review in entities.reviews.get((repo_id, pr_number), []):
-        submitted_at = _parse_ts(review.get("submitted_at"))
+        submitted_at = parse_ts(review.get("submitted_at"))
         if submitted_at is None or not (
             start <= submitted_at < effective_observation_end
         ):
@@ -654,7 +661,7 @@ def _accumulate_pr(
                 review.get("reviewer_id"),
                 review.get("reviewer_login"),
             ))
-    merged_at = _parse_ts(pr.get("merged_at"))
+    merged_at = parse_ts(pr.get("merged_at"))
     if (
         merged_at is not None
         and start <= merged_at < effective_observation_end
@@ -706,7 +713,7 @@ def build_panel(
     Returns:
         The built panel.
     """
-    weeks = _week_starts(start, end)
+    weeks = _week_starts(start, min(end, effective_observation_end))
     week_index = {w: i for i, w in enumerate(weeks)}
     rows = [
         WeekRow(
@@ -1003,6 +1010,12 @@ def run_aggregate(
     report_dir.mkdir(parents=True, exist_ok=True)
     csv_path = report_dir / "organization-week.csv"
     _write_csv(csv_path, panel)
+    latest_run = workdir.latest_manifest_run_id_and_status(workdir_path)
+    last_refresh_attempt_failed = bool(
+        latest_run is not None
+        and latest_run[0] != state.get("committed_run_id")
+        and latest_run[1] != "complete"
+    )
     meta_path = report_dir / "organization-week.meta.json"
     workdir.atomic_write_json(
         meta_path,
@@ -1015,6 +1028,7 @@ def run_aggregate(
             "include_forks": include_forks,
             "committed_run_id": entities.derivation.get("committed_run_id"),
             "as_of": entities.derivation.get("as_of"),
+            "last_refresh_attempt_failed": last_refresh_attempt_failed,
         },
     )
     return AggregateOutcome(panel=panel, csv_path=csv_path, meta_path=meta_path)

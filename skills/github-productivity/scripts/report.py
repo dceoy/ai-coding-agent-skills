@@ -12,6 +12,7 @@ limitations are kept in clearly separated sections.
 from __future__ import annotations
 
 import json
+import secrets
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -126,8 +127,15 @@ def _draw_chart(
     ax.legend(fontsize="small")
     fig.autofmt_xdate()
     fig.tight_layout()
-    fig.savefig(path, format="svg", metadata={"Date": None})
-    plt.close(fig)
+    tmp_path = path.with_name(f"{path.name}.tmp.{secrets.token_hex(4)}")
+    try:
+        fig.savefig(tmp_path, format="svg", metadata={"Date": None})
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    finally:
+        plt.close(fig)
+    tmp_path.replace(path)
 
 
 def _series_for(panel_rows: list[dict[str, Any]], metric: str) -> list[float | None]:
@@ -161,10 +169,17 @@ def _rebuild_panel_rows(
 
     Returns:
         ``(rendered_rows, week_starts)``.
+
+    Raises:
+        ReportError: If ``meta`` lacks a valid ``requested_start``/``requested_end``.
     """
     entities = load_entities(workdir_path)
-    start = datetime.fromisoformat(meta["requested_start"])
-    end = datetime.fromisoformat(meta["requested_end"])
+    try:
+        start = datetime.fromisoformat(meta["requested_start"])
+        end = datetime.fromisoformat(meta["requested_end"])
+    except (KeyError, ValueError) as exc:
+        msg = f"aggregate's window sidecar has an invalid requested_start/end: {exc}"
+        raise ReportError(msg) from exc
     effective_end = resolve_effective_observation_end(entities, end)
     panel = build_panel(
         entities,
@@ -187,16 +202,24 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
 
     Returns:
         The outcome: the report path and the chart paths written.
+
+    Raises:
+        ReportError: If ``aggregate``/``analyze`` sidecars are missing or
+            malformed.
     """
     report_dir = workdir_path / "report"
     meta = _read_json(report_dir / "organization-week.meta.json", what="aggregate")
     analysis = _read_json(report_dir / "analysis.json", what="analyze")
     rows, weeks = _rebuild_panel_rows(workdir_path, meta)
-    intervention_at = (
-        datetime.fromisoformat(analysis["intervention_at"])
-        if analysis.get("intervention_at")
-        else None
-    )
+    try:
+        intervention_at = (
+            datetime.fromisoformat(analysis["intervention_at"])
+            if analysis.get("intervention_at")
+            else None
+        )
+    except ValueError as exc:
+        msg = f"analyze's analysis.json has an invalid intervention_at: {exc}"
+        raise ReportError(msg) from exc
 
     chart_specs = (
         ("delivery.svg", "Delivery", _DELIVERY_METRICS),
@@ -211,7 +234,13 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
         chart_paths.append(path)
 
     report_path = report_dir / "report.md"
-    report_path.write_text(_render_report(meta, analysis, rows), encoding="utf-8")
+    report_tmp = report_path.with_name(f"{report_path.name}.tmp.{secrets.token_hex(4)}")
+    try:
+        report_tmp.write_text(_render_report(meta, analysis, rows), encoding="utf-8")
+    except BaseException:
+        report_tmp.unlink(missing_ok=True)
+        raise
+    report_tmp.replace(report_path)
     return ReportOutcome(report_path=report_path, chart_paths=chart_paths)
 
 
@@ -236,6 +265,12 @@ def _freshness_section(
     Returns:
         The section's Markdown text.
     """
+    refresh_failed = meta.get("last_refresh_attempt_failed")
+    refresh_note = (
+        "a newer refresh attempt failed; this report uses the prior committed state"
+        if refresh_failed
+        else "no newer refresh attempt has failed since this committed state"
+    )
     return (
         "## Collection freshness\n\n"
         f"- Committed run: `{meta.get('committed_run_id')}`\n"
@@ -244,6 +279,7 @@ def _freshness_section(
         f"`{meta.get('requested_end')}` (effective end: "
         f"`{meta.get('effective_observation_end')}`)\n"
         f"- Complete weeks in panel: {len(complete_rows)} of {total}\n"
+        f"- Refresh status: {refresh_note}\n"
     )
 
 

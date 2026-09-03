@@ -367,6 +367,38 @@ def read_manifest(workdir: Path, run_id: str) -> dict[str, Any]:
     return json.loads(manifest_path(workdir, run_id).read_text(encoding="utf-8"))
 
 
+def latest_manifest_run_id_and_status(workdir: Path) -> tuple[str, str] | None:
+    """Return the most recently started run's ID and status, if any exist.
+
+    Looks at every manifest that exists, complete or incomplete -- unlike
+    :func:`read_state`, which only ever sees the committed lineage. Run IDs
+    from :func:`new_run_id` are timestamp-prefixed and therefore
+    lexicographically sortable, so the maximum run ID is the most recently
+    started run without needing to parse every manifest's
+    ``refresh_started_at``.
+
+    Args:
+        workdir: The skill's workdir root.
+
+    Returns:
+        ``(run_id, status)`` for the most recently started run, or
+        ``None`` if no manifest exists yet.
+    """
+    directory = manifests_dir(workdir)
+    if not directory.exists():
+        return None
+    run_ids = sorted(path.stem for path in directory.glob("*.json"))
+    if not run_ids:
+        return None
+    latest = run_ids[-1]
+    try:
+        manifest = read_manifest(workdir, latest)
+    except (OSError, json.JSONDecodeError):
+        return None
+    status = manifest.get("status")
+    return (latest, status) if isinstance(status, str) else None
+
+
 def manifest_organizations(workdir: Path) -> set[str]:
     """Collect every organization recorded across this workdir's manifests.
 

@@ -228,6 +228,27 @@ def test_manifest_organizations_tolerates_non_object_manifest_json(
     assert workdir.manifest_organizations(tmp_path) == {"acme"}
 
 
+def test_latest_manifest_run_id_and_status_returns_none_when_empty(
+    tmp_path: Path,
+) -> None:
+    """No manifests yet means no latest run to report."""
+    assert workdir.latest_manifest_run_id_and_status(tmp_path) is None
+
+
+def test_latest_manifest_run_id_and_status_picks_highest_run_id(
+    tmp_path: Path,
+) -> None:
+    """The lexicographically greatest run ID is the most recently started."""
+    workdir.finalize_manifest(tmp_path, "run-1", _base_manifest("run-1"))
+    workdir.finalize_manifest(
+        tmp_path, "run-2", _base_manifest("run-2", status="incomplete")
+    )
+    assert workdir.latest_manifest_run_id_and_status(tmp_path) == (
+        "run-2",
+        "incomplete",
+    )
+
+
 def test_read_organization_binding_is_none_before_any_binding(
     tmp_path: Path,
 ) -> None:
