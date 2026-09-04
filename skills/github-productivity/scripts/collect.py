@@ -87,6 +87,25 @@ def _fmt_ts(value: datetime) -> str:
     return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _fmt_ts_precise(value: datetime) -> str:
+    """Format a datetime with microsecond precision, for run-ordering fields.
+
+    ``refresh_started_at`` (and the watermarks derived from it) must keep
+    sub-second precision: two collection runs can start within the same
+    second, and :func:`workdir.latest_manifest_run_id_and_status` breaks
+    same-instant ties using ``run_id``, whose random suffix does not sort
+    chronologically. Truncating to whole seconds, as :func:`_fmt_ts` does
+    for GitHub API query parameters, would make such runs indistinguishable.
+
+    Args:
+        value: A datetime, converted to UTC if not already.
+
+    Returns:
+        A string such as ``"2026-01-01T00:00:00.123456Z"``.
+    """
+    return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 def fetch_organization_repositories(ctx: _RunContext) -> list[dict[str, Any]]:
     """Re-enumerate every repository visible to the caller in the org.
 
@@ -529,9 +548,9 @@ def _process_repo(
         "archived": repo["archived"],
         "fork": repo["fork"],
         "created_at": repo["created_at"],
-        "discovery_watermark": _fmt_ts(ctx.refresh_started_at),
+        "discovery_watermark": _fmt_ts_precise(ctx.refresh_started_at),
         "history_boundary": _fmt_ts(history_boundary),
-        "last_seen_in_enumeration_at": _fmt_ts(ctx.refresh_started_at),
+        "last_seen_in_enumeration_at": _fmt_ts_precise(ctx.refresh_started_at),
     }
     return entry, state_entry
 
@@ -636,7 +655,7 @@ def run_collect(
             "previous_committed_run_id": previous_committed_run_id,
             "organization": org,
             "requested_interval": {"start": _fmt_ts(start), "end": _fmt_ts(end)},
-            "refresh_started_at": _fmt_ts(refresh_started_at),
+            "refresh_started_at": _fmt_ts_precise(refresh_started_at),
             "collection_ended_at": _fmt_ts(datetime.now(UTC)),
             "github_api_version": ghapi.GITHUB_API_VERSION,
             "collector_revision": workdir.resolve_collector_revision() or "unavailable",

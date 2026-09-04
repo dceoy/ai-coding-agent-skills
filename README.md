@@ -47,7 +47,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ### Delivery Analytics
 
-- `github-productivity` - Collect, retain, and normalize GitHub organization PR/review/timeline/commit data via `gh api` with transactional run provenance (the organization-week panel and analysis land in a follow-up)
+- `github-productivity` - Collect, retain, normalize, and analyze GitHub organization PR/review/timeline/commit data via `gh api` into an organization-week delivery panel with a pre-specified interrupted time-series model, sensitivities, charts, and a report
 
 ### Skill Management
 

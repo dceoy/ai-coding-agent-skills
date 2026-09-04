@@ -36,12 +36,12 @@ import hashlib
 import json
 import operator
 from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import workdir
 
 if TYPE_CHECKING:
+    from datetime import datetime
     from pathlib import Path
 
 #: Bump when the shape of anything under ``normalized/`` changes. Combined
@@ -245,20 +245,13 @@ def _parse_manifest_ts(manifest: dict[str, Any]) -> datetime:
             must fail closed rather than sort by a lexicographic or
             otherwise misleading comparison of an unparsed value.
     """
-    value = manifest.get("refresh_started_at")
-    if not isinstance(value, str) or not value:
-        msg = f"manifest 'refresh_started_at' must be a non-empty string, got {value!r}"
-        raise NormalizeError(msg)
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError as exc:
+    parsed = workdir.parse_manifest_started_at(manifest)
+    if parsed is None:
+        value = manifest.get("refresh_started_at")
         msg = (
-            "manifest 'refresh_started_at' is not a valid ISO-8601 timestamp: "
-            f"{value!r}"
+            "manifest 'refresh_started_at' must be a non-empty ISO-8601 timestamp "
+            f"with a UTC offset, got {value!r}"
         )
-        raise NormalizeError(msg) from exc
-    if parsed.tzinfo is None:
-        msg = f"manifest 'refresh_started_at' must include a UTC offset, got {value!r}"
         raise NormalizeError(msg)
     return parsed
 

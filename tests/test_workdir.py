@@ -228,6 +228,82 @@ def test_manifest_organizations_tolerates_non_object_manifest_json(
     assert workdir.manifest_organizations(tmp_path) == {"acme"}
 
 
+def test_latest_manifest_run_id_and_status_returns_none_when_empty(
+    tmp_path: Path,
+) -> None:
+    """No manifests yet means no latest run to report."""
+    assert workdir.latest_manifest_run_id_and_status(tmp_path) is None
+
+
+def test_latest_manifest_run_id_and_status_picks_highest_run_id(
+    tmp_path: Path,
+) -> None:
+    """With no timestamps to compare, the run ID is the deterministic tiebreak."""
+    workdir.finalize_manifest(tmp_path, "run-1", _base_manifest("run-1"))
+    workdir.finalize_manifest(
+        tmp_path, "run-2", _base_manifest("run-2", status="incomplete")
+    )
+    assert workdir.latest_manifest_run_id_and_status(tmp_path) == (
+        "run-2",
+        "incomplete",
+    )
+
+
+def test_latest_manifest_orders_by_refresh_started_at_not_run_id(
+    tmp_path: Path,
+) -> None:
+    """Two runs started in the same second sort by refresh_started_at, not run ID.
+
+    ``new_run_id`` is ``<second-resolution-timestamp>-<random-suffix>``, so
+    the random suffix -- not chronology -- decides lexicographic order when
+    two runs start in the same second. The run that actually started later
+    must win even though its run ID sorts *first*.
+    """
+    earlier_by_clock_later_by_id = "20260301T120000Z-0000"
+    later_by_clock_earlier_by_id = "20260301T120000Z-ffff"
+    workdir.finalize_manifest(
+        tmp_path,
+        later_by_clock_earlier_by_id,
+        {
+            **_base_manifest(later_by_clock_earlier_by_id),
+            "refresh_started_at": "2026-03-01T12:00:00.100000+00:00",
+        },
+    )
+    workdir.finalize_manifest(
+        tmp_path,
+        earlier_by_clock_later_by_id,
+        {
+            **_base_manifest(earlier_by_clock_later_by_id, status="incomplete"),
+            "refresh_started_at": "2026-03-01T12:00:00.900000+00:00",
+        },
+    )
+    # Lexicographic run-id order would pick "...-ffff" ("complete"); the true
+    # latest by wall clock is "...-0000" ("incomplete").
+    assert workdir.latest_manifest_run_id_and_status(tmp_path) == (
+        earlier_by_clock_later_by_id,
+        "incomplete",
+    )
+
+
+def test_latest_manifest_skips_unreadable_manifest(tmp_path: Path) -> None:
+    """One corrupt manifest is skipped, not fatal to the freshness signal."""
+    workdir.finalize_manifest(
+        tmp_path,
+        "20260301T120000Z-aaaa",
+        {
+            **_base_manifest("20260301T120000Z-aaaa"),
+            "refresh_started_at": "2026-03-01T12:00:00+00:00",
+        },
+    )
+    (workdir.manifests_dir(tmp_path) / "20260302T120000Z-bbbb.json").write_text(
+        "{ not json", encoding="utf-8"
+    )
+    assert workdir.latest_manifest_run_id_and_status(tmp_path) == (
+        "20260301T120000Z-aaaa",
+        "complete",
+    )
+
+
 def test_read_organization_binding_is_none_before_any_binding(
     tmp_path: Path,
 ) -> None:

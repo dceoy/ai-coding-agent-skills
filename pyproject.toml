@@ -7,7 +7,11 @@ maintainers = [{name = "dceoy", email = "dceoy@users.noreply.github.com"}]
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">= 3.11, < 3.14"
-dependencies = []
+dependencies = [
+    "matplotlib>=3.11.1",
+    "numpy>=2.4.6",
+    "statsmodels>=0.15.0",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",

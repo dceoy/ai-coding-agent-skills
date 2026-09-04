@@ -11,6 +11,7 @@ reads a single pinned ``state.json`` snapshot.
 from __future__ import annotations
 
 import json
+import operator
 import os
 import secrets
 import subprocess
@@ -365,6 +366,74 @@ def read_manifest(workdir: Path, run_id: str) -> dict[str, Any]:
         The manifest body. The file must already exist.
     """
     return json.loads(manifest_path(workdir, run_id).read_text(encoding="utf-8"))
+
+
+def parse_manifest_started_at(manifest: dict[str, Any]) -> datetime | None:
+    """Parse a manifest's ``refresh_started_at`` for ordering, leniently.
+
+    Returns ``None`` -- rather than raising -- when the value is missing,
+    not a string, not a valid ISO-8601 timestamp, or lacks a UTC offset, so
+    a single malformed manifest cannot abort a best-effort freshness scan.
+    Callers that require a committed manifest to be well-formed (normalize's
+    winner ordering, ``derivation.json.as_of``) must treat ``None`` as a
+    fail-closed condition themselves.
+
+    Args:
+        manifest: A finalized run manifest.
+
+    Returns:
+        The parsed timezone-aware instant, or ``None``.
+    """
+    value = manifest.get("refresh_started_at")
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+def latest_manifest_run_id_and_status(workdir: Path) -> tuple[str, str] | None:
+    """Return the most recently started run's ID and status, if any exist.
+
+    Looks at every manifest that exists, complete or incomplete -- unlike
+    :func:`read_state`, which only ever sees the committed lineage. Ordering
+    is by parsed ``refresh_started_at`` (run ID as a deterministic
+    tie-breaker), **not** by lexicographic run ID: :func:`new_run_id` uses a
+    one-second-resolution timestamp plus a random suffix, so two runs
+    started in the same second do not sort chronologically by run ID and the
+    freshness status could otherwise be read off the wrong run. A manifest
+    with no parseable ``refresh_started_at`` sorts below every parseable one.
+    Unreadable manifests are skipped, not fatal.
+
+    Args:
+        workdir: The skill's workdir root.
+
+    Returns:
+        ``(run_id, status)`` for the most recently started run, or
+        ``None`` if no readable manifest exists yet.
+    """
+    directory = manifests_dir(workdir)
+    if not directory.exists():
+        return None
+    epoch = datetime.min.replace(tzinfo=UTC)
+    candidates: list[tuple[datetime, str, str]] = []
+    for path in directory.glob("*.json"):
+        run_id = path.stem
+        try:
+            manifest = read_manifest(workdir, run_id)
+        except (OSError, json.JSONDecodeError):
+            continue
+        status = manifest.get("status")
+        if not isinstance(status, str):
+            continue
+        started_at = parse_manifest_started_at(manifest) or epoch
+        candidates.append((started_at, run_id, status))
+    if not candidates:
+        return None
+    _, latest_run_id, latest_status = max(candidates, key=operator.itemgetter(0, 1))
+    return (latest_run_id, latest_status)
 
 
 def manifest_organizations(workdir: Path) -> set[str]:

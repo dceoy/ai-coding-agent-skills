@@ -1,16 +1,19 @@
 ---
 name: github-productivity
-description: Collect, retain, and normalize GitHub organization repository/PR/review/timeline/commit data through `gh api`, with immutable run provenance and committed-state transaction semantics, for retrospective delivery-productivity analysis.
+description: Collect, retain, normalize, and analyze GitHub organization repository/PR/review/timeline/commit data through `gh api` into an organization-week delivery panel with a pre-specified interrupted time-series model, required sensitivities, fixed charts, and a Markdown report.
 ---
 
 # GitHub Productivity
 
-Retrospectively analyze GitHub-observable organization delivery activity. This skill implements **collection and normalization**:
+Retrospectively analyze GitHub-observable organization delivery activity.
 
 - `collect` — repository/PR/review/timeline/commit retrieval through `gh api`, with append-only raw retention, immutable run manifests, and a committed `state.json` that is the sole acceptance frontier for what counts as canonical evidence.
 - `normalize` — deterministic derivation of canonical entities from the committed run lineage: newest-committed PR snapshot-bundle selection (whole-bundle replacement, never child-row union), actor classification, draft-lifecycle reconstruction, and an idempotent, filesystem-order-independent tree under `<workdir>/normalized/`.
+- `aggregate` — builds a continuous UTC-ISO-week organization-week panel (delivery, review-flow, review-burden, rework, size, and composition metrics) from normalized entities, applying the `[--start, --end)` window and the `as_of` data cutoff.
+- `analyze` — fits the pre-specified interrupted time-series (ITS) model for the fixed eligible-metric list, when `--intervention-at` and the metric-specific 12-week/full-rank guard are satisfied, plus the four required sensitivity analyses (window, stable cohort, leave-one-repository-out, actor).
+- `report` — writes the fixed chart set (`delivery.svg`, `review.svg`, `rework.svg`) and `report.md`, separating observed metrics, coverage, modeled changes, sensitivities, interpretation, and limitations.
 
-The organization-week metrics panel, interrupted time-series analysis, sensitivity analyses, charts, and the Markdown report are **not implemented yet**. They land in follow-up work. Do not run `aggregate`, `analyze`, or `report` subcommands — they do not exist.
+Optional GitHub Actions CI metrics are **not implemented**: they require extending `collect` to fetch selected workflow runs, which is out of scope here (see [references/metrics.md](references/metrics.md)).
 
 ## Prerequisites
 
@@ -46,6 +49,34 @@ uv run skills/github-productivity/scripts/productivity.py normalize \
 - `--force` regenerates even when `normalized/` is already current for the committed run and actor-map fingerprint; without it an already-current tree is left untouched.
 - Exit codes: `0` success, `2` invalid arguments, `4` derivation failed (nothing committed to normalize, an unreadable or malformed `--actor-map`, or a broken committed lineage).
 
+```bash
+uv run skills/github-productivity/scripts/productivity.py aggregate \
+  --workdir <path-to-workdir> \
+  --start 2026-01-01 \
+  --end 2026-07-01 \
+  --overlap-hours 24
+```
+
+- `aggregate` reads normalized entities and writes `<workdir>/report/organization-week.csv` plus a `organization-week.meta.json` sidecar (the window `analyze`/`report` reuse). It fails closed (exit `4`) if committed historical coverage does not reach `--start - --overlap-hours` for any in-scope repository — run `collect` with an earlier `--start` first.
+- `--include-forks` adds forked repositories to the primary cohort (excluded by default).
+- See [references/metrics.md](references/metrics.md) for the exact metric formulas, denominators, and missingness rules.
+
+```bash
+uv run skills/github-productivity/scripts/productivity.py analyze \
+  --workdir <path-to-workdir> \
+  --intervention-at 2026-04-06
+```
+
+- `analyze` rebuilds the panel from entities, fits the pre-specified ITS model for each eligible metric (skipped with an explicit reason when the 12-complete-week or full-rank guard fails), and runs the four required sensitivities. Omitting `--intervention-at` produces a descriptive-only `analysis.json` with no fitted models. Output: `<workdir>/report/analysis.json`.
+
+```bash
+uv run skills/github-productivity/scripts/productivity.py report \
+  --workdir <path-to-workdir>
+```
+
+- `report` writes `<workdir>/report/{delivery,review,rework}.svg` and `report.md`. Deterministic: identical committed input produces byte-identical output.
+- Exit codes for `aggregate`/`analyze`/`report`: `0` success, `2` invalid arguments, `4` derivation failed (required upstream output missing, or coverage/window validation failed).
+
 ## Workdir layout
 
 ```text
@@ -55,15 +86,23 @@ uv run skills/github-productivity/scripts/productivity.py normalize \
 ├── raw/<run-id>/...       # append-only NDJSON per endpoint family
 ├── manifests/<run-id>.json  # finalized, immutable run provenance
 ├── state.json              # committed_run_id + per-repository coverage
-└── normalized/             # deterministic entities from the committed lineage
-    ├── repositories.ndjson
-    ├── pull_requests.ndjson
-    ├── reviews.ndjson
-    ├── pr_commits.ndjson
-    ├── timeline_events.ndjson
-    ├── draft_lifecycle.ndjson
-    ├── actors.ndjson
-    └── derivation.json      # written last; records what the tree was derived from
+├── normalized/             # deterministic entities from the committed lineage
+│   ├── repositories.ndjson
+│   ├── pull_requests.ndjson
+│   ├── reviews.ndjson
+│   ├── pr_commits.ndjson
+│   ├── timeline_events.ndjson
+│   ├── draft_lifecycle.ndjson
+│   ├── actors.ndjson
+│   └── derivation.json      # written last; records what the tree was derived from
+└── report/                  # aggregate/analyze/report output
+    ├── organization-week.csv
+    ├── organization-week.meta.json
+    ├── analysis.json
+    ├── report.md
+    ├── delivery.svg
+    ├── review.svg
+    └── rework.svg
 ```
 
 `collect` is single-writer per workdir: a second concurrent `collect` invocation is rejected before it performs any live collection. `normalize` is a lock-free reader: it pins one committed `state.json` snapshot at start and never reads a half-committed mixture of old and new coverage. `derivation.json` is written last, so a crash mid-regeneration leaves a mismatched fingerprint that the next `normalize` fully rewrites.
@@ -83,6 +122,5 @@ This skill produces GitHub-observable collection and normalized-entity data only
 
 ## References
 
-- [references/methodology.md](references/methodology.md) — the transaction model, time semantics, discovery/watermark contract, repository inclusion rules, the normalization contract, and known limitations for the collection and normalization implemented so far.
-
-`references/metrics.md` (exact metric formulas and the pre-specified ITS design) is deferred to the follow-up PR that implements the organization-week panel and analysis — pre-specifying metrics ahead of the aggregation code that would be checked against them is not meaningfully reviewable.
+- [references/methodology.md](references/methodology.md) — the transaction model, time semantics, discovery/watermark contract, repository inclusion rules, and the normalization contract.
+- [references/metrics.md](references/metrics.md) — exact organization-week metric formulas, denominators, missingness rules, the pre-specified ITS-eligible outcome list, the ITS design, and the four required sensitivity analyses.
