@@ -128,6 +128,26 @@ def test_report_surfaces_failed_refresh_attempt(tmp_path: Path) -> None:
     assert "Refresh status: a newer refresh attempt failed" in text
 
 
+def test_report_surfaces_orphan_complete_refresh_attempt(tmp_path: Path) -> None:
+    """A newer completed-but-uncommitted run is surfaced as orphan, not clean."""
+    start, end, intervention_at = _build_workdir(tmp_path)
+    workdir.finalize_manifest(
+        tmp_path,
+        "run2",
+        {
+            "run_id": "run2",
+            "status": "complete",
+            "organization": "acme",
+            "refresh_started_at": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+    )
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    analyze.run_analyze(workdir_path=tmp_path, intervention_at=intervention_at)
+    outcome = report.run_report(workdir_path=tmp_path)
+    text = outcome.report_path.read_text(encoding="utf-8")
+    assert "Refresh status: a newer refresh completed but was never committed" in text
+
+
 def test_report_fails_closed_when_analysis_predates_a_rerun_aggregate(
     tmp_path: Path,
 ) -> None:

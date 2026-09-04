@@ -385,24 +385,28 @@ def _fmt(value: object) -> str:
     return str(value)
 
 
-def _current_refresh_failed(workdir_path: Path, meta: dict[str, Any]) -> bool:
-    """Re-evaluate refresh-failure status against the manifests on disk.
+def _current_refresh_status(workdir_path: Path, meta: dict[str, Any]) -> str | None:
+    """Re-evaluate refresh-freshness status against the manifests on disk.
 
     ``aggregate`` snapshots this status into ``meta`` at aggregate time, but a
-    ``collect`` can fail after ``aggregate``/``analyze`` and before
-    ``report``; re-scanning here (rather than trusting the snapshot) keeps
-    the freshness statement current as of report generation.
+    ``collect`` can fail, or finish but never get committed, after
+    ``aggregate``/``analyze`` and before ``report``; re-scanning here (rather
+    than trusting the snapshot) keeps the freshness statement current as of
+    report generation. A run that finished with ``status: complete`` but was
+    never committed (the crash window between a manifest being finalized and
+    ``state.json`` being replaced) is orphan evidence, not a clean "no newer
+    attempt" state, even though it isn't a failure either.
 
     Returns:
-        Whether the most recently started run is newer than the pinned
-        ``committed_run_id`` and did not complete.
+        ``None`` if the pinned ``committed_run_id`` is still the most
+        recently started run; ``"failed"`` if a newer run started and did
+        not complete; ``"orphan"`` if a newer run completed but was never
+        committed.
     """
     latest_run = workdir.latest_manifest_run_id_and_status(workdir_path)
-    return bool(
-        latest_run is not None
-        and latest_run[0] != meta.get("committed_run_id")
-        and latest_run[1] != "complete"
-    )
+    if latest_run is None or latest_run[0] == meta.get("committed_run_id"):
+        return None
+    return "orphan" if latest_run[1] == "complete" else "failed"
 
 
 def _freshness_section(
@@ -416,12 +420,17 @@ def _freshness_section(
     Returns:
         The section's Markdown text.
     """
-    refresh_failed = _current_refresh_failed(workdir_path, meta)
-    refresh_note = (
-        "a newer refresh attempt failed; this report uses the prior committed state"
-        if refresh_failed
-        else "no newer refresh attempt has failed since this committed state"
-    )
+    refresh_status = _current_refresh_status(workdir_path, meta)
+    refresh_note = {
+        None: "no newer refresh attempt has failed since this committed state",
+        "failed": (
+            "a newer refresh attempt failed; this report uses the prior committed state"
+        ),
+        "orphan": (
+            "a newer refresh completed but was never committed; this report "
+            "uses the prior committed state"
+        ),
+    }[refresh_status]
     return (
         "## Collection freshness\n\n"
         f"- Committed run: `{meta.get('committed_run_id')}`\n"
