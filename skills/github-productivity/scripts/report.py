@@ -22,7 +22,9 @@ import matplotlib as mpl
 mpl.use("Agg")
 
 import matplotlib.pyplot as plt
+import workdir
 from aggregate import (
+    AggregateError,
     build_panel,
     load_entities,
     normalized_derivation_identity,
@@ -258,9 +260,14 @@ def _rebuild_panel_rows(
         ``(rendered_rows, week_starts)``.
 
     Raises:
-        ReportError: If ``meta`` lacks a valid ``requested_start``/``requested_end``.
+        ReportError: If ``meta`` lacks a valid ``requested_start``/``requested_end``,
+            or normalized-entity loading/rebuilding fails.
     """
-    entities = load_entities(workdir_path)
+    try:
+        entities = load_entities(workdir_path)
+    except AggregateError as exc:
+        msg = str(exc)
+        raise ReportError(msg) from exc
     entities_identity = normalized_derivation_identity(entities.derivation)
     if meta.get("normalized_derivation") != entities_identity:
         msg = (
@@ -277,14 +284,18 @@ def _rebuild_panel_rows(
     except (KeyError, ValueError) as exc:
         msg = f"aggregate's window sidecar has an invalid requested_start/end: {exc}"
         raise ReportError(msg) from exc
-    effective_end = resolve_effective_observation_end(entities, end)
-    panel = build_panel(
-        entities,
-        start=start,
-        end=end,
-        effective_observation_end=effective_end,
-        include_forks=bool(meta.get("include_forks")),
-    )
+    try:
+        effective_end = resolve_effective_observation_end(entities, end)
+        panel = build_panel(
+            entities,
+            start=start,
+            end=end,
+            effective_observation_end=effective_end,
+            include_forks=bool(meta.get("include_forks")),
+        )
+    except AggregateError as exc:
+        msg = str(exc)
+        raise ReportError(msg) from exc
     return panel_to_rows(panel), [w.week_start for w in panel.weeks]
 
 
@@ -339,7 +350,9 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
     report_path = report_dir / "report.md"
     report_tmp = report_path.with_name(f"{report_path.name}.tmp.{secrets.token_hex(4)}")
     try:
-        report_tmp.write_text(_render_report(meta, analysis, rows), encoding="utf-8")
+        report_tmp.write_text(
+            _render_report(workdir_path, meta, analysis, rows), encoding="utf-8"
+        )
     except BaseException:
         report_tmp.unlink(missing_ok=True)
         raise
@@ -360,15 +373,38 @@ def _fmt(value: object) -> str:
     return str(value)
 
 
+def _current_refresh_failed(workdir_path: Path, meta: dict[str, Any]) -> bool:
+    """Re-evaluate refresh-failure status against the manifests on disk.
+
+    ``aggregate`` snapshots this status into ``meta`` at aggregate time, but a
+    ``collect`` can fail after ``aggregate``/``analyze`` and before
+    ``report``; re-scanning here (rather than trusting the snapshot) keeps
+    the freshness statement current as of report generation.
+
+    Returns:
+        Whether the most recently started run is newer than the pinned
+        ``committed_run_id`` and did not complete.
+    """
+    latest_run = workdir.latest_manifest_run_id_and_status(workdir_path)
+    return bool(
+        latest_run is not None
+        and latest_run[0] != meta.get("committed_run_id")
+        and latest_run[1] != "complete"
+    )
+
+
 def _freshness_section(
-    meta: dict[str, Any], complete_rows: list[dict[str, Any]], total: int
+    workdir_path: Path,
+    meta: dict[str, Any],
+    complete_rows: list[dict[str, Any]],
+    total: int,
 ) -> str:
     """Render the collection-freshness section.
 
     Returns:
         The section's Markdown text.
     """
-    refresh_failed = meta.get("last_refresh_attempt_failed")
+    refresh_failed = _current_refresh_failed(workdir_path, meta)
     refresh_note = (
         "a newer refresh attempt failed; this report uses the prior committed state"
         if refresh_failed
@@ -666,11 +702,15 @@ _INTRO = (
 
 
 def _render_report(
-    meta: dict[str, Any], analysis: dict[str, Any], rows: list[dict[str, Any]]
+    workdir_path: Path,
+    meta: dict[str, Any],
+    analysis: dict[str, Any],
+    rows: list[dict[str, Any]],
 ) -> str:
     """Render ``report.md``'s full content.
 
     Args:
+        workdir_path: The skill's workdir root.
         meta: The ``aggregate`` window sidecar.
         analysis: The full ``analyze`` output document.
         rows: The rendered organization-week panel rows.
@@ -681,7 +721,7 @@ def _render_report(
     complete_rows = [r for r in rows if r.get("complete_week")]
     sections = (
         _INTRO,
-        _freshness_section(meta, complete_rows, len(rows)),
+        _freshness_section(workdir_path, meta, complete_rows, len(rows)),
         _OBSERVED_METRICS_SECTION,
         _coverage_section(complete_rows),
         _its_section(analysis),

@@ -464,6 +464,17 @@ def _week_starts(start: datetime, end: datetime) -> list[datetime]:
     return weeks
 
 
+def _actor_identity_key(actor_id: object, actor_login: object) -> tuple[str, object]:
+    """Return a distinct-count key preferring the stable ID over the login.
+
+    The same actor can appear with different logins across normalized runs
+    after a rename, so the numeric ID (when present) is authoritative and the
+    login is only a fallback, matching the normalization registry's identity
+    rule.
+    """
+    return ("id", actor_id) if actor_id is not None else ("login", actor_login)
+
+
 def parse_ts(value: object) -> datetime | None:
     """Parse an ISO-8601 UTC timestamp field, or return ``None`` if absent/invalid.
 
@@ -792,7 +803,7 @@ def _accumulate_pr(
         if author_class in author_classes:
             counters[idx]["opened_prs"] += 1
             counters[idx]["active_repositories"].add(repo_id)
-            actor_key = (pr.get("author_id"), pr.get("author_login"))
+            actor_key = _actor_identity_key(pr.get("author_id"), pr.get("author_login"))
             counters[idx]["active_pr_authors"].add(actor_key)
     for review in entities.reviews.get((repo_id, pr_number), []):
         submitted_at = parse_ts(review.get("submitted_at"))
@@ -811,10 +822,11 @@ def _accumulate_pr(
         # Reviews are neither "PR-authorship" nor "merge" events, so they do
         # not count toward active_repositories (see references/metrics.md).
         if reviewer_class == _HUMAN and review.get("independent"):
-            counters[idx]["active_human_reviewers"].add((
-                review.get("reviewer_id"),
-                review.get("reviewer_login"),
-            ))
+            counters[idx]["active_human_reviewers"].add(
+                _actor_identity_key(
+                    review.get("reviewer_id"), review.get("reviewer_login")
+                )
+            )
     merged_at = parse_ts(pr.get("merged_at"))
     if (
         merged_at is not None
