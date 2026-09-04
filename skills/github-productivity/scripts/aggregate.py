@@ -879,7 +879,7 @@ def build_panel(
     Returns:
         The built panel.
     """
-    weeks = _week_starts(start, min(end, effective_observation_end))
+    weeks = _week_starts(start, end)
     week_index = {w: i for i, w in enumerate(weeks)}
     rows = [
         WeekRow(

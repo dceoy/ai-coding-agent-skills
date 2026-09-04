@@ -474,31 +474,44 @@ def _window_sensitivity(
 ) -> dict[str, Any]:
     """Compute the symmetric ``weeks``-pre/post window ITS sensitivity.
 
+    The pre/post window bounds are chosen from eligible complete weeks --
+    excluding a mid-week intervention's excluded partial week from the
+    ``weeks`` budget on each side -- while the excluded week's slot, when it
+    falls inside the resulting bounds, is kept in the truncated regression
+    index so ``time_t`` still reflects the true calendar gap.
+
     Args:
         entities: Unused directly (kept for a uniform sensitivity-function
             signature); the window sensitivity truncates the existing
             panel rather than recomputing from entities.
         panel: The primary panel.
         time_index: The fixed ``time_t``/``p`` index.
-        weeks: The symmetric window size (26 or 52).
+        weeks: The symmetric window size (26 or 52) of eligible complete
+            weeks on each side of the intervention.
 
     Returns:
         Either ``{"available": True, "results": {...}}`` or
         ``{"available": False, "reason": ...}``.
     """
     del entities
-    if (
-        time_index.p is None
-        or time_index.p < weeks
-        or len(time_index.weeks) - time_index.p < weeks
-    ):
+    if time_index.p is None:
         return {"available": False, "reason": "insufficient_symmetric_coverage"}
-    window_weeks = set(time_index.weeks[time_index.p - weeks : time_index.p + weeks])
+    excluded = time_index.excluded_partial_week
+    eligible_before = [
+        i for i, w in enumerate(time_index.weeks[: time_index.p]) if w != excluded
+    ]
+    eligible_after = [
+        i for i, w in enumerate(time_index.weeks) if i >= time_index.p and w != excluded
+    ]
+    if len(eligible_before) < weeks or len(eligible_after) < weeks:
+        return {"available": False, "reason": "insufficient_symmetric_coverage"}
+    lo = eligible_before[-weeks]
+    hi = eligible_after[weeks - 1] + 1
     truncated = TimeIndex(
-        [w for w in time_index.weeks if w in window_weeks],
-        weeks,
+        time_index.weeks[lo:hi],
+        time_index.p - lo,
         time_index.first_complete_post_week,
-        time_index.excluded_partial_week,
+        excluded,
         intervention_given=True,
     )
     results = {

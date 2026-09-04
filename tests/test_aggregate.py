@@ -86,9 +86,10 @@ def test_complete_week_flag_respects_boundaries_and_as_of(tmp_path: Path) -> Non
     )
     # Week 1 (Jan 5-12): partial boundary (start mid-week) -> incomplete.
     # Week 2 (Jan 12-19): as_of cutoff (Jan 13) falls inside it -> incomplete.
-    # Week 3 (Jan 19-26) is entirely beyond effective_observation_end (Jan 13),
-    # so the panel doesn't materialize it at all.
-    assert [w.complete_week for w in panel.weeks] == [False, False]
+    # Week 3 (Jan 19-26) is entirely beyond effective_observation_end (Jan 13)
+    # but still inside the requested [start, end) range, so it is retained as
+    # a descriptive-only row rather than dropped from the continuous spine.
+    assert [w.complete_week for w in panel.weeks] == [False, False, False]
 
 
 def test_half_open_interval_excludes_end_boundary_event(tmp_path: Path) -> None:

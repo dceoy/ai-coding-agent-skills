@@ -373,6 +373,68 @@ def test_window_sensitivity_unavailable_when_insufficient(tmp_path: Path) -> Non
     assert result["available"] is False
 
 
+def test_window_sensitivity_excludes_mid_week_intervention_from_window_budget(
+    tmp_path: Path,
+) -> None:
+    """A mid-week intervention's excluded week must not consume a pre-window slot.
+
+    Regression test: a naive implementation slices the symmetric window
+    directly off ``time_index.p`` (``weeks[p - n : p + n]``), which counts the
+    excluded partial intervention week as one of the ``n`` pre-window slots
+    and so only exercises ``n - 1`` real complete pre weeks while still
+    reporting an ``n``-week window. With exactly ``n`` real pre and post
+    weeks available around a mid-week intervention, the window must still
+    report a full ``n``-week pre/post window rather than silently narrowing.
+    """
+    write_state(tmp_path, repository_ids=[1])
+    n_pre_weeks = 26
+    n_post_weeks = 26
+    total_weeks = n_pre_weeks + 1 + n_post_weeks  # +1 for the excluded week
+    start = _monday(0)
+    end = _monday(total_weeks)
+    intervention_at = _monday(n_pre_weeks) + timedelta(days=2)  # mid-week
+    prs = []
+    for week in range(total_weeks):
+        week_start = _monday(week)
+        merged_at = week_start + timedelta(days=1)
+        # A pure linear trend with no true jump, so beta2 ~ 0 whether or not
+        # the window is sized correctly -- this test targets the reported
+        # pre/post window sizes, not the fitted level shift.
+        for _ in range(week + 1):
+            prs.append(
+                pr_row(
+                    1,
+                    len(prs) + 1,
+                    created_at=week_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    merged_at=merged_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                )
+            )
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=prs,
+        draft_lifecycle=[
+            draft_row(1, p["pr_number"], first_queue_entry=p["created_at"]) for p in prs
+        ],
+        as_of=end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    entities = aggregate.load_entities(tmp_path)
+    effective_end = aggregate.resolve_effective_observation_end(entities, end)
+    panel = aggregate.build_panel(
+        entities, start=start, end=end, effective_observation_end=effective_end
+    )
+    time_index = analyze.build_time_index(panel, intervention_at)
+    assert time_index.excluded_partial_week is not None
+    result = analyze._window_sensitivity(  # pyright: ignore[reportPrivateUsage]
+        entities, panel, time_index, weeks=26
+    )
+    assert result["available"] is True
+    merged_prs = result["results"]["merged_prs"]
+    assert merged_prs["fitted"] is True
+    assert merged_prs["pre_complete_weeks"] == 26
+    assert merged_prs["post_complete_weeks"] == 26
+
+
 def test_stable_cohort_excludes_repository_created_after_start(tmp_path: Path) -> None:
     """A repository created after requested_start never qualifies as stable."""
     write_state(tmp_path, repository_ids=[1, 2])
