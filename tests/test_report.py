@@ -144,6 +144,27 @@ def test_report_fails_closed_when_analysis_predates_a_rerun_aggregate(
         report.run_report(workdir_path=tmp_path)
 
 
+def test_report_fails_closed_when_state_advanced_past_aggregate(
+    tmp_path: Path,
+) -> None:
+    """Report rejects a newer committed run 'collect' left unaggregated.
+
+    Regression for a gap where ``report`` only compared ``analyze``'s
+    recorded derivation against the current ``aggregate`` sidecar, and never
+    re-pinned the currently committed ``state.json``. A successful
+    ``collect`` that commits a newer run after ``analyze`` but before
+    ``report`` must not be silently ignored.
+    """
+    start, end, intervention_at = _build_workdir(tmp_path)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    analyze.run_analyze(workdir_path=tmp_path, intervention_at=intervention_at)
+    # Simulate a later successful 'collect' committing a newer run before
+    # 'aggregate'/'analyze' rerun.
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run2")
+    with pytest.raises(report.ReportError, match="committed state advanced"):
+        report.run_report(workdir_path=tmp_path)
+
+
 def test_report_fails_closed_when_normalize_reran_with_new_actor_map(
     tmp_path: Path,
 ) -> None:

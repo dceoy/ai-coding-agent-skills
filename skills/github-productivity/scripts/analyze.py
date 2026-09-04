@@ -79,6 +79,31 @@ def _read_meta(workdir_path: Path) -> dict[str, Any]:
         raise AnalyzeError(msg) from exc
 
 
+def _check_state_pinned(workdir_path: Path, meta: dict[str, Any]) -> None:
+    """Reject a committed state that has advanced past ``aggregate``'s run.
+
+    Args:
+        workdir_path: The skill's workdir root.
+        meta: The parsed ``organization-week.meta.json`` contents.
+
+    Raises:
+        AnalyzeError: If the currently committed ``state.json`` names a
+            different ``committed_run_id`` than the one ``aggregate``
+            derived its window sidecar from.
+    """
+    state = workdir.read_state(workdir_path)
+    committed_run_id = state.get("committed_run_id") if state else None
+    if committed_run_id != meta.get("committed_run_id"):
+        msg = (
+            f"committed state advanced to run {committed_run_id!r} since "
+            f"'aggregate' derived its window from run "
+            f"{meta.get('committed_run_id')!r}; run 'aggregate' again before "
+            "analyzing so the panel and coverage reflect the same committed "
+            "generation"
+        )
+        raise AnalyzeError(msg)
+
+
 def _week_start(instant: datetime) -> datetime:
     """Return the Monday 00:00 UTC start of the ISO week containing ``instant``."""
     day_start = instant.astimezone(UTC).replace(
@@ -666,11 +691,13 @@ def run_analyze(
 
     Raises:
         AnalyzeError: If ``aggregate`` has not run for this workdir, entities
-            cannot be loaded, or ``normalize`` has advanced to a different
+            cannot be loaded, ``normalize`` has advanced to a different
             committed generation than the one ``aggregate`` derived its
-            window sidecar from.
+            window sidecar from, or committed state has advanced past the
+            run ``aggregate`` derived its window sidecar from.
     """
     meta = _read_meta(workdir_path)
+    _check_state_pinned(workdir_path, meta)
     try:
         entities = load_entities(workdir_path)
     except AggregateError as exc:

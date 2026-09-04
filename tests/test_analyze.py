@@ -544,6 +544,31 @@ def test_run_analyze_fails_closed_on_advanced_normalized_generation(
         analyze.run_analyze(workdir_path=tmp_path)
 
 
+def test_run_analyze_fails_closed_on_state_advanced_past_aggregate(
+    tmp_path: Path,
+) -> None:
+    """Analyze fails closed if a newer 'collect' committed after 'aggregate'.
+
+    Regression for a gap where ``analyze`` only compared its normalized
+    entities against ``aggregate``'s window sidecar, and never re-pinned the
+    currently committed ``state.json``. A successful ``collect`` that
+    commits a newer run before ``normalize``/``aggregate`` rerun must not be
+    silently ignored.
+    """
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run1")
+    write_normalized(
+        tmp_path, repositories=[repo_row(1)], pull_requests=[], committed_run_id="run1"
+    )
+    start = _monday(0)
+    end = _monday(4)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    # Simulate a later successful 'collect' committing a newer run before
+    # 'normalize'/'aggregate' rerun.
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run2")
+    with pytest.raises(analyze.AnalyzeError, match="committed state advanced"):
+        analyze.run_analyze(workdir_path=tmp_path)
+
+
 def test_run_analyze_fails_closed_on_changed_actor_fingerprint(
     tmp_path: Path,
 ) -> None:

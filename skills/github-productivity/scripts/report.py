@@ -313,11 +313,23 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
 
     Raises:
         ReportError: If ``aggregate``/``analyze`` sidecars are missing or
-            malformed.
+            malformed, or committed state has advanced past the run
+            ``aggregate`` derived its window sidecar from.
     """
     report_dir = workdir_path / "report"
     meta = _read_json(report_dir / "organization-week.meta.json", what="aggregate")
     analysis = _read_json(report_dir / "analysis.json", what="analyze")
+    state = workdir.read_state(workdir_path)
+    committed_run_id = state.get("committed_run_id") if state else None
+    if committed_run_id != meta.get("committed_run_id"):
+        msg = (
+            f"committed state advanced to run {committed_run_id!r} since "
+            f"'aggregate' derived its window from run "
+            f"{meta.get('committed_run_id')!r}; run 'aggregate' and 'analyze' "
+            "again before reporting so the report reflects the same committed "
+            "generation"
+        )
+        raise ReportError(msg)
     expected = analysis.get("aggregate_derivation")
     actual = {
         "requested_start": meta.get("requested_start"),
