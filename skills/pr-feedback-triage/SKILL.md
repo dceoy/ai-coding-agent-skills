@@ -11,8 +11,8 @@ Triage all current PR feedback against one exact head SHA. Remain usable standal
 ## Ownership
 
 - Bind every decision to the exact PR head SHA and feedback snapshot used to make it.
-- If a caller or orchestrator owns repository/GitHub mutations, operate analysis-only: do not edit, commit, push, reply, or resolve.
-- Otherwise own the focused fixes and GitHub actions needed to finish triage.
+- If the caller owns repository or GitHub mutations, return validated dispositions and required actions without mutating state.
+- Otherwise apply the focused fixes and GitHub actions needed to finish triage.
 - Keep changes scoped to review feedback. Apply KISS, DRY, and YAGNI and preserve unrelated local work.
 
 ## Snapshot
@@ -40,7 +40,7 @@ Retain source IDs and mark each source `resolve`, `leave_open`, or `not_resolvab
 flowchart TD
   A[Snapshot exact head + feedback] --> B[Deduplicate + classify]
   B --> C{Mutation owner?}
-  C -->|Caller / orchestrator| D[Return dispositions + required actions]
+  C -->|Caller| D[Return dispositions + required actions]
   C -->|This skill| E[Bind safe worktree]
   E --> F{Fixes?}
   F -->|Yes| G[Batch fixes + QA + commit + push\nexpected_head = pushed SHA]
@@ -68,12 +68,10 @@ flowchart TD
 
 ## Terminal States
 
-In analysis-only mode, return dispositions and required actions; the mutation owner assigns terminal states after executing them.
-
-When this skill owns mutations, track every incorporated source as `resolved`, `replied_left_open`, `not_resolvable`, `awaiting_re_review`, or `failed_action`.
+The mutation owner tracks executed sources as `resolved`, `replied_left_open`, `not_resolvable`, `awaiting_re_review`, or `failed_action`.
 
 `replied_left_open` is terminal only when its disposition is terminal. Completion is blocked by unpublished fixes, missing clarification, non-terminal defer/won't-fix decisions, `awaiting_re_review`, failed actions, unresolved QA, or unreconciled head/feedback changes.
 
 ## Output
 
-Report the analyzed head SHA, disposition counts, fixes and verification or analysis-only implementation plan, reply/resolution actions, remaining blockers, and terminal-state counts when this skill owns mutations.
+Report the analyzed head SHA, disposition counts, required or executed actions, verification when performed, remaining blockers, and terminal-state counts when mutations were executed.
