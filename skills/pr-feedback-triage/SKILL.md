@@ -16,7 +16,7 @@ Drive all current PR feedback through analysis, focused fixes, replies, and thre
 - Require a finite caller- or runtime-enforced subagent deadline; otherwise report `unsupported` and stop. Do not retry ambiguously accepted work.
 - Treat subagent output as advisory and validate it before acting.
 - Keep changes scoped to feedback. Apply KISS, DRY, and YAGNI and preserve unrelated local work.
-- Never publish unrelated local state. Before a fix batch, use a clean isolated worktree rooted exactly at the live PR head; if the current worktree or branch contains unrelated changes or unpushed commits, leave it untouched and rebind to that isolated worktree instead of stopping. Push only the resulting feedback-fix commit(s) to the recorded PR head ref without force.
+- Never publish unrelated local state. Immediately before a fix batch, require the live head and feedback to equal the analyzed snapshot, then use a clean isolated worktree rooted exactly at that analyzed head; leave unrelated local changes or unpushed commits untouched. Push only the resulting feedback-fix commit(s) to the recorded PR head ref without force; if the push loses a concurrent head race, restart from the latest live snapshot.
 - Do not require an intervening PR review when the head changes; review/merge gating belongs to the caller or orchestrator after triage.
 
 ## Feedback Contract
@@ -42,9 +42,14 @@ flowchart TD
   C -->|Same-head feedback delta| A
   C -->|Stable| D[Validate dispositions]
   D --> E{Fixes?}
-  E -->|Yes| F[Rebind clean isolated worktree at live head<br/>Batch fixes + QA + commit + non-force push<br/>expected_head = pushed SHA]
+  E -->|Yes| U{Live state still analyzed snapshot?}
+  U -->|No| A
+  U -->|Yes| F[Rebind clean isolated worktree at analyzed head<br/>Batch fixes + QA + commit + non-force push]
+  F --> V{Push accepted?}
+  V -->|No: concurrent head race| A
+  V -->|Yes| W[expected_head = pushed SHA]
+  W --> H{Revalidation holds?}
   E -->|No| G[expected_head = analyzed SHA]
-  F --> H{Revalidation holds?}
   G --> H
   H -->|No| A
   H -->|Yes| I{Fresh state?}
