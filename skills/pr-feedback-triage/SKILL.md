@@ -8,47 +8,60 @@ allowed-tools: Bash(git:*), Bash(gh:*), mcp__github__*, Read, Grep, Glob, Edit, 
 
 Drive all current PR feedback for one exact head through analysis, focused fixes, replies, and thread resolution. Use the same procedure standalone or inside a larger PR loop.
 
-The top-level agent owns every repository and GitHub mutation. Delegate feedback analysis only to one fresh independent read-only native subagent; when composed into a larger orchestrator, execute this skill in that same top-level context rather than launching the skill itself as a subagent.
-
 ## Invariants
 
+- The top-level agent owns every repository and GitHub mutation; delegate feedback analysis only to one fresh independent read-only native subagent.
 - Bind every disposition, fix, reply, and resolution to the exact PR head SHA and feedback snapshot used to decide it.
-- The feedback-analysis subagent is a terminal read-only leaf: no edits, commits, pushes, replies, resolutions, re-entry, or further delegation.
-- If the required subagent cannot run with a finite caller- or runtime-enforced deadline, report `unsupported` and stop. Do not retry ambiguously accepted work.
-- Treat subagent output as advisory; the top-level agent validates dispositions and current repository/GitHub state before acting.
+- The feedback-analysis subagent is a terminal leaf: no mutation, re-entry, or further delegation.
+- Require a finite caller- or runtime-enforced subagent deadline; otherwise report `unsupported` and stop. Do not retry ambiguously accepted work.
+- Treat subagent output as advisory and validate it before acting.
 - Keep changes scoped to feedback. Apply KISS, DRY, and YAGNI and preserve unrelated local work.
 
-## Feedback Analysis
+## Feedback Contract
 
-Snapshot the exact head repository/ref/SHA and all current feedback. Preserve typed source IDs and source-head provenance when GitHub exposes it:
+Snapshot the exact head repository/ref/SHA and all current feedback. Paginate platform reads and preserve typed source IDs plus source-head provenance when available:
 
-- `thread:<id>` for inline threads/comments, with original/review commit metadata when available;
-- `comment:<id>` for PR-level comments, with source head when established, otherwise `none`;
-- `review:<id>` for review submissions, including reviewer, persisted state, submission time, reviewed/source head SHA, and body;
-- user-supplied copied feedback, marked as non-platform sources.
+- `thread:<id>`: inline thread/comment, with original/review commit metadata when available;
+- `comment:<id>`: PR-level comment, with source head when established, otherwise `none`;
+- `review:<id>`: review submission with reviewer, persisted state, submission time, reviewed/source head SHA, and body;
+- copied feedback: non-platform source.
 
-Paginate platform reads. Historical feedback remains in scope: source head is provenance, not a reason to discard the item. Split artifacts containing independent findings into stable item-scoped records while retaining the parent source ID; merge only the same root cause.
+Historical feedback remains in scope and must be revalidated against the current head. Split independent findings into stable item-scoped records while retaining parent source IDs; merge only the same root cause.
 
-Dispatch one fresh feedback-analysis subagent with the recorded head, snapshot, current diff/code evidence needed to revalidate each item, and settled constraints. Require one disposition per distinct item:
+Require one disposition per distinct item: `fix`, `already addressed`, `outdated`, `answer`, `clarify`, `defer`, or `won't fix`. A `fix` includes the smallest concrete edit and verification; `defer` / `won't fix` include `decision_terminal: true|false`. Every item also includes source IDs, concise reply guidance or `none`, and `resolve`, `leave_open`, or `not_resolvable` for each source. Resolve a parent thread only when every contributing item is resolve-eligible.
 
-- `fix`: smallest concrete edit and verification;
-- `already addressed`: brief current-code evidence;
-- `outdated`: brief evidence that it no longer applies;
-- `answer`: concise answer with no code change;
-- `clarify`: one focused question;
-- `defer` / `won't fix`: reason plus `decision_terminal: true|false`.
+## Flow
 
-For every item require source IDs, concise reply guidance or `none`, and `resolve`, `leave_open`, or `not_resolvable` for each source. Resolve a parent thread only when every contributing item is resolve-eligible.
+```mermaid
+flowchart TD
+  A[Snapshot exact head + all feedback] --> B[Dispatch fresh read-only feedback-analysis subagent]
+  B --> C{Head and feedback still match snapshot?}
+  C -->|No| A
+  C -->|Yes| D[Validate dispositions]
+  D --> E{Fixes?}
+  E -->|Yes| F[Bind safe worktree<br/>Batch fixes + QA + commit + push<br/>expected_head = pushed SHA]
+  E -->|No| G[expected_head = analyzed SHA]
+  F --> H[Revalidate dispositions and actions]
+  G --> H
+  H --> I{current_head = expected_head<br/>and feedback reconciled?}
+  I -->|No| A
+  I -->|Yes| J[Publish concise replies + resolve eligible threads]
+  J --> K[Record this run's GitHub mutations]
+  K --> L[Re-fetch head + full feedback + terminal states]
+  L --> M{External delta?}
+  M -->|Yes| A
+  M -->|No| N{Expected resolution still open?}
+  N -->|Yes| O[Retry resolution once]
+  O --> P{Resolved?}
+  P -->|No| Q[failed_action]
+  P -->|Yes| R{Completion blocker?}
+  N -->|No| R
+  Q --> R
+  R -->|Yes| S[Stopped]
+  R -->|No| T[Complete]
+```
 
-After analysis returns, re-fetch the head and feedback. If the head changed, discard the analysis and restart on the new head. If external feedback changed on the same head, redispatch analysis with the fresh snapshot. Ignore only mutations explicitly recorded as this run's own.
-
-## Execute
-
-1. Validate the dispositions. If fixes exist, bind a safe worktree to the analyzed head, batch all fixes into one coherent change, run appropriate QA once, commit once, and push once. Never publish unrelated work or a partial conflicting batch.
-2. Set `expected_head` to the analyzed SHA when no fix was pushed, otherwise to the exact pushed SHA. Revalidate prepared dispositions and actions against `expected_head`; refresh analysis if any no longer holds.
-3. Before any reply or resolution require `current_head == expected_head`; ancestry is insufficient. Reconcile feedback against the analysis baseline plus this run's recorded mutations; refresh analysis first on any external delta.
-4. Apply the validated replies and resolutions. Keep replies to one sentence by default and prefer resolve-only for self-evident fixes, already-addressed items, and outdated items.
-5. Re-fetch the head and full feedback snapshot after acting. Reconcile external deltas and terminal states; retry an expected resolution once when safe, otherwise record `failed_action`. Restart on any external head/feedback change before completion.
+Ignore only mutations explicitly recorded as this run's own when reconciling feedback. Exact head equality is required before replies or resolutions; ancestry is insufficient.
 
 Resolve `defer` / `won't fix` only when `decision_terminal: true`; `clarify` and non-terminal decisions remain open.
 
@@ -56,7 +69,7 @@ An active `CHANGES_REQUESTED` review is `awaiting_re_review`. Explicit dismissal
 
 ## Terminal States
 
-Track every platform source as `resolved`, `replied_left_open`, `not_resolvable`, `awaiting_re_review`, or `failed_action` after execution. `replied_left_open` is terminal only when its disposition is terminal.
+Track every platform source as `resolved`, `replied_left_open`, `not_resolvable`, `awaiting_re_review`, or `failed_action`. `replied_left_open` is terminal only when its disposition is terminal.
 
 Completion is blocked by unpublished fixes, missing clarification, non-terminal defer/won't-fix decisions, `awaiting_re_review`, failed actions, unresolved QA, or unreconciled head/feedback changes.
 
