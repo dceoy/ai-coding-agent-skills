@@ -50,11 +50,10 @@ Each item must retain its source IDs and state whether each source should be `re
 Skip this section in analysis-only mode.
 
 1. Verify the worktree can be safely bound to the recorded PR head without overwriting or publishing unrelated work. Stop on unsafe, dirty, or diverged state that cannot be isolated.
-2. Batch all `fix` dispositions from the snapshot into one coherent change against the recorded head, run appropriate QA once for the batch, commit once, and push once. Do not partially publish a conflicting batch.
-3. Re-fetch the PR and set `expected_head` to the exact pushed head SHA. Publication is not complete merely because the fix commit is an ancestor of a newer head.
-4. Reconcile head and feedback again before any reply or resolution. Require `current_head == expected_head`; otherwise publish nothing from the stale analysis and restart. Refresh triage first if same-head external feedback changed.
-5. Apply validated platform actions. Keep replies to one sentence by default; prefer resolve-only for self-evident fixes, already-addressed items, and outdated items. Do not post a PR-level status summary unless it communicates a decision, blocker, or requested action.
-6. Re-fetch threads after acting. Retry an expected resolution once when safe; otherwise record `failed_action`.
+2. Set `expected_head` to the analyzed head. If any `fix` dispositions exist, batch them into one coherent change against that head, run appropriate QA once, commit once, push once, then replace `expected_head` with the exact pushed head SHA. Do not partially publish a conflicting batch.
+3. Reconcile head and feedback before any reply or resolution. Require `current_head == expected_head`; an ancestor relationship is insufficient. If the head differs, publish nothing from the stale analysis and restart. Refresh triage first if same-head external feedback changed.
+4. Apply validated platform actions. Keep replies to one sentence by default; prefer resolve-only for self-evident fixes, already-addressed items, and outdated items. Do not post a PR-level status summary unless it communicates a decision, blocker, or requested action.
+5. Re-fetch threads after acting. Retry an expected resolution once when safe; otherwise record `failed_action`.
 
 For `defer` / `won't fix`, resolve only when `decision_terminal: true`; otherwise reply if useful and leave the item open. `clarify` always remains open pending input.
 
