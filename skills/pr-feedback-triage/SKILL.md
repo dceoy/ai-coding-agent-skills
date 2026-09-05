@@ -1,25 +1,26 @@
 ---
 name: pr-feedback-triage
-description: Triage pull request feedback against an exact head, apply focused fixes, and finish the required replies and thread resolutions.
+description: Triage pull request feedback against the current head, apply focused fixes, and finish the required replies and thread resolutions.
 allowed-tools: Bash(git:*), Bash(gh:*), mcp__github__*, Read, Grep, Glob, Edit, MultiEdit, Write
 ---
 
 # PR Feedback Triage
 
-Drive all current PR feedback for one exact head through analysis, focused fixes, replies, and thread resolution. Use the same procedure standalone or inside a larger PR loop.
+Drive all current PR feedback through analysis, focused fixes, replies, and thread resolution on the latest live head. Use the same procedure standalone or inside a larger PR loop.
 
 ## Invariants
 
 - The top-level agent owns every repository and GitHub mutation; delegate feedback analysis only to one fresh independent read-only native subagent.
-- Bind every disposition, fix, reply, and resolution to the exact PR head SHA and feedback snapshot used to decide it.
+- Bind every disposition, fix, reply, and resolution to the exact PR head SHA and feedback snapshot used to decide it. If the head changes, discard stale prepared work and restart triage on the new live head.
 - The feedback-analysis subagent is a terminal leaf: no mutation, re-entry, or further delegation. If it causes Git-visible mutation, reject its output and stop before any fix, reply, or resolution.
 - Require a finite caller- or runtime-enforced subagent deadline; otherwise report `unsupported` and stop. Do not retry ambiguously accepted work.
 - Treat subagent output as advisory and validate it before acting.
 - Keep changes scoped to feedback. Apply KISS, DRY, and YAGNI and preserve unrelated local work.
+- Do not require an intervening PR review when the head changes; review/merge gating belongs to the caller or orchestrator after triage.
 
 ## Feedback Contract
 
-Snapshot the exact head repository/ref/SHA and all current feedback. Paginate platform reads and preserve typed source IDs plus source-head provenance when available:
+Snapshot the exact live head repository/ref/SHA and all current feedback. Paginate platform reads and preserve typed source IDs plus source-head provenance when available:
 
 - `thread:<id>`: inline thread/comment, with original/review commit metadata when available;
 - `comment:<id>`: PR-level comment, with source head when established, otherwise `none`;
@@ -34,9 +35,9 @@ Require one disposition per distinct item: `fix`, `already addressed`, `outdated
 
 ```mermaid
 flowchart TD
-  A[Snapshot exact head + feedback] --> B[Fresh read-only feedback-analysis subagent]
+  A[Snapshot live head + feedback] --> B[Fresh read-only feedback-analysis subagent]
   B --> C{State still current?}
-  C -->|Head changed| T[Stopped: head_changed]
+  C -->|Head changed| A
   C -->|Same-head feedback delta| A
   C -->|Stable| D[Validate dispositions]
   D --> E{Fixes?}
@@ -45,12 +46,12 @@ flowchart TD
   F --> H[Revalidate dispositions + actions]
   G --> H
   H --> I{Fresh state?}
-  I -->|Head changed| T
+  I -->|Head changed| A
   I -->|Same-head feedback delta| A
   I -->|Stable| J[Reply + resolve eligible threads]
   J --> K[Record own GitHub mutations]
   K --> L{Final state?}
-  L -->|Head changed| T
+  L -->|Head changed| A
   L -->|Same-head feedback delta| A
   L -->|Stable| M{Expected resolution still open?}
   M -->|Yes| N[Retry once]
@@ -63,17 +64,17 @@ flowchart TD
   Q -->|No| S[Complete]
 ```
 
-Ignore only this run's recorded GitHub mutations during reconciliation. Require exact head equality before replies or resolutions; ancestry is insufficient. On any unexpected head change, stop with `head_changed` and report the new live SHA so that the new head can be reviewed before triage resumes; only same-head feedback deltas redispatch analysis.
+Ignore only this run's recorded GitHub mutations during reconciliation. Require exact head equality before replies or resolutions; ancestry is insufficient. If the head differs, publish nothing from stale prepared actions and restart from the latest live head. No intervening review is required by this skill.
 
 Resolve `defer` / `won't fix` only when `decision_terminal: true`; `clarify` and non-terminal decisions remain open.
 
-An active `CHANGES_REQUESTED` review is `awaiting_re_review`. Explicit dismissal clears it; a later same-reviewer `APPROVED` clears it, a later same-reviewer `CHANGES_REQUESTED` replaces it as the active blocker, and `COMMENTED` does not supersede it. Do not dismiss reviewer state to clear it.
+An active `CHANGES_REQUESTED` review is `awaiting_re_review`. Explicit dismissal clears it; a later same-reviewer `APPROVED` clears it, a later same-reviewer `CHANGES_REQUESTED` replaces it as the active follow-up, and `COMMENTED` does not supersede it. Do not dismiss reviewer state to clear it. `awaiting_re_review` is terminal for triage and must be reported for the caller's later review/merge gate.
 
 ## Terminal States
 
 Track every platform source as `resolved`, `replied_left_open`, `not_resolvable`, `awaiting_re_review`, or `failed_action`. `replied_left_open` is terminal only when its disposition is terminal.
 
-Completion is blocked by unpublished fixes, missing clarification, non-terminal defer/won't-fix decisions, `awaiting_re_review`, failed actions, unresolved QA, or unreconciled head/feedback changes.
+Completion is blocked by unpublished fixes, missing clarification, non-terminal defer/won't-fix decisions, failed actions, unresolved QA, or unreconciled head/feedback changes.
 
 ## Output
 
