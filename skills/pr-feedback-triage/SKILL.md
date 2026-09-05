@@ -12,7 +12,7 @@ Drive all current PR feedback for one exact head through analysis, focused fixes
 
 - The top-level agent owns every repository and GitHub mutation; delegate feedback analysis only to one fresh independent read-only native subagent.
 - Bind every disposition, fix, reply, and resolution to the exact PR head SHA and feedback snapshot used to decide it.
-- The feedback-analysis subagent is a terminal leaf: no mutation, re-entry, or further delegation.
+- The feedback-analysis subagent is a terminal leaf: no mutation, re-entry, or further delegation. If it causes Git-visible mutation, reject its output and stop before any fix, reply, or resolution.
 - Require a finite caller- or runtime-enforced subagent deadline; otherwise report `unsupported` and stop. Do not retry ambiguously accepted work.
 - Treat subagent output as advisory and validate it before acting.
 - Keep changes scoped to feedback. Apply KISS, DRY, and YAGNI and preserve unrelated local work.
