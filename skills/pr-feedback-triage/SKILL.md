@@ -59,7 +59,7 @@ flowchart TD
 ## Execution Rules
 
 - Treat this run's validated fix push as an expected head transition by updating `expected_head`; restart only for another/unexpected head change.
-- Before any reply or resolution require `current_head == expected_head`; ancestry is insufficient. Refresh triage first on same-head external feedback changes.
+- Before any reply or resolution require `current_head == expected_head`; ancestry is insufficient. After a fix push, revalidate prepared dispositions/actions against `expected_head` and refresh triage if any no longer holds. Refresh triage first on same-head external feedback changes.
 - Batch all fixes from one snapshot into one coherent change, QA once, commit once, and push once. Never publish unrelated work or a partial conflicting batch.
 - Keep replies to one sentence by default and prefer resolve-only for self-evident fixes, already-addressed items, and outdated items.
 - Re-fetch threads after acting; retry an expected resolution once when safe, otherwise record `failed_action`.
