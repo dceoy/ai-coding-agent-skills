@@ -34,34 +34,33 @@ Require one disposition per distinct item: `fix`, `already addressed`, `outdated
 
 ```mermaid
 flowchart TD
-  A[Snapshot exact head + all feedback] --> B[Dispatch fresh read-only feedback-analysis subagent]
-  B --> C{Head and feedback still match snapshot?}
+  A[Snapshot exact head + feedback] --> B[Fresh read-only feedback-analysis subagent]
+  B --> C{Snapshot still current?}
   C -->|No| A
   C -->|Yes| D[Validate dispositions]
   D --> E{Fixes?}
-  E -->|Yes| F[Bind safe worktree<br/>Batch fixes + QA + commit + push<br/>expected_head = pushed SHA]
+  E -->|Yes| F[Bind worktree<br/>Batch fixes + QA + commit + push<br/>expected_head = pushed SHA]
   E -->|No| G[expected_head = analyzed SHA]
-  F --> H[Revalidate dispositions and actions]
+  F --> H[Revalidate dispositions + actions]
   G --> H
-  H --> I{current_head = expected_head<br/>and feedback reconciled?}
+  H --> I{Exact head + feedback reconciled?}
   I -->|No| A
-  I -->|Yes| J[Publish concise replies + resolve eligible threads]
-  J --> K[Record this run's GitHub mutations]
-  K --> L[Re-fetch head + full feedback + terminal states]
-  L --> M{External delta?}
-  M -->|Yes| A
-  M -->|No| N{Expected resolution still open?}
-  N -->|Yes| O[Retry resolution once]
-  O --> P{Resolved?}
-  P -->|No| Q[failed_action]
-  P -->|Yes| R{Completion blocker?}
-  N -->|No| R
-  Q --> R
-  R -->|Yes| S[Stopped]
-  R -->|No| T[Complete]
+  I -->|Yes| J[Reply + resolve eligible threads]
+  J --> K[Record own GitHub mutations]
+  K --> L[Reconcile final head + feedback + terminal states]
+  L -->|External delta| A
+  L -->|Stable| M{Expected resolution still open?}
+  M -->|Yes| N[Retry once]
+  N --> O{Resolved?}
+  O -->|No| P[failed_action]
+  O -->|Yes| Q{Completion blocker?}
+  M -->|No| Q
+  P --> Q
+  Q -->|Yes| R[Stopped]
+  Q -->|No| S[Complete]
 ```
 
-Ignore only mutations explicitly recorded as this run's own when reconciling feedback. Exact head equality is required before replies or resolutions; ancestry is insufficient.
+Ignore only this run's recorded GitHub mutations during reconciliation. Require exact head equality before replies or resolutions; ancestry is insufficient.
 
 Resolve `defer` / `won't fix` only when `decision_terminal: true`; `clarify` and non-terminal decisions remain open.
 
