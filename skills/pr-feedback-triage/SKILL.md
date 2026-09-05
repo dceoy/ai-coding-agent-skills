@@ -43,9 +43,10 @@ flowchart TD
   D --> E{Fixes?}
   E -->|Yes| F[Bind worktree<br/>Batch fixes + QA + commit + push<br/>expected_head = pushed SHA]
   E -->|No| G[expected_head = analyzed SHA]
-  F --> H[Revalidate dispositions + actions]
+  F --> H{Revalidation holds?}
   G --> H
-  H --> I{Fresh state?}
+  H -->|No| A
+  H -->|Yes| I{Fresh state?}
   I -->|Head changed| A
   I -->|Same-head feedback delta| A
   I -->|Stable| J[Reply + resolve eligible threads]
