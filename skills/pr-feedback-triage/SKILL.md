@@ -52,7 +52,7 @@ flowchart TD
   I -->|Unexpected head move| A
   I -->|Same-head external feedback delta| A
   I -->|current_head = expected_head\nfeedback reconciled| J[Reply / resolve]
-  J --> K[Re-fetch + verify terminal states]
+  J --> K[Reconcile final head + feedback + terminal states]
   K --> L{Completion blocker?}
   L -->|Yes| M[Stopped]
   L -->|No| N[Complete]
@@ -65,7 +65,7 @@ flowchart TD
 - Before any reply or resolution require `current_head == expected_head`; ancestry is insufficient. After a fix push, revalidate prepared dispositions/actions against `expected_head` and refresh triage if any no longer holds. Refresh triage first on same-head external feedback changes.
 - Batch all fixes from one snapshot into one coherent change, QA once, commit once, and push once. Never publish unrelated work or a partial conflicting batch.
 - Keep replies to one sentence by default and prefer resolve-only for self-evident fixes, already-addressed items, and outdated items.
-- Re-fetch threads after acting; retry an expected resolution once when safe, otherwise record `failed_action`.
+- After acting, re-fetch the head and full feedback snapshot, reconcile external deltas, and verify terminal states; restart triage on any external head/feedback change. Retry an expected resolution once when safe, otherwise record `failed_action`.
 - Resolve `defer` / `won't fix` only when `decision_terminal: true`; `clarify` and non-terminal decisions remain open.
 - Treat an active unsuperseded `CHANGES_REQUESTED` review as `awaiting_re_review`. Only a later `APPROVED` or `CHANGES_REQUESTED` review from the same reviewer supersedes it; a newer `CHANGES_REQUESTED` remains the blocker. Do not dismiss reviewer state to clear it.
 
