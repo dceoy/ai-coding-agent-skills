@@ -24,7 +24,7 @@ ROLE: <dynamic risk role>
 SNAPSHOT: <OWNER/REPO#NUMBER and reviewed head SHA>
 SCOPE: <changed files, hunks, interfaces, or behavior>
 HYPOTHESIS: <one discovery question or candidate IDs to validate>
-EVIDENCE: <required diff plus only narrowly necessary supporting context>
+EVIDENCE: <required diff and narrowly necessary context; for validation, the complete candidate records and any known counterevidence>
 CONSTRAINTS: <user scope and applicable pre-existing project/runtime constraints>
 ```
 
@@ -52,7 +52,7 @@ The worker must not force a finding. Discovery confidence is provisional and nev
 
 ## Validation output
 
-The parent supplies stable candidate identifiers and retains each candidate's original details. Return only what validation adds:
+For validation, the parent supplies each complete deduplicated candidate record, its stable identifier, and any counterevidence already found. Return only what validation adds:
 
 ```text
 CANDIDATE: <stable identifier>
