@@ -53,7 +53,7 @@ flowchart TD
   V -->|No| X{Remote head changed?}
   X -->|Yes| A
   X -->|No| Y{Safe transient and not retried?}
-  Y -->|Yes| Z
+  Y -->|Yes| AA
   Y -->|No| P[failed_action]
   W --> H{Revalidation holds?}
   E -->|No| G[expected_head = analyzed SHA]
