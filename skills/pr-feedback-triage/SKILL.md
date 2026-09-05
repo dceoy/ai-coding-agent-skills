@@ -1,191 +1,95 @@
 ---
 name: pr-feedback-triage
-description: Triage pull request review comments into fixes, replies, clarification requests, or open follow-ups.
+description: Triage pull request feedback against the current head, apply focused fixes, and finish the required replies and thread resolutions.
 allowed-tools: Bash(git:*), Bash(gh:*), mcp__github__*, Read, Grep, Glob, Edit, MultiEdit, Write
 ---
 
 # PR Feedback Triage
 
-Triage pull request review feedback, decide what action each thread needs, make focused fixes, and report or resolve only what is actually handled.
+Drive all current PR feedback through analysis, focused fixes, replies, and thread resolution on the latest live head. Use the same procedure standalone or inside a larger PR loop.
 
-## When to Use
+## Invariants
 
-- A PR has review comments, requested changes, unresolved review threads, or bot review findings.
-- The user asks to address, respond to, or resolve PR feedback.
-- The user provides a PR URL/number, a branch with an associated PR, or copied comments.
+- The top-level agent owns every repository and GitHub mutation; delegate feedback analysis only to one fresh independent read-only native subagent.
+- Bind every disposition, fix, reply, and resolution to the exact PR head SHA and feedback snapshot used to decide it. If the head changes, discard stale prepared work and restart triage on the new live head.
+- The feedback-analysis subagent is a terminal leaf: no mutation, re-entry, or further delegation. If it causes Git-visible mutation, reject its output and stop before any fix, reply, or resolution.
+- Require a finite caller- or runtime-enforced subagent deadline; otherwise report `unsupported` and stop. Do not retry ambiguously accepted work.
+- Treat subagent output as advisory and validate it before acting.
+- Keep changes scoped to feedback. Apply KISS, DRY, and YAGNI and preserve unrelated local work.
+- Never publish unrelated local state. Immediately before a fix batch and again immediately before its remote push, require the live head and feedback to equal the analyzed snapshot; if either gate fails, publish nothing from that stale batch and restart triage. Use a clean isolated worktree rooted exactly at the analyzed head; leave unrelated local changes or unpushed commits untouched. Push only the resulting feedback-fix commit(s) to the recorded PR head ref without force. On push failure, re-fetch the remote head: restart triage only if it moved; otherwise retry one safe transient push failure once and report persistent, authentication, or policy failures as `failed_action`.
+- Do not require an intervening PR review when the head changes; review/merge gating belongs to the caller or orchestrator after triage.
 
-## Inputs
+## Feedback Contract
 
-- Pull request URL or number, or a current branch that has an associated pull request.
-- Repository checkout or platform access sufficient to inspect the PR diff and review feedback.
-- Optional reviewer priorities from the user, such as "only address blocking comments".
+Snapshot the exact live head repository/ref/SHA and all current feedback. Paginate platform reads and preserve typed source IDs plus source-head provenance when available:
 
-If no PR or review comments are identifiable, ask for the target PR or the copied comments before proceeding.
+- `thread:<id>`: inline thread/comment, with original/review commit metadata when available;
+- `comment:<id>`: PR-level comment, with source head when established, otherwise `none`;
+- `review:<id>`: review submission with reviewer, persisted state, submission time, reviewed/source head SHA, and body;
+- copied feedback: non-platform source.
 
-## Preflight
+Historical feedback remains in scope and must be revalidated against the current head. Split independent findings into stable item-scoped records while retaining parent source IDs; merge only the same root cause.
 
-1. Identify the current branch and target PR.
-2. Check tracked local changes with `git diff --name-only` and `git diff --cached --name-only`. Ignore untracked files unless the review feedback explicitly concerns them.
-3. Check unpushed commits before relying on remote review feedback.
-4. If tracked local changes or unpushed commits exist, warn that existing PR comments may not cover the latest local state. Handle publication under the Publication Gate below; report any authentication, branch-protection, or repository-policy blocker explicitly.
-
-## Feedback Collection
-
-Gather the complete feedback set before editing:
-
-- Fetch unresolved review threads, requested-change reviews, inline comments, copied comments, and PR-level summary comments.
-- Use whichever authenticated GitHub-capable interface is available and reliable. This skill explicitly permits both `gh` and GitHub MCP tools; paginate results and do not inspect only the first page of threads or comments.
-- For bot reviewers that post both summary comments and inline comments, prefer inline comments for actionable triage. Incorporate summary findings only when they contain distinct severity, rationale, or fix instructions not already captured from inline comments.
-- Summary comments may be excluded from triage when they do not add distinct actionable context.
-- Preserve every thread/comment identifier needed to reply or resolve later.
-- Compare each comment with the current diff and file contents because review lines can become outdated.
-
-## Deduplication and Ordering
-
-Build one triage record per distinct finding:
-
-- Prefer exact review-thread identity when available.
-- For duplicate bot findings appearing in both summary and inline comments, merge by exact issue title first, then by file path plus line range as a fallback.
-- Prefer inline comments for location and current code context.
-- Use summary comments only for distinct severity, category, rationale, or detailed agent prompts that are not already available from inline comments.
-- Preserve the reviewer’s exact issue title and original wording where practical. Do not rename findings in a way that would make replies hard to map back to comments.
-- Preserve the reviewer’s original ordering unless the user asks for priority reordering. Many review bots already order findings by severity.
-
-Each triage record should track: original title, reviewer, source IDs, location, current applicability, severity/priority if available, disposition, planned action, verification, reply text if any, resolution decision, platform action attempted, and final platform state.
-
-## Resolution Policy
-
-`Resolve conversation` is the default action for any review thread that has been fully handled. A thread is handled when the requested change is implemented, verified, and published when required by the Publication Gate; the current code already satisfies the comment; the comment is outdated and no longer applies; or a deliberate deferral/won't-fix response has been posted with a clear reason.
-
-Keep a thread open only when it still needs reviewer, maintainer, or product input, its fix is unpublished, or verification is missing for a material change.
-
-When resolving a thread, add a concise reply first only if it provides useful context, such as what changed, why no code change was needed, why a finding was intentionally deferred, or why the original comment is now outdated. Do not add noisy replies for self-evident fixes unless project norms require them.
-
-## Platform Comment Style
-
-- Keep every posted reply or comment brief: one sentence by default, two short sentences only when necessary.
-- Do not post PR-level summary or status comments by default. Omit them when they only restate completed fixes, resolved threads, or verification already visible in commits/checks.
-- Avoid templates, long bullet lists, exhaustive status logs, and duplicated explanations in platform comments.
-- For simple fixes, already-addressed findings, or outdated findings, prefer `resolve_only` over adding a reply.
-
-## Platform Action Contract
-
-Do not treat triage as complete until every incorporated source ID reaches an explicit terminal state:
-
-- `resolved`: a platform resolve action succeeded, or a re-check shows the thread is already resolved.
-- `replied_left_open`: a reply or question was posted and the thread is intentionally left unresolved.
-- `not_resolvable`: the source is a PR-level summary comment or copied comment that has no platform-level resolve action; post a brief reply only when useful.
-- `failed_action`: publication is blocked, or a publication, reply, or resolve action was attempted and failed; include the action or blocker in the final summary.
-
-For code-dependent threads, satisfy the Publication Gate before replying or resolving. Then execute the applicable action:
-
-- `reply_then_resolve`: handled thread where the reviewer needs context before resolution.
-- `resolve_only`: self-evident fix, already-addressed finding, or outdated thread where an extra reply adds noise.
-- `reply_leave_open`: clarification request, blocked work, or intentional follow-up.
-- `reply_only`: PR-level comment or summary that cannot be resolved, only when a short reply adds value.
-
-For duplicate findings, execute the terminal action for every source thread ID, not only the primary triage record.
-
-## GitHub Action Guidance
-
-Use whichever authenticated GitHub-capable interface is available and reliable, preferably `gh` or GitHub MCP. Prefer interfaces that expose review-thread resolution state. For GitHub inline review threads, use the thread node ID and the GraphQL `resolveReviewThread` mutation, or an equivalent GitHub MCP resolve-thread tool, rather than assuming that a reply resolves the conversation.
-
-### Publication Gate
-
-After a verified in-scope code change, publish only changes attributable to the selected review feedback, including newly created files. If publishing them would also push unrelated pre-existing changes or commits, do not push and treat publication as `failed_action`.
-
-1. Commit those changes.
-2. Push the resulting commits to the PR head branch.
-3. Re-fetch the PR head or remote branch and confirm the pushed commit is present or is an ancestor of the current head.
-
-Do not finish or resolve code-dependent threads until this gate succeeds. If commit, push, or remote confirmation fails, retry once when safe, continue independent platform actions, and report the blocker.
-
-### Thread Actions
-
-1. Re-fetch review threads and comments immediately before acting.
-2. Reply when the action queue requires context.
-3. Resolve handled review threads by node ID.
-4. Re-fetch unresolved review threads after the queue completes.
-5. Retry any expected-to-be-resolved thread that remains unresolved once; otherwise mark it `failed_action`.
-
-Example GraphQL mutation shape:
-
-```graphql
-mutation ($threadId: ID!) {
-  resolveReviewThread(input: { threadId: $threadId }) {
-    thread {
-      id
-      isResolved
-    }
-  }
-}
-```
-
-A posted reply alone is sufficient only for `reply_leave_open`, `reply_only`, or `not_resolvable` sources. For handled inline review threads, reply and resolve are separate actions.
+Require one disposition per distinct item: `fix`, `already addressed`, `outdated`, `answer`, `clarify`, `defer`, or `won't fix`. A `fix` includes the smallest concrete edit and verification; `defer` / `won't fix` include `decision_terminal: true|false`. Every item also includes source IDs, concise reply guidance or `none`, and `resolve`, `leave_open`, or `not_resolvable` for each source. Resolve a parent thread only when every contributing item is resolve-eligible.
 
 ## Flow
 
 ```mermaid
 flowchart TD
-  A[Identify PR and branch state] --> B[Collect all review feedback]
-  B --> C[Deduplicate and preserve source IDs]
-  C --> D[Inspect current diff and code]
-  D --> E{Classify each triage record}
-  E -->|Fix| F[Implement minimal change]
-  E -->|Answer| G[Prepare concise reply]
-  E -->|Clarify| H[Prepare question and leave open]
-  E -->|Already addressed or Outdated| I[Prepare evidence]
-  E -->|Defer or Won't fix| J[Document reason]
-  F --> K[Verify]
-  K --> P[Run Publication Gate]
-  G --> R[Execute applicable platform actions]
-  H --> R
-  I --> R
-  J --> R
-  P --> R
-  R --> S[Re-fetch threads and retry unresolved handled threads once]
-  S --> Q[Final summary]
+  A[Snapshot live head + feedback] --> B[Fresh read-only feedback-analysis subagent]
+  B --> C{State still current?}
+  C -->|Head changed| A
+  C -->|Same-head feedback delta| A
+  C -->|Stable| D[Validate dispositions]
+  D --> E{Fixes?}
+  E -->|Yes| U{Live state still analyzed snapshot?}
+  U -->|No| A
+  U -->|Yes| F[Rebind clean isolated worktree at analyzed head<br/>Batch fixes + QA + commit]
+  F --> AA{Live state still analyzed snapshot?}
+  AA -->|No| A
+  AA -->|Yes| Z[Non-force push]
+  Z --> V{Push accepted?}
+  V -->|Yes| W[expected_head = pushed SHA]
+  V -->|No| X{Remote head changed?}
+  X -->|Yes| A
+  X -->|No| Y{Safe transient and not retried?}
+  Y -->|Yes| AA
+  Y -->|No| P[failed_action]
+  W --> H{Revalidation holds?}
+  E -->|No| G[expected_head = analyzed SHA]
+  G --> H
+  H -->|No| A
+  H -->|Yes| I{Fresh state?}
+  I -->|Head changed| A
+  I -->|Same-head feedback delta| A
+  I -->|Stable| J[Reply + resolve eligible threads]
+  J --> K[Record own GitHub mutations]
+  K --> L{Final state?}
+  L -->|Head changed| A
+  L -->|Same-head feedback delta| A
+  L -->|Stable| M{Expected resolution still open?}
+  M -->|Yes| N[Retry once]
+  N --> O{Resolved?}
+  O -->|No| P
+  O -->|Yes| Q{Completion blocker?}
+  M -->|No| Q
+  P --> Q
+  Q -->|Yes| R[Stopped]
+  Q -->|No| S[Complete]
 ```
 
-## Compact Workflow
+Ignore only this run's recorded GitHub mutations during reconciliation. Require exact head equality before replies or resolutions; ancestry is insufficient. If the head differs, publish nothing from stale prepared actions and restart from the latest live head. No intervening review is required by this skill.
 
-1. **Collect all relevant feedback**
-   - Identify the PR and gather unresolved review threads, requested-change reviews, inline comments, copied comments, and PR-level summaries.
-   - Paginate all platform calls and keep comment/thread IDs for later replies and resolution.
-   - For bot reviews, prioritize inline comments and incorporate summary findings only when they add distinct actionable context.
+Resolve `defer` / `won't fix` only when `decision_terminal: true`; `clarify` and non-terminal decisions remain open.
 
-2. **Classify each triage record**
-   - **Fix**: valid requested change; make the smallest focused edit.
-   - **Answer**: no code change needed; prepare a concise explanation.
-   - **Clarify**: ambiguous, conflicting, or missing context; reply with the question and leave unresolved.
-   - **Already addressed**: current code already satisfies it; prepare evidence.
-   - **Outdated**: commented code or issue no longer exists; prepare evidence.
-   - **Defer / Won't fix**: valid concern intentionally not changed now; document a specific reason.
+An active `CHANGES_REQUESTED` review is `awaiting_re_review`. Explicit dismissal clears it; a later same-reviewer `APPROVED` clears it, a later same-reviewer `CHANGES_REQUESTED` replaces it as the active follow-up, and `COMMENTED` does not supersede it. Do not dismiss reviewer state to clear it. `awaiting_re_review` is terminal for triage and must be reported for the caller's later review/merge gate.
 
-3. **Act according to classification**
-   - Keep edits scoped to the review feedback and follow still-applicable reviewer fix instructions.
-   - Run the Publication Gate for code changes, then execute the applicable platform actions.
+## Terminal States
 
-4. **Verify and finish**
-   - Run appropriate checks for fixes or explain why they could not run, then re-inspect the diff and comment context.
-   - Re-fetch review threads after platform actions and confirm expected terminal states.
-   - Retry safe failed actions once; report remaining blockers instead of claiming completion.
-   - Finish only when the Publication Gate is satisfied for code changes and every incorporated source ID has a terminal state under the Platform Action Contract.
+Track every platform source as `resolved`, `replied_left_open`, `not_resolvable`, `awaiting_re_review`, or `failed_action`. `replied_left_open` is terminal only when its disposition is terminal.
 
-## Reply Guidance
+Completion is blocked by unpublished fixes, missing clarification, non-terminal defer/won't-fix decisions, failed actions, unresolved QA, or unreconciled head/feedback changes.
 
-- Keep inline replies short: one sentence by default, two short sentences only when needed.
-- For fixed findings, mention the concrete change or commit only if it helps the reviewer.
-- For already-addressed or outdated findings, cite the current code path or behavior only as briefly as needed.
-- For deferred or won't-fix findings, provide the reason and any follow-up issue or owner if known.
-- Avoid posting PR-level summary comments unless they communicate a decision, blocker, or requested reviewer action.
-- If a reply or resolve operation fails, continue with the remaining threads and report the failure in the final summary.
+## Output
 
-## Final Summary Checklist
-
-- Counts by disposition and platform terminal state
-- Threads resolved, intentionally left open, or already resolved
-- Verification run or planned
-- Publication Gate result: commit SHA(s) and remote confirmation, or the blocker that prevented publication
-- Any in-scope uncommitted or unpushed work that remains
-- Remaining open items and who needs to respond
+Report the analyzed/final head SHA, disposition counts, fixes and verification, replies/resolutions, terminal-state counts, and any remaining blocker or required reviewer/user action.
