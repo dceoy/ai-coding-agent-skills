@@ -67,7 +67,7 @@ flowchart TD
 - Keep replies to one sentence by default and prefer resolve-only for self-evident fixes, already-addressed items, and outdated items.
 - Re-fetch threads after acting; retry an expected resolution once when safe, otherwise record `failed_action`.
 - Resolve `defer` / `won't fix` only when `decision_terminal: true`; `clarify` and non-terminal decisions remain open.
-- Treat an active unsuperseded `CHANGES_REQUESTED` review as `awaiting_re_review`. Do not dismiss it; a later `COMMENTED` review does not clear it.
+- Treat an active unsuperseded `CHANGES_REQUESTED` review as `awaiting_re_review`. Only a later `APPROVED` or `CHANGES_REQUESTED` review from the same reviewer supersedes it; a newer `CHANGES_REQUESTED` remains the blocker. Do not dismiss reviewer state to clear it.
 
 ## Terminal States
 
