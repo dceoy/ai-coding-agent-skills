@@ -2,98 +2,53 @@
 
 The top-level parent is the only actor allowed to publish PR-review feedback.
 
-## Posting Contract
+## Posting contract
 
-Unless the user explicitly selected `dry-run` or `no-post`, the review is incomplete until GitHub has accepted and persisted exactly one pull-request review for the exact reviewed head SHA.
+Unless the user selected `dry-run` or `no-post`, the review is incomplete until GitHub has accepted and persisted exactly one `COMMENT` pull-request review for the frozen reviewed head.
 
-Use action `COMMENT`. Do not use `APPROVE` or `REQUEST_CHANGES` unless the user explicitly asks for that separate review action.
-
-Every submitted review must have a non-empty top-level body, including a clean review with no actionable findings.
-
-Every review body must also contain both hidden markers:
+Every review has a non-empty top-level body, including a clean review, and contains fresh run markers:
 
 ```text
 <!-- pr-review-skill -->
 <!-- pr-review-skill-run: <reviewed-head-sha>-<fresh-UTC-timestamp-and-random-nonce> -->
 ```
 
-Generate a fresh current-run marker after freezing the reviewed head for every invocation. Do not reuse a marker from a prior run or derive it only from the head SHA or visible body; the marker is the identity used to distinguish duplicate reviews with otherwise identical content.
+Use a new marker for every invocation so an older review cannot satisfy verification accidentally.
 
-## Before Posting
+## Snapshot rule
 
-Immediately re-fetch the PR and compare its current head SHA with the SHA reviewed by discovery and validation subagents.
+Never mix analysis from different head SHAs.
 
-If the SHA changed:
+If the runtime can explicitly bind review publication to the frozen reviewed commit, publish against that exact commit even when the live PR head has advanced. The resulting review may be rendered as outdated; that is acceptable because its target is unambiguous.
 
-- do not post stale inline comments;
-- discard findings derived from the old head;
-- restart review against the new head.
+If the runtime cannot guarantee commit-bound publication, immediately re-fetch the live PR head before posting. If it differs from the reviewed head, discard the stale result and restart against the new snapshot rather than publishing feedback with an ambiguous target.
 
-Also re-check current review feedback so a finding that was independently posted while the review was running is not duplicated.
+In either mode, re-check current feedback before publication when practical so independently posted findings are not duplicated.
 
-## Inline vs Top-Level Feedback
+## Inline vs top-level
 
-Use inline comments for specific actionable findings when all are true:
+Use inline comments for specific actionable findings when the finding maps unambiguously to a changed line on the reviewed snapshot. Use the review body for cross-file findings, unanchorable test/documentation/operational concerns, rare material `needs-human` notes, and the clean-result statement.
 
-- the finding maps to a changed line on the reviewed head;
-- the line anchor is unambiguous;
-- the comment explains one root cause and concrete impact;
-- the requested remediation is local enough to be useful at that line.
+Do not duplicate one finding both inline and in the body. If an inline anchor is unsafe, move the finding to the body rather than guessing.
 
-Use the top-level review body for:
+Each published finding should state the changed behavior that is wrong, its concrete impact or failing condition, and the smallest useful remediation direction. Avoid generic best practices, tutorials, praise attached to defects, and vague suggestions without a concrete failure.
 
-- cross-file root causes;
-- missing tests or documentation that cannot be anchored safely;
-- operational or compatibility concerns spanning multiple files;
-- rare `needs-human` verification notes;
-- the clean-result statement.
+## Clean result
 
-Do not duplicate the same finding inline and in the body. A short body may summarize the count and overall result while the full actionable detail remains inline.
-
-## Comment Style
-
-Keep published feedback concise and decision-oriented. Each finding should state:
-
-1. what changed behavior is wrong;
-2. the concrete impact or failing condition;
-3. the smallest useful remediation direction.
-
-Avoid praise attached to blocking findings, generic best practices, long tutorials, severity theatrics, and vague phrases such as "consider improving" without a concrete defect.
-
-Use severity only when it helps prioritize multiple findings. The review should read as engineering feedback, not a scan dump.
-
-## Clean Result
-
-When no publishable findings remain after arbitration, use a non-empty body such as:
+When no publishable findings remain, still submit a non-empty COMMENT review such as:
 
 ```text
 No new actionable findings were found in this review pass.
 ```
 
-Do not imply that unrelated existing feedback has been resolved or that the PR is approved.
+Do not imply approval or resolution of unrelated existing feedback.
 
 ## Verification
 
-Capture the identifier returned by the GitHub review mutation when available, then re-fetch the PR's reviews and inline comments. A returned review ID is the primary identity when present, but current-run marker verification is required on every path, including mutations that return no artifact ID.
+After submission, re-fetch reviews and inline comments. Success requires evidence that the specific current-run COMMENT review persisted, is associated with the reviewed head when GitHub exposes that metadata, contains the intended top-level body and fresh run marker, and includes every intended inline comment at the expected location.
 
-Success requires verifying that:
+A returned review ID is useful but does not replace current-run marker verification. Do not treat process exit status, HTTP success alone, stdout, or the parent's final response as proof of publication.
 
-- the specific review exists and is persisted as a COMMENT review;
-- it belongs to the exact reviewed head SHA when that metadata is available;
-- the top-level body matches the intended review content;
-- the exact fresh current-run marker for this invocation is present, so an older review with the same head and body cannot satisfy verification;
-- every intended inline comment exists at the expected changed location.
+If mutation succeeds but verification is inconclusive, re-read GitHub state once to rule out propagation delay. Do not create a second review merely because the first response was incomplete. If the intended artifact still cannot be verified, report publication failure.
 
-Do not treat process exit status, HTTP success alone, stdout, a job summary, or the parent's final response as proof that the review was published.
-
-If publication succeeds but verification fails, re-read the current GitHub state once to rule out propagation delay. Do not create a second review merely because the first mutation's response was incomplete. If the exact submitted artifact still cannot be verified, report publication as failed rather than claiming success.
-
-## Failure Handling
-
-If the head moves before publication, restart on the new head.
-
-If a line cannot be anchored safely, move that finding to the top-level body rather than guessing the line.
-
-If GitHub mutation or verification fails, preserve the arbitrated review locally and report the posting failure clearly. Do not fall back to pretending that returning review Markdown in chat completed the GitHub review.
-
-In `dry-run` or `no-post` mode, skip all mutations and return the arbitrated findings with an explicit statement that nothing was posted.
+In `dry-run` or `no-post` mode, skip mutation and return the arbitrated findings with an explicit statement that nothing was posted.
