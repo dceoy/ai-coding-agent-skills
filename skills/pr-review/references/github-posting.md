@@ -23,7 +23,7 @@ If the runtime can explicitly bind review publication to the frozen reviewed com
 
 If the runtime cannot guarantee commit-bound publication, immediately re-fetch the live PR head before posting. If it differs from the reviewed head, discard the stale result and restart against the new snapshot rather than publishing feedback with an ambiguous target.
 
-In either mode, re-check current feedback before publication when practical so independently posted findings are not duplicated.
+Immediately before mutation, re-fetch current review feedback and drop findings already clearly covered so concurrent reviews are not duplicated.
 
 ## Inline vs top-level
 
