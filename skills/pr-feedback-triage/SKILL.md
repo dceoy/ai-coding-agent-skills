@@ -67,7 +67,7 @@ flowchart TD
 - Keep replies to one sentence by default and prefer resolve-only for self-evident fixes, already-addressed items, and outdated items.
 - After acting, re-fetch the head and full feedback snapshot, reconcile external deltas, and verify terminal states; restart triage on any external head/feedback change. Retry an expected resolution once when safe, otherwise record `failed_action`.
 - Resolve `defer` / `won't fix` only when `decision_terminal: true`; `clarify` and non-terminal decisions remain open.
-- Treat an active unsuperseded `CHANGES_REQUESTED` review as `awaiting_re_review`. Only a later `APPROVED` or `CHANGES_REQUESTED` review from the same reviewer supersedes it; a newer `CHANGES_REQUESTED` remains the blocker. Do not dismiss reviewer state to clear it.
+- Treat an active `CHANGES_REQUESTED` review as `awaiting_re_review`. Explicit dismissal clears it; a later same-reviewer `APPROVED` clears it, a later same-reviewer `CHANGES_REQUESTED` replaces it as the active blocker, and `COMMENTED` does not supersede it. Do not dismiss reviewer state to clear it.
 
 ## Terminal States
 
