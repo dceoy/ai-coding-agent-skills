@@ -35,20 +35,23 @@ Require one disposition per distinct item: `fix`, `already addressed`, `outdated
 ```mermaid
 flowchart TD
   A[Snapshot exact head + feedback] --> B[Fresh read-only feedback-analysis subagent]
-  B --> C{Snapshot still current?}
-  C -->|No| A
-  C -->|Yes| D[Validate dispositions]
+  B --> C{State still current?}
+  C -->|Head changed| T[Stopped: head_changed]
+  C -->|Same-head feedback delta| A
+  C -->|Stable| D[Validate dispositions]
   D --> E{Fixes?}
   E -->|Yes| F[Bind worktree<br/>Batch fixes + QA + commit + push<br/>expected_head = pushed SHA]
   E -->|No| G[expected_head = analyzed SHA]
   F --> H[Revalidate dispositions + actions]
   G --> H
-  H --> I{Exact head + feedback reconciled?}
-  I -->|No| A
-  I -->|Yes| J[Reply + resolve eligible threads]
+  H --> I{Fresh state?}
+  I -->|Head changed| T
+  I -->|Same-head feedback delta| A
+  I -->|Stable| J[Reply + resolve eligible threads]
   J --> K[Record own GitHub mutations]
-  K --> L[Reconcile final head + feedback + terminal states]
-  L -->|External delta| A
+  K --> L{Final state?}
+  L -->|Head changed| T
+  L -->|Same-head feedback delta| A
   L -->|Stable| M{Expected resolution still open?}
   M -->|Yes| N[Retry once]
   N --> O{Resolved?}
@@ -60,7 +63,7 @@ flowchart TD
   Q -->|No| S[Complete]
 ```
 
-Ignore only this run's recorded GitHub mutations during reconciliation. Require exact head equality before replies or resolutions; ancestry is insufficient.
+Ignore only this run's recorded GitHub mutations during reconciliation. Require exact head equality before replies or resolutions; ancestry is insufficient. On any unexpected head change, stop with `head_changed` and report the new live SHA so that the new head can be reviewed before triage resumes; only same-head feedback deltas redispatch analysis.
 
 Resolve `defer` / `won't fix` only when `decision_terminal: true`; `clarify` and non-terminal decisions remain open.
 
