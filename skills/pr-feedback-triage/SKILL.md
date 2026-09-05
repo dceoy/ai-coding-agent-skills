@@ -16,7 +16,7 @@ Drive all current PR feedback through analysis, focused fixes, replies, and thre
 - Require a finite caller- or runtime-enforced subagent deadline; otherwise report `unsupported` and stop. Do not retry ambiguously accepted work.
 - Treat subagent output as advisory and validate it before acting.
 - Keep changes scoped to feedback. Apply KISS, DRY, and YAGNI and preserve unrelated local work.
-- Never publish unrelated local state. Immediately before a fix batch, require the live head and feedback to equal the analyzed snapshot, then use a clean isolated worktree rooted exactly at that analyzed head; leave unrelated local changes or unpushed commits untouched. Push only the resulting feedback-fix commit(s) to the recorded PR head ref without force; if the push loses a concurrent head race, restart from the latest live snapshot.
+- Never publish unrelated local state. Immediately before a fix batch, require the live head and feedback to equal the analyzed snapshot, then use a clean isolated worktree rooted exactly at that analyzed head; leave unrelated local changes or unpushed commits untouched. Push only the resulting feedback-fix commit(s) to the recorded PR head ref without force. On push failure, re-fetch the remote head: restart triage only if it moved; otherwise retry one safe transient push failure once and report persistent, authentication, or policy failures as `failed_action`.
 - Do not require an intervening PR review when the head changes; review/merge gating belongs to the caller or orchestrator after triage.
 
 ## Feedback Contract
@@ -44,10 +44,15 @@ flowchart TD
   D --> E{Fixes?}
   E -->|Yes| U{Live state still analyzed snapshot?}
   U -->|No| A
-  U -->|Yes| F[Rebind clean isolated worktree at analyzed head<br/>Batch fixes + QA + commit + non-force push]
-  F --> V{Push accepted?}
-  V -->|No: concurrent head race| A
+  U -->|Yes| F[Rebind clean isolated worktree at analyzed head<br/>Batch fixes + QA + commit]
+  F --> Z[Non-force push]
+  Z --> V{Push accepted?}
   V -->|Yes| W[expected_head = pushed SHA]
+  V -->|No| X{Remote head changed?}
+  X -->|Yes| A
+  X -->|No| Y{Safe transient and not retried?}
+  Y -->|Yes| Z
+  Y -->|No| P[failed_action]
   W --> H{Revalidation holds?}
   E -->|No| G[expected_head = analyzed SHA]
   G --> H
@@ -63,7 +68,7 @@ flowchart TD
   L -->|Stable| M{Expected resolution still open?}
   M -->|Yes| N[Retry once]
   N --> O{Resolved?}
-  O -->|No| P[failed_action]
+  O -->|No| P
   O -->|Yes| Q{Completion blocker?}
   M -->|No| Q
   P --> Q
