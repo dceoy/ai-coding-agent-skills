@@ -39,6 +39,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `pr-feedback-triage` - Triage and resolve pull request review feedback
 - `pr-review` - Autonomous CI/GitHub PR review that posts concise, high-confidence findings by default
 - `simplify-codebase` - Reduce maintenance surface under KISS/DRY/YAGNI, explicitly or proactively when worthwhile
+- `standalone-pr-loop` - Self-contained issue-to-PR and iterative PR review/fix loop using adaptive native subagents
 
 ### AI Tools
 
