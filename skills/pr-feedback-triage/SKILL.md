@@ -68,10 +68,12 @@ flowchart TD
 
 ## Terminal States
 
-Track every incorporated source as `resolved`, `replied_left_open`, `not_resolvable`, `awaiting_re_review`, or `failed_action`.
+In analysis-only mode, return dispositions and required actions; the mutation owner assigns terminal states after executing them.
+
+When this skill owns mutations, track every incorporated source as `resolved`, `replied_left_open`, `not_resolvable`, `awaiting_re_review`, or `failed_action`.
 
 `replied_left_open` is terminal only when its disposition is terminal. Completion is blocked by unpublished fixes, missing clarification, non-terminal defer/won't-fix decisions, `awaiting_re_review`, failed actions, unresolved QA, or unreconciled head/feedback changes.
 
 ## Output
 
-Report the analyzed head SHA, disposition/terminal-state counts, fixes and verification or analysis-only implementation plan, reply/resolution actions, and remaining blockers.
+Report the analyzed head SHA, disposition counts, fixes and verification or analysis-only implementation plan, reply/resolution actions, remaining blockers, and terminal-state counts when this skill owns mutations.
