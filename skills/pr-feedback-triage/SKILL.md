@@ -17,7 +17,7 @@ Triage all current PR feedback against one exact head SHA. Remain usable standal
 
 ## Snapshot
 
-Collect the exact head repository/ref/SHA and all current inline threads/comments, PR-level comments, review submissions/bodies, and user-supplied copied feedback. Paginate platform reads and preserve source IDs.
+Collect the exact head repository/ref/SHA and all current inline threads/comments, PR-level comments, review submissions with reviewer, persisted state, submission time, and body, and user-supplied copied feedback. Paginate platform reads and preserve source IDs.
 
 Split artifacts containing independent findings into stable item-scoped records while retaining the parent source ID. Merge only the same root cause; prefer inline context over duplicate bot summaries.
 
