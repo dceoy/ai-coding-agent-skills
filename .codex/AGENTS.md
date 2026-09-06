@@ -31,7 +31,7 @@ After selecting the model, choose effort for cost/performance as follows:
 - Luna: `max`.
 - Terra: `xhigh` by default; `max` when materially useful.
 - Sol: `high` by default; `xhigh` for unusually demanding work; `max` only for the hardest quality-first work.
-- Astra: `medium`.
+- Astra: `medium` by default; `high` for demanding work; `xhigh` for the hardest cross-cutting work; `max` only when quality is the dominant constraint and the additional reasoning cost is justified.
 
 Do not carry an effort choice across a model escalation; reselect it from the selected model's allowed set. If native dispatch cannot honor an explicit model or effort, do not silently inherit another value. Treat that named invocation as unsupported and follow the caller's permitted fallback contract.
 
