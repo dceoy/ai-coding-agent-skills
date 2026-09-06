@@ -20,7 +20,7 @@ The TOML files intentionally omit `model` and `model_reasoning_effort`; both are
 
 Astra is capability-gated: use it only when the native Codex model catalog or dispatch surface confirms `gpt-6-astra` support in the current environment. Otherwise remain on Sol with an appropriate Sol effort.
 
-Effort is selected for the chosen model: Luna=`max`; Terra=`xhigh` or `max`; Sol=`high`, `xhigh`, or `max`; Astra=`medium`. See `.codex/AGENTS.md` for the default effort within each model and escalation criteria.
+Effort is selected for the chosen model: Luna=`max`; Terra=`xhigh` or `max`; Sol=`high`, `xhigh`, or `max`; Astra=`medium` by default with `high`, `xhigh`, or `max` available when stronger reasoning is justified. See `.codex/AGENTS.md` for the escalation criteria.
 
 Invoke named roles only through Codex native multi-agent tools. With MultiAgentV2 use `fork_turns: "none"`; with MultiAgentV1 use `fork_context: false` or omit it. Pass task-specific context explicitly and apply the mutation guard defined in `.codex/AGENTS.md`.
 
