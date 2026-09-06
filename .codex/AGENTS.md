@@ -14,19 +14,22 @@ The agent TOML files define role behavior and sandbox defaults but intentionally
 
 Use these model defaults and escalate only when the stated work requires it:
 
-- `planner`: `gpt-5.6-terra`; use `gpt-5.6-sol` for architecture, public interfaces, schemas, migrations, security boundaries, broad cross-cutting behavior, or unusually regression-prone planning.
-- `advisor`: `gpt-5.6-sol`.
-- `reviewer` / `correctness`: `gpt-5.6-terra`; use Sol for difficult state transitions, concurrency, large refactors, or cross-component invariants.
+- `planner`: `gpt-5.6-terra` by default; use `gpt-5.6-sol` for architecture, public interfaces, schemas, migrations, security boundaries, broad cross-cutting behavior, or unusually regression-prone planning; use `gpt-6-astra` only for the hardest plans when several such concerns interact, uncertainty remains after inspection, or the cost of a design error is unusually high and the strongest end-to-end reasoning is materially useful.
+- `advisor`: `gpt-5.6-sol` by default; use `gpt-6-astra` for consequential architecture, security, cross-system, or similarly high-impact judgment when the strongest independent analysis materially improves decision quality.
+- `reviewer` / `correctness`: `gpt-5.6-terra`; use Sol for difficult state transitions, concurrency, large refactors, or cross-component invariants; use Astra only for the highest-risk or most cross-cutting reviews when several such concerns interact, uncertainty remains after inspection, or the cost of a missed defect is unusually high.
 - `reviewer` / `tests/docs`: `gpt-5.6-luna`; use Terra when verification, compatibility, or documentation behavior requires substantial code reasoning.
-- `reviewer` / `security/performance`: `gpt-5.6-terra`; use Sol for authentication, authorization, secrets, untrusted input, CI or privilege boundaries, concurrency, resource exhaustion, or similarly high-risk analysis.
-- `reviewer` / other caller-defined lens or scope: `gpt-5.6-terra`; use Sol when the review is materially difficult, high-risk, cross-cutting, or otherwise quality-critical.
-- `feedback-analyst`: `gpt-5.6-luna`; use Terra when feedback conflicts, root-cause grouping is ambiguous, or dispositions require non-trivial code reasoning. Use `advisor` instead for architecture-level or other consequential judgment.
+- `reviewer` / `security/performance`: `gpt-5.6-terra`; use Sol for authentication, authorization, secrets, untrusted input, CI or privilege boundaries, concurrency, resource exhaustion, or similarly high-risk analysis; use Astra only for the highest-risk reviews when several such domains interact, uncertainty remains after inspection, or the cost of a missed defect is unusually high.
+- `reviewer` / other caller-defined lens or scope: `gpt-5.6-terra`; use Sol when the review is materially difficult, high-risk, cross-cutting, or otherwise quality-critical; use Astra only when the review is among the hardest end-to-end cases and the strongest reasoning is materially useful.
+- `feedback-analyst`: `gpt-5.6-luna`; use Terra when feedback conflicts, root-cause grouping is ambiguous, or dispositions require non-trivial code reasoning. Use `advisor` instead for architecture-level or other consequential judgment, with Astra available there under the advisor escalation criteria.
+
+Treat Astra as a capability-gated escalation. Select it only when the native Codex model catalog or dispatch surface confirms `gpt-6-astra` is supported in the current environment. If Astra support is unavailable or cannot be confirmed, retain Sol and select an appropriate Sol effort rather than attempting Astra and relying on an implicit downgrade.
 
 After selecting the model, choose effort for cost/performance as follows:
 
 - Luna: `max`.
 - Terra: `xhigh` by default; `max` when materially useful.
 - Sol: `high` by default; `xhigh` for unusually demanding work; `max` only for the hardest quality-first work.
+- Astra: `high` by default; `xhigh` for the hardest cross-cutting work; `max` only when quality is the dominant constraint and the additional reasoning cost is justified.
 
 Do not carry an effort choice across a model escalation; reselect it from the selected model's allowed set. If native dispatch cannot honor an explicit model or effort, do not silently inherit another value. Treat that named invocation as unsupported and follow the caller's permitted fallback contract.
 
