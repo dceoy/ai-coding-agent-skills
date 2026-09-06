@@ -4,7 +4,7 @@ These optional project-scoped TOML files define four reusable native read-only C
 
 - `planner`: decision-complete implementation planning.
 - `advisor`: on-demand technical advice or implementation review.
-- `reviewer`: one caller-defined review lens against an exact revision.
+- `reviewer`: one caller-defined PR-review discovery or validation task against an exact revision.
 - `feedback-analyst`: source-preserving feedback disposition and fix guidance.
 
 Implementation remains owned by the top-level main agent. Named agents are fresh-context terminal leaves and must not modify files or dispatch another subagent.
@@ -15,7 +15,7 @@ The TOML files intentionally omit `model` and `model_reasoning_effort`; both are
 
 - `planner`: Terra by default → Sol for architecture, public interfaces, schemas, migrations, security boundaries, broad cross-cutting behavior, or unusually regression-prone planning → Astra only for the hardest plans when several such concerns interact, uncertainty remains, or design-error cost is unusually high.
 - `advisor`: Sol by default → Astra for consequential architecture, security, cross-system, or similarly high-impact judgment.
-- `reviewer`: correctness=Terra, tests/docs=Luna, security/performance=Terra, other lenses/scopes=Terra; escalate to Sol per `.codex/AGENTS.md`, and to Astra only for the hardest or highest-risk cases covered by the authoritative routing policy.
+- `reviewer`: select from the task's concrete risk and hardest lens: Luna for lightweight docs/comments/narrow coverage, Terra for ordinary correctness/errors/types/compatibility/simplification/performance reasoning, Sol for high-risk security, migration, concurrency, state, invariant, exhaustion, or scalability analysis, and Astra only for the highest-risk or most cross-cutting reviews.
 - `feedback-analyst`: Luna → Terra for ambiguous or code-reasoning-heavy triage; escalate consequential architecture-level judgment to `advisor`.
 
 Astra is capability-gated: use it only when the native Codex model catalog or dispatch surface confirms `gpt-6-astra` support in the current environment. Otherwise remain on Sol with an appropriate Sol effort.

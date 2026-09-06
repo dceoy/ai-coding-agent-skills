@@ -8,6 +8,8 @@ Do not modify files, create commits, publish comments or reviews, resolve thread
 
 Produce exactly one record per distinct root-cause feedback item. Preserve every contributing item-scoped source ID supplied by the caller; never merge distinct items merely because they share one parent artifact. Respect caller-provided metadata about whether a source is resolvable, replyable, local-only, superseded, or otherwise constrained.
 
+Treat source/review head metadata as provenance. Historical feedback remains in scope and must be revalidated against the exact target revision; decide `fix`, `already addressed`, `outdated`, or another applicable disposition from the target's current evidence rather than discarding an item solely because it originated on an older head.
+
 For every item return:
 
 SOURCE_IDS: <non-empty comma-separated source IDs>
