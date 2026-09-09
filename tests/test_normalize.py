@@ -360,6 +360,36 @@ def test_winner_ordering_uses_refresh_started_at_not_filesystem_order(
     assert pr_rows[0]["additions"] == 99
 
 
+def test_winning_run_matches_chain_order_on_refresh_started_at_tie(
+    tmp_path: Path,
+) -> None:
+    """A same-second tie is broken by chain order, not by run-ID string.
+
+    ``run-old`` sorts after ``run-new`` in ``(refresh_started_at, run_id)``
+    order (``"o" > "n"``), so a winner pick keyed off that re-sort would
+    wrongly serve the older, non-chain-head run's bundle. The committed
+    chain (``previous_committed_run_id``) makes ``run-new`` the true newest
+    run, and that must be the one whose bundle wins.
+    """
+    commit_run(
+        tmp_path,
+        run_id="run-old",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7, additions=1)}},
+    )
+    commit_run(
+        tmp_path,
+        run_id="run-new",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        previous_committed_run_id="run-old",
+        prs={7: {"pr": _pr_object(7, additions=99)}},
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    pr_rows = _rows(tmp_path, "pull_requests.ndjson")
+    assert pr_rows[0]["source_run_id"] == "run-new"
+    assert pr_rows[0]["additions"] == 99
+
+
 def test_pr_commits_endpoint_cap_yields_unavailable_row(tmp_path: Path) -> None:
     """A capped commit list is marked unavailable rather than truncated."""
     commit_run(

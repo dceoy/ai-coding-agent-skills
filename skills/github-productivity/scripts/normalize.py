@@ -575,13 +575,17 @@ def _build_run_bundles(
 
 
 def _select_winning_runs(
-    ordered_runs: list[dict[str, Any]],
+    lineage: list[dict[str, Any]],
 ) -> dict[tuple[int, int], str]:
     """Map each touched PR to the newest committed run that touched it.
 
     Args:
-        ordered_runs: Lineage manifests sorted newest first by
-            ``(refresh_started_at, run_id)``.
+        lineage: Committed-lineage manifests in true chain order, newest
+            first, as returned by ``workdir.resolve_committed_lineage``'s
+            backward walk of ``previous_committed_run_id``. This is
+            authoritative over any ``(refresh_started_at, run_id)`` re-sort:
+            ``run_id``'s random suffix has no relationship to chain order,
+            so a timestamp tie can make that re-sort disagree with it.
 
     Returns:
         ``(repository_id, pr_number)`` -> winning ``run_id``. Whole-bundle
@@ -593,7 +597,7 @@ def _select_winning_runs(
             dropping its touched PRs silently would fail open.
     """
     winning: dict[tuple[int, int], str] = {}
-    for manifest in ordered_runs:
+    for manifest in lineage:
         run_id = manifest.get("run_id")
         if not isinstance(run_id, str):
             msg = "a committed lineage manifest lacks a string 'run_id'"
@@ -1011,7 +1015,9 @@ def _existing_is_current(
 
 
 def _gather_bundles(
-    workdir_path: Path, ordered_runs: list[dict[str, Any]]
+    workdir_path: Path,
+    ordered_runs: list[dict[str, Any]],
+    lineage: list[dict[str, Any]],
 ) -> list[_Bundle]:
     """Resolve every touched PR to its winning bundle, in stable key order.
 
@@ -1020,13 +1026,17 @@ def _gather_bundles(
 
     Args:
         workdir_path: The skill's workdir root.
-        ordered_runs: Lineage manifests, newest first.
+        ordered_runs: Lineage manifests, newest first by
+            ``(refresh_started_at, run_id)``; used only to key manifests by
+            ``run_id`` here.
+        lineage: Committed-lineage manifests in true chain order, newest
+            first, used to pick each touched PR's winning run.
 
     Returns:
         One :class:`_Bundle` per touched ``(repository_id, pr_number)``,
         sorted by that key.
     """
-    winning_run = _select_winning_runs(ordered_runs)
+    winning_run = _select_winning_runs(lineage)
     pr_ids = sorted(winning_run)
     runs_by_id = {
         m["run_id"]: m for m in ordered_runs if isinstance(m.get("run_id"), str)
@@ -1146,7 +1156,7 @@ def run_normalize(
     }
     if not force and _existing_is_current(workdir_path, committed_run_id, fingerprint):
         return NormalizeOutcome(committed_run_id, "already-current", derivation)
-    bundles = _gather_bundles(workdir_path, ordered_runs)
+    bundles = _gather_bundles(workdir_path, ordered_runs, lineage)
     out_dir = workdir_path / "normalized"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "derivation.json").unlink(missing_ok=True)
