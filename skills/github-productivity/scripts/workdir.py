@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import operator
 import os
+import re
 import secrets
 import subprocess
 from dataclasses import dataclass
@@ -43,6 +44,10 @@ class CommittedLineageError(Exception):
     """Raised when the committed run lineage cannot be resolved from disk."""
 
 
+class WorkdirDataError(ValueError):
+    """Raised when a persisted workdir document has an invalid shape or value."""
+
+
 class OrganizationMismatchError(Exception):
     """Raised when a workdir's committed state belongs to a different org.
 
@@ -50,6 +55,41 @@ class OrganizationMismatchError(Exception):
     ``--org`` would silently carry the prior organization's repositories
     forward into state now labeled with the new one.
     """
+
+
+def format_timestamp(value: datetime) -> str:
+    """Serialize an aware instant in UTC without discarding fractional seconds.
+
+    Returns:
+        The UTC ISO-8601 timestamp.
+
+    Raises:
+        ValueError: If the datetime has no UTC offset.
+    """
+    if value.tzinfo is None or value.utcoffset() is None:
+        msg = "timestamp must include a UTC offset"
+        raise ValueError(msg)
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def parse_timestamp(value: object) -> datetime:
+    """Parse an explicitly timezone-aware persisted timestamp into UTC.
+
+    Returns:
+        The aware UTC instant.
+
+    Raises:
+        WorkdirDataError: If the value is missing, malformed, or naive.
+    """
+    try:
+        parsed = datetime.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError as exc:
+        msg = "timestamp must be valid ISO-8601 with a UTC offset"
+        raise WorkdirDataError(msg) from exc
+    if parsed is None or parsed.tzinfo is None:
+        msg = "timestamp must be valid ISO-8601 with a UTC offset"
+        raise WorkdirDataError(msg)
+    return parsed.astimezone(UTC)
 
 
 def raw_dir(workdir: Path, run_id: str) -> Path:
@@ -62,6 +102,7 @@ def raw_dir(workdir: Path, run_id: str) -> Path:
     Returns:
         The path ``<workdir>/raw/<run_id>``.
     """
+    validate_run_id(run_id)
     return workdir / "raw" / run_id
 
 
@@ -87,7 +128,22 @@ def manifest_path(workdir: Path, run_id: str) -> Path:
     Returns:
         The path ``<workdir>/manifests/<run_id>.json``.
     """
+    validate_run_id(run_id)
     return manifests_dir(workdir) / f"{run_id}.json"
+
+
+def validate_run_id(run_id: object) -> None:
+    """Require a run identifier that is one safe filesystem component.
+
+    Raises:
+        WorkdirDataError: If the ID is missing or could escape its directory.
+    """
+    if (
+        not isinstance(run_id, str)
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", run_id) is None
+    ):
+        msg = "run_id must be a non-empty safe path component"
+        raise WorkdirDataError(msg)
 
 
 def state_path(workdir: Path) -> Path:
@@ -187,6 +243,7 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
         tmp_path.unlink(missing_ok=True)
         raise
     tmp_path.replace(path)
+    sync_directory(path.parent)
 
 
 def atomic_write_ndjson(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -216,6 +273,28 @@ def atomic_write_ndjson(path: Path, rows: list[dict[str, Any]]) -> None:
         tmp_path.unlink(missing_ok=True)
         raise
     tmp_path.replace(path)
+    sync_directory(path.parent)
+
+
+def sync_directory(path: Path) -> None:
+    """Make preceding directory-entry changes durable before advancing state."""
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def sync_raw_evidence(workdir: Path, run_id: str) -> None:
+    """Persist closed raw files and their directories before finalizing a run."""
+    directory = raw_dir(workdir, run_id)
+    if directory.exists():
+        for path in sorted(directory.glob("*.ndjson")):
+            with path.open("rb") as handle:
+                os.fsync(handle.fileno())
+        sync_directory(directory)
+        sync_directory(directory.parent)
+    sync_directory(workdir)
 
 
 def append_ndjson(path: Path, record: dict[str, Any]) -> None:
@@ -315,7 +394,23 @@ def read_state(workdir: Path) -> dict[str, Any] | None:
     path = state_path(workdir)
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json_object(path)
+
+
+def read_json_object(path: Path) -> dict[str, Any]:
+    """Read a JSON mapping without accepting null, arrays, or scalar documents.
+
+    Returns:
+        The decoded mapping.
+
+    Raises:
+        WorkdirDataError: If the decoded document is not an object.
+    """
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        msg = f"{path} must contain a JSON object"
+        raise WorkdirDataError(msg)
+    return value
 
 
 def write_state(workdir: Path, state: dict[str, Any]) -> None:
@@ -365,7 +460,7 @@ def read_manifest(workdir: Path, run_id: str) -> dict[str, Any]:
     Returns:
         The manifest body. The file must already exist.
     """
-    return json.loads(manifest_path(workdir, run_id).read_text(encoding="utf-8"))
+    return read_json_object(manifest_path(workdir, run_id))
 
 
 def parse_manifest_started_at(manifest: dict[str, Any]) -> datetime | None:
@@ -423,7 +518,7 @@ def latest_manifest_run_id_and_status(workdir: Path) -> tuple[str, str] | None:
         run_id = path.stem
         try:
             manifest = read_manifest(workdir, run_id)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
             continue
         status = manifest.get("status")
         if not isinstance(status, str):
@@ -557,16 +652,38 @@ def resolve_committed_lineage(
     lineage: list[dict[str, Any]] = []
     seen: set[str] = set()
     run_id = state.get("committed_run_id")
+    if run_id is None:
+        msg = "committed state is missing committed_run_id"
+        raise CommittedLineageError(msg)
     while run_id is not None:
+        try:
+            validate_run_id(run_id)
+        except WorkdirDataError as exc:
+            raise CommittedLineageError(str(exc)) from exc
         if run_id in seen:
             msg = f"committed lineage cycles back to already-visited run {run_id}"
             raise CommittedLineageError(msg)
         seen.add(run_id)
         try:
             manifest = read_manifest(workdir, run_id)
-        except FileNotFoundError as exc:
-            msg = f"committed lineage references missing manifest {run_id}"
+        except (OSError, ValueError) as exc:
+            msg = f"committed lineage references missing or malformed manifest {run_id}"
             raise CommittedLineageError(msg) from exc
+        if manifest.get("run_id") != run_id:
+            msg = f"manifest run_id does not match committed pointer {run_id}"
+            raise CommittedLineageError(msg)
+        if "previous_committed_run_id" not in manifest:
+            msg = f"manifest {run_id} is missing previous_committed_run_id"
+            raise CommittedLineageError(msg)
+        organization = state.get("organization")
+        recorded = manifest.get("organization")
+        if organization is not None and (
+            not isinstance(recorded, str)
+            or not isinstance(organization, str)
+            or recorded.casefold() != organization.casefold()
+        ):
+            msg = f"manifest {run_id} organization does not match committed state"
+            raise CommittedLineageError(msg)
         if manifest.get("status") != "complete":
             msg = f"committed lineage references non-complete manifest {run_id}"
             raise CommittedLineageError(msg)

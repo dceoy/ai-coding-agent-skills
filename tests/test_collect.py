@@ -19,6 +19,27 @@ _START = datetime(2026, 1, 8, tzinfo=UTC)
 _END = datetime(2026, 2, 1, tzinfo=UTC)
 
 
+def _write_prior_state(path: Path, state: dict[str, Any]) -> None:
+    """Write a prior state with the complete manifest its pointer requires."""
+    workdir.finalize_manifest(
+        path,
+        state["committed_run_id"],
+        {
+            "schema_version": workdir.SCHEMA_VERSION,
+            "run_id": state["committed_run_id"],
+            "previous_committed_run_id": None,
+            "organization": state["organization"],
+            "status": "complete",
+            "refresh_started_at": "2026-01-01T00:00:00Z",
+            "repositories": {
+                key: {**entry, "touched_pr_numbers": []}
+                for key, entry in state["repositories"].items()
+            },
+        },
+    )
+    workdir.write_state(path, state)
+
+
 def test_initial_backfill_stops_at_boundary_via_descending_sort(
     tmp_path: Path, fake_gh: FakeGh
 ) -> None:
@@ -30,7 +51,10 @@ def test_initial_backfill_stops_at_boundary_via_descending_sort(
         sort="updated",
         direction="desc",
     )
-    fake_gh.set_object("/repos/acme/repo1/pulls/5", {"number": 5, "commits": 0})
+    fake_gh.set_object(
+        "/repos/acme/repo1/pulls/5",
+        {"base": {"repo": {"id": 1}}, "number": 5, "commits": 0},
+    )
     outcome = collect.run_collect(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
     )
@@ -45,7 +69,7 @@ def test_backward_range_expansion_triggers_backfill(
     tmp_path: Path, fake_gh: FakeGh
 ) -> None:
     """A committed boundary newer than the newly requested start triggers backfill."""
-    workdir.write_state(
+    _write_prior_state(
         tmp_path,
         {
             "committed_run_id": "prior",
@@ -78,7 +102,7 @@ def test_incremental_discovery_uses_created_ascending_since_watermark(
     tmp_path: Path, fake_gh: FakeGh
 ) -> None:
     """Incremental discovery pages Issues since the watermark, ascending by creation."""
-    workdir.write_state(
+    _write_prior_state(
         tmp_path,
         {
             "committed_run_id": "prior",
@@ -105,6 +129,10 @@ def test_incremental_discovery_uses_created_ascending_since_watermark(
         sort="created",
         direction="asc",
     )
+    fake_gh.set_object(
+        "/repos/acme/repo1/pulls/9",
+        {"number": 9, "commits": 0, "base": {"repo": {"id": 1}}},
+    )
     outcome = collect.run_collect(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
     )
@@ -113,7 +141,7 @@ def test_incremental_discovery_uses_created_ascending_since_watermark(
         for c in fake_gh.calls
         if c[1] == "/repos/acme/repo1/issues" and c[2].get("sort") == "created"
     ]
-    assert incremental_calls[0][2]["since"] == "2026-01-04T00:00:00Z"
+    assert incremental_calls[0][2]["since"] == "2026-01-03T23:59:59Z"
     assert 9 in outcome.manifest["repositories"]["1"]["touched_pr_numbers"]
 
 
@@ -121,7 +149,7 @@ def test_reconciliation_adds_pr_missed_by_incremental_scan(
     tmp_path: Path, fake_gh: FakeGh
 ) -> None:
     """The always-run reconciliation pass unions in PRs the primary scan missed."""
-    workdir.write_state(
+    _write_prior_state(
         tmp_path,
         {
             "committed_run_id": "prior",
@@ -154,6 +182,14 @@ def test_reconciliation_adds_pr_missed_by_incremental_scan(
         sort="updated",
         direction="asc",
     )
+    fake_gh.set_object(
+        "/repos/acme/repo1/pulls/7",
+        {"number": 7, "commits": 0, "base": {"repo": {"id": 1}}},
+    )
+    fake_gh.set_object(
+        "/repos/acme/repo1/pulls/10",
+        {"number": 10, "commits": 0, "base": {"repo": {"id": 1}}},
+    )
     outcome = collect.run_collect(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
     )
@@ -174,6 +210,10 @@ def test_non_pr_issues_are_filtered_out(tmp_path: Path, fake_gh: FakeGh) -> None
         ],
         sort="updated",
         direction="asc",
+    )
+    fake_gh.set_object(
+        "/repos/acme/repo1/pulls/12",
+        {"number": 12, "commits": 0, "base": {"repo": {"id": 1}}},
     )
     outcome = collect.run_collect(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
@@ -337,7 +377,10 @@ def test_watermark_advances_to_refresh_started_at_not_max_updated_at(
         sort="updated",
         direction="desc",
     )
-    fake_gh.set_object("/repos/acme/repo1/pulls/1", {"number": 1, "commits": 0})
+    fake_gh.set_object(
+        "/repos/acme/repo1/pulls/1",
+        {"base": {"repo": {"id": 1}}, "number": 1, "commits": 0},
+    )
     outcome = collect.run_collect(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
     )
@@ -411,7 +454,8 @@ def test_touched_pr_bundle_is_written_to_raw_evidence(
         direction="desc",
     )
     fake_gh.set_object(
-        "/repos/acme/repo1/pulls/7", {"number": 7, "id": 700, "commits": 1}
+        "/repos/acme/repo1/pulls/7",
+        {"base": {"repo": {"id": 1}}, "number": 7, "id": 700, "commits": 1},
     )
     fake_gh.set_list(
         "/repos/acme/repo1/pulls/7/reviews", [[{"id": 1, "state": "APPROVED"}]]
@@ -423,7 +467,12 @@ def test_touched_pr_bundle_is_written_to_raw_evidence(
     )
     raw_root = workdir.raw_dir(tmp_path, outcome.run_id)
     expected_payloads = {
-        "pulls.ndjson": {"number": 7, "id": 700, "commits": 1},
+        "pulls.ndjson": {
+            "base": {"repo": {"id": 1}},
+            "number": 7,
+            "id": 700,
+            "commits": 1,
+        },
         "reviews.ndjson": [{"id": 1, "state": "APPROVED"}],
         "commits.ndjson": [{"sha": "abc123"}],
         "timeline.ndjson": [{"event": "reviewed"}],
@@ -450,15 +499,33 @@ def _commit_pages(total: int) -> list[list[dict[str, Any]]]:
     ("pr_object", "commit_total", "expect_status", "expect_limitation"),
     [
         pytest.param(
-            {"number": 7, "commits": 400}, 250, "complete", True, id="exceeds-250-cap"
+            {"base": {"repo": {"id": 1}}, "number": 7, "commits": 400},
+            250,
+            "complete",
+            True,
+            id="exceeds-250-cap",
         ),
         pytest.param(
-            {"number": 7, "commits": 250}, 250, "complete", False, id="at-250-boundary"
+            {"base": {"repo": {"id": 1}}, "number": 7, "commits": 250},
+            250,
+            "complete",
+            False,
+            id="at-250-boundary",
         ),
         pytest.param(
-            {"number": 7, "commits": 200}, 150, "incomplete", False, id="sub-250-short"
+            {"base": {"repo": {"id": 1}}, "number": 7, "commits": 200},
+            150,
+            "incomplete",
+            False,
+            id="sub-250-short",
         ),
-        pytest.param({"number": 7}, 1, "incomplete", False, id="unreadable-count"),
+        pytest.param(
+            {"base": {"repo": {"id": 1}}, "number": 7},
+            1,
+            "incomplete",
+            False,
+            id="unreadable-count",
+        ),
     ],
 )
 def test_commit_bundle_completeness_check(
@@ -495,7 +562,7 @@ def test_commit_bundle_completeness_check(
     )
     assert outcome.status == expect_status
     commits_failures = [
-        f for f in outcome.manifest["failures"] if f["endpoint"] == "commits"
+        f for f in outcome.manifest["failures"] if f["endpoint"] in {"pulls", "commits"}
     ]
     limitations = [
         limitation
@@ -687,7 +754,7 @@ def test_process_repo_tolerates_missing_history_boundary_field(
     ``repo_state["history_boundary"]`` instead of ``.get()`` here would
     raise ``KeyError`` before any manifest could record the failure.
     """
-    workdir.write_state(
+    _write_prior_state(
         tmp_path,
         {
             "committed_run_id": "prior",
@@ -712,3 +779,203 @@ def test_process_repo_tolerates_missing_history_boundary_field(
         org="acme", workdir_path=tmp_path, start=_START, end=_END
     )
     assert outcome.status == "complete"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        [],
+        {"number": 8, "commits": 0, "base": {"repo": {"id": 1}}},
+        {"number": 7, "commits": 0, "base": {"repo": {"id": 2}}},
+        {"number": 7, "commits": True, "base": {"repo": {"id": 1}}},
+        {"number": 7, "commits": -1, "base": {"repo": {"id": 1}}},
+    ],
+)
+def test_invalid_pr_detail_aborts_before_children(
+    tmp_path: Path, fake_gh: FakeGh, payload: object
+) -> None:
+    """Malformed or foreign PR details never become a canonical bundle."""
+    fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
+    first = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    state_before = workdir.state_path(tmp_path).read_bytes()
+    fake_gh.set_list("/repos/acme/repo1/issues", [[make_pr(7, "2026-01-10T00:00:00Z")]])
+    fake_gh.set_object("/repos/acme/repo1/pulls/7", payload)
+    fake_gh.calls.clear()
+    second = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert first.status == "complete"
+    assert second.status == "incomplete"
+    assert second.manifest["failures"][0]["endpoint"] == "pulls"
+    assert fake_gh.calls[-1][1] == "/repos/acme/repo1/pulls/7"
+    assert workdir.state_path(tmp_path).read_bytes() == state_before
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "payload", "tag"),
+    [
+        ("/orgs/acme/repos", {}, "repos"),
+        ("/orgs/acme/repos", {"id": True}, "repos"),
+        ("/repos/acme/repo1/pulls", {"number": 1}, "pulls-backfill"),
+        (
+            "/repos/acme/repo1/pulls",
+            {"number": 1, "updated_at": "2026-01-01"},
+            "pulls-backfill",
+        ),
+        ("/repos/acme/repo1/issues", {"pull_request": {}}, "issues-reconciliation"),
+    ],
+)
+def test_malformed_discovery_finalizes_incomplete(
+    tmp_path: Path, fake_gh: FakeGh, endpoint: str, payload: dict[str, Any], tag: str
+) -> None:
+    """Malformed successful API responses terminate with a failure manifest."""
+    fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
+    fake_gh.set_list(endpoint, [[payload]])
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.status == "incomplete"
+    assert outcome.manifest["failures"][0]["endpoint"] == tag
+    assert fake_gh.calls[-1][1] == endpoint
+    assert workdir.read_state(tmp_path) is None
+    assert workdir.read_manifest(tmp_path, outcome.run_id)["status"] == "incomplete"
+
+
+def test_duplicate_repository_is_collected_once(
+    tmp_path: Path, fake_gh: FakeGh
+) -> None:
+    """Repeated enumeration entries cannot append a second snapshot bundle."""
+    repo = make_repo(1, "repo1")
+    fake_gh.set_list("/orgs/acme/repos", [[repo, repo]])
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.status == "complete"
+    assert (
+        sum(endpoint == "/repos/acme/repo1/pulls" for _, endpoint, _ in fake_gh.calls)
+        == 1
+    )
+
+
+def test_conflicting_repository_enumeration_fails_closed(
+    tmp_path: Path, fake_gh: FakeGh
+) -> None:
+    """A rename observed inconsistently during pagination needs a fresh retry."""
+    fake_gh.set_list(
+        "/orgs/acme/repos", [[make_repo(1, "repo1"), make_repo(1, "renamed")]]
+    )
+    outcome = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert outcome.status == "incomplete"
+    assert len(fake_gh.calls) == 1
+    assert workdir.read_state(tmp_path) is None
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"committed_run_id": None},
+        {"committed_run_id": "missing"},
+        {"committed_run_id": []},
+        {"repositories": None},
+        {"organization": "other"},
+    ],
+)
+def test_invalid_prior_state_never_reaches_api(
+    tmp_path: Path, fake_gh: FakeGh, change: dict[str, Any]
+) -> None:
+    """Damaged state cannot seed a new lineage that abandons retained history."""
+    fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    state = workdir.read_state(tmp_path)
+    assert state is not None
+    workdir.write_state(tmp_path, {**state, **change})
+    before = workdir.state_path(tmp_path).read_bytes()
+    fake_gh.calls.clear()
+    with pytest.raises((
+        workdir.WorkdirDataError,
+        workdir.CommittedLineageError,
+        workdir.OrganizationMismatchError,
+    )):
+        collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    assert fake_gh.calls == []
+    assert workdir.state_path(tmp_path).read_bytes() == before
+
+
+def test_fractional_backward_expansion_requires_backfill(
+    tmp_path: Path, fake_gh: FakeGh
+) -> None:
+    """Coverage cannot be rounded earlier than the boundary actually fetched."""
+    fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[make_pr(7, "2026-01-08T00:00:00Z")]])
+    fake_gh.set_object(
+        "/repos/acme/repo1/pulls/7",
+        {"number": 7, "commits": 0, "base": {"repo": {"id": 1}}},
+    )
+    first = collect.run_collect(
+        org="acme",
+        workdir_path=tmp_path,
+        start=_START.replace(microsecond=500000),
+        end=_END,
+        overlap_hours=0,
+    )
+    assert first.manifest["repositories"]["1"]["touched_pr_numbers"] == []
+    second = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END, overlap_hours=0
+    )
+    assert second.manifest["repositories"]["1"]["touched_pr_numbers"] == [7]
+
+
+def test_zero_overlap_queries_include_watermark_second(
+    tmp_path: Path, fake_gh: FakeGh
+) -> None:
+    """GitHub's strict since filter must include updates stamped in that second."""
+    _write_prior_state(
+        tmp_path,
+        {
+            "committed_run_id": "prior",
+            "organization": "acme",
+            "repositories": {
+                "1": {
+                    "discovery_watermark": "2026-01-05T12:00:00.654321Z",
+                    "history_boundary": "2020-01-01T00:00:00Z",
+                }
+            },
+        },
+    )
+    fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
+    collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END, overlap_hours=0
+    )
+    query = next(
+        params
+        for _, endpoint, params in fake_gh.calls
+        if endpoint.endswith("/issues") and params["sort"] == "created"
+    )
+    assert datetime.fromisoformat(query["since"]) < datetime(2026, 1, 5, 12, tzinfo=UTC)
+
+
+def test_clock_rollback_cannot_commit_successor(
+    tmp_path: Path, fake_gh: FakeGh, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An older clock cannot advance state while leaving newer bundles canonical."""
+    fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
+    collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    before = workdir.state_path(tmp_path).read_bytes()
+    fake_gh.calls.clear()
+
+    class EarlierDatetime(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:
+            del tz
+            return _START
+
+    monkeypatch.setattr(collect, "datetime", EarlierDatetime)
+    with pytest.raises(workdir.WorkdirDataError, match="clock"):
+        collect.run_collect(org="acme", workdir_path=tmp_path, start=_START, end=_END)
+    assert fake_gh.calls == []
+    assert workdir.state_path(tmp_path).read_bytes() == before

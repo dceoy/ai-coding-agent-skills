@@ -30,7 +30,10 @@ def test_bundle_failure_aborts_later_endpoints_and_repositories(
         sort="updated",
         direction="desc",
     )
-    fake_gh.set_object("/repos/acme/repo1/pulls/7", {"number": 7, "commits": 0})
+    fake_gh.set_object(
+        "/repos/acme/repo1/pulls/7",
+        {"base": {"repo": {"id": 1}}, "number": 7, "commits": 0},
+    )
     fake_gh.fail("/reviews")
 
     outcome = collect.run_collect(

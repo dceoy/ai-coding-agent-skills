@@ -373,3 +373,80 @@ def test_resolve_collector_revision_tolerates_missing_git(
 
     monkeypatch.setattr(workdir.subprocess, "run", fake_run)
     assert workdir.resolve_collector_revision() is None
+
+
+@pytest.mark.parametrize("value", [[], None, 7, "scalar"])
+def test_freshness_skips_non_object_manifests(tmp_path: Path, value: object) -> None:
+    """Unrelated non-object JSON cannot crash best-effort freshness reporting."""
+    workdir.finalize_manifest(tmp_path, "good", _base_manifest("good"))
+    (workdir.manifests_dir(tmp_path) / "bad.json").write_text(
+        json.dumps(value), encoding="utf-8"
+    )
+    assert workdir.latest_manifest_run_id_and_status(tmp_path) == ("good", "complete")
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"run_id": "orphan"},
+        {"run_id": None},
+        {"previous_committed_run_id": []},
+        {"previous_committed_run_id": "../outside"},
+        {"organization": "other"},
+    ],
+)
+def test_lineage_rejects_manifest_identity_corruption(
+    tmp_path: Path, change: dict[str, object]
+) -> None:
+    """A committed pointer cannot redirect into foreign or orphan evidence."""
+    workdir.finalize_manifest(
+        tmp_path, "run", {**_base_manifest("run"), "organization": "acme", **change}
+    )
+    with pytest.raises(workdir.CommittedLineageError):
+        workdir.resolve_committed_lineage(
+            tmp_path, {"committed_run_id": "run", "organization": "acme"}
+        )
+
+
+@pytest.mark.parametrize(
+    "run_id", ["../escape", "/absolute", "", ".", "..", "nested/run"]
+)
+def test_raw_paths_reject_unsafe_run_ids(tmp_path: Path, run_id: str) -> None:
+    """Persisted run identifiers cannot traverse outside the evidence directory."""
+    with pytest.raises(workdir.WorkdirDataError):
+        workdir.raw_dir(tmp_path, run_id)
+    with pytest.raises(workdir.WorkdirDataError):
+        workdir.manifest_path(tmp_path, run_id)
+
+
+def test_atomic_json_syncs_directory_after_replace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The durable directory barrier follows the destination rename."""
+    target = tmp_path / "state.json"
+    synced = []
+
+    def record_sync(path: Path) -> None:
+        assert json.loads(target.read_text(encoding="utf-8")) == {
+            "committed_run_id": "new"
+        }
+        synced.append(path)
+
+    monkeypatch.setattr(workdir, "sync_directory", record_sync)
+    workdir.atomic_write_json(target, {"committed_run_id": "new"})
+    assert synced == [tmp_path]
+
+
+def test_raw_evidence_durability_barrier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Raw files and each directory entry are synced before manifest commitment."""
+    raw = workdir.raw_dir(tmp_path, "run")
+    path = raw / "pulls.ndjson"
+    workdir.append_ndjson(path, {"payload": {"number": 1}})
+    inodes = []
+    monkeypatch.setattr(
+        workdir.os, "fsync", lambda fd: inodes.append(workdir.os.fstat(fd).st_ino)
+    )
+    workdir.sync_raw_evidence(tmp_path, "run")
+    assert inodes == [p.stat().st_ino for p in (path, raw, raw.parent, tmp_path)]
