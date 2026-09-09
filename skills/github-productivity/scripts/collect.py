@@ -35,6 +35,10 @@ class CollectOutcome:
     manifest: dict[str, Any]
 
 
+class _CollectionAborted(Exception):
+    """Internal control flow used to stop after the first GitHub API failure."""
+
+
 @dataclass(slots=True)
 class _RunContext:
     """Mutable bookkeeping threaded through one collection run."""
@@ -46,6 +50,42 @@ class _RunContext:
     overlap_hours: int
     failures: list[dict[str, Any]] = field(default_factory=list)
     limitations: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _abort_collection(
+    ctx: _RunContext,
+    *,
+    endpoint: str,
+    repository_id: int | None,
+    pr_number: int | None,
+    exc: ghapi.GhApiError,
+) -> None:
+    """Record the first API failure and abort the remaining live collection.
+
+    Once any endpoint fails, the transaction cannot commit its new state.
+    Continuing to issue GitHub requests would only delay the inevitable
+    ``incomplete`` result, and repeated per-call timeouts can otherwise keep
+    a synchronous run alive for hours.
+
+    Args:
+        ctx: The active run context.
+        endpoint: Stable endpoint-family tag recorded in the manifest.
+        repository_id: Repository ID associated with the failed request.
+        pr_number: PR number associated with the failed request, when any.
+        exc: The underlying GitHub API failure.
+
+    Raises:
+        _CollectionAborted: Always, after persisting the failure in memory.
+    """
+    ctx.failures.append(
+        {
+            "endpoint": endpoint,
+            "repository_id": repository_id,
+            "pr_number": pr_number,
+            "reason": str(exc),
+        }
+    )
+    raise _CollectionAborted from exc
 
 
 def collection_affecting_fingerprint(ci_workflow_ids: list[int]) -> str:
@@ -141,12 +181,13 @@ def fetch_organization_repositories(ctx: _RunContext) -> list[dict[str, Any]]:
                 for item in page.payload
             )
     except ghapi.GhApiError as exc:
-        ctx.failures.append({
-            "endpoint": "repos",
-            "repository_id": None,
-            "pr_number": None,
-            "reason": str(exc),
-        })
+        _abort_collection(
+            ctx,
+            endpoint="repos",
+            repository_id=None,
+            pr_number=None,
+            exc=exc,
+        )
     return repositories
 
 
@@ -205,12 +246,13 @@ def _discover_backfill(
             if _consume_backfill_page(page, boundary, touched):
                 break
     except ghapi.GhApiError as exc:
-        ctx.failures.append({
-            "endpoint": "pulls-backfill",
-            "repository_id": repo["id"],
-            "pr_number": None,
-            "reason": str(exc),
-        })
+        _abort_collection(
+            ctx,
+            endpoint="pulls-backfill",
+            repository_id=repo["id"],
+            pr_number=None,
+            exc=exc,
+        )
     return touched
 
 
@@ -260,12 +302,13 @@ def _discover_issues(
                 item["number"] for item in page.payload if "pull_request" in item
             )
     except ghapi.GhApiError as exc:
-        ctx.failures.append({
-            "endpoint": endpoint_tag,
-            "repository_id": repo["id"],
-            "pr_number": None,
-            "reason": str(exc),
-        })
+        _abort_collection(
+            ctx,
+            endpoint=endpoint_tag,
+            repository_id=repo["id"],
+            pr_number=None,
+            exc=exc,
+        )
     return touched
 
 
@@ -323,12 +366,13 @@ def _fetch_pr_bundle(ctx: _RunContext, repo: dict[str, Any], pr_number: int) -> 
                 pr_payload,
             )
         except ghapi.GhApiError as exc:
-            ctx.failures.append({
-                "endpoint": tag,
-                "repository_id": repo["id"],
-                "pr_number": pr_number,
-                "reason": str(exc),
-            })
+            _abort_collection(
+                ctx,
+                endpoint=tag,
+                repository_id=repo["id"],
+                pr_number=pr_number,
+                exc=exc,
+            )
 
 
 def _fetch_bundle_entry(
@@ -423,13 +467,15 @@ def _check_commit_bundle_completeness(
         )
         raise ghapi.GhApiError(msg)
     if expected > _PR_COMMITS_ENDPOINT_CAP:
-        ctx.limitations.append({
-            "kind": "pr_commits_exceed_endpoint_cap",
-            "repository_id": repo["id"],
-            "pr_number": pr_number,
-            "expected_commits": expected,
-            "collected_commits": collected,
-        })
+        ctx.limitations.append(
+            {
+                "kind": "pr_commits_exceed_endpoint_cap",
+                "repository_id": repo["id"],
+                "pr_number": pr_number,
+                "expected_commits": expected,
+                "collected_commits": collected,
+            }
+        )
         return
     if collected != expected:
         msg = (
@@ -634,20 +680,24 @@ def run_collect(
             refresh_started_at=refresh_started_at,
             overlap_hours=overlap_hours,
         )
-        repositories = fetch_organization_repositories(ctx)
         previous_repositories: dict[str, Any] = (
             previous_state.get("repositories", {}) if previous_state else {}
         )
         manifest_repositories: dict[str, Any] = {}
         new_state_repositories: dict[str, Any] = dict(previous_repositories)
-        for repo in repositories:
-            entry, state_entry = _process_repo(
-                ctx, repo, previous_repositories, start=start
-            )
-            key = str(repo["id"])
-            manifest_repositories[key] = entry
-            new_state_repositories[key] = state_entry
-        status = "incomplete" if ctx.failures else "complete"
+        try:
+            repositories = fetch_organization_repositories(ctx)
+            for repo in repositories:
+                entry, state_entry = _process_repo(
+                    ctx, repo, previous_repositories, start=start
+                )
+                key = str(repo["id"])
+                manifest_repositories[key] = entry
+                new_state_repositories[key] = state_entry
+        except _CollectionAborted:
+            status = "incomplete"
+        else:
+            status = "complete"
         manifest = {
             "schema_version": workdir.SCHEMA_VERSION,
             "run_id": run_id,
