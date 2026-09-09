@@ -36,18 +36,20 @@ import hashlib
 import json
 import operator
 from dataclasses import dataclass
+from datetime import datetime
+from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
 import workdir
 
 if TYPE_CHECKING:
-    from datetime import datetime
     from pathlib import Path
 
 #: Bump when the shape of anything under ``normalized/`` changes. Combined
 #: with the committed run ID and the actor fingerprint to decide whether an
 #: existing ``normalized/`` tree is still current.
-NORMALIZE_SCHEMA_VERSION = 1
+NORMALIZE_SCHEMA_VERSION = 2
+_PR_COMMITS_ENDPOINT_CAP = 250
 
 #: Timeline event names retained for downstream review/draft reconstruction.
 _RETAINED_TIMELINE_EVENTS = frozenset({
@@ -273,7 +275,7 @@ def _touched_prs(manifest: dict[str, Any]) -> set[tuple[int, int]]:
             PR identities.
     """
     pairs: set[tuple[int, int]] = set()
-    repositories = manifest.get("repositories", {})
+    repositories = manifest.get("repositories")
     if not isinstance(repositories, dict):
         msg = f"manifest 'repositories' must be an object, got {repositories!r}"
         raise NormalizeError(msg)
@@ -286,9 +288,12 @@ def _touched_prs(manifest: dict[str, Any]) -> set[tuple[int, int]]:
         if not isinstance(entry, dict):
             msg = f"manifest repository entry {key!r} must be an object, got {entry!r}"
             raise NormalizeError(msg)
-        numbers = entry.get("touched_pr_numbers", [])
+        numbers = entry.get("touched_pr_numbers")
+        if not isinstance(numbers, list):
+            msg = f"manifest repository {key!r} 'touched_pr_numbers' must be an array"
+            raise NormalizeError(msg)
         for number in numbers:
-            if isinstance(number, bool) or not isinstance(number, int):
+            if type(number) is not int or number <= 0:
                 msg = (
                     f"manifest repository {key!r} 'touched_pr_numbers' entry "
                     f"must be an integer, got {number!r}"
@@ -334,6 +339,27 @@ def _cap_exceeded(manifest: dict[str, Any], repo_id: int, pr_number: int) -> boo
 
 #: The four per-run raw bundle files every touched PR contributes to.
 _BUNDLE_FILES = ("pulls.ndjson", "reviews.ndjson", "commits.ndjson", "timeline.ndjson")
+_ENTITY_FILES = (
+    "repositories.ndjson",
+    "pull_requests.ndjson",
+    "reviews.ndjson",
+    "pr_commits.ndjson",
+    "timeline_events.ndjson",
+    "draft_lifecycle.ndjson",
+    "actors.ndjson",
+)
+
+
+def entity_file_digests(directory: Path) -> dict[str, str]:
+    """Fingerprint each entity file so missing or truncated output fails closed.
+
+    Returns:
+        The filename-to-SHA-256 mapping for the complete entity generation.
+    """
+    return {
+        name: hashlib.sha256((directory / name).read_bytes()).hexdigest()
+        for name in _ENTITY_FILES
+    }
 
 
 def _read_run_bucket(raw_root: Path, filename: str) -> dict[tuple[int, int], list[Any]]:
@@ -397,12 +423,23 @@ def _read_run_bucket(raw_root: Path, filename: str) -> dict[tuple[int, int], lis
                 if isinstance(provenance, dict)
                 else None
             )
-            if not isinstance(pr_number, int) or not isinstance(repo_id, int):
+            if (
+                type(pr_number) is not int
+                or type(repo_id) is not int
+                or min(pr_number, repo_id) <= 0
+            ):
                 msg = (
                     f"raw evidence in {path} line {lineno} must have an integer "
                     f"'pr_number' and 'provenance.repository_id', got "
                     f"pr_number={pr_number!r} provenance={provenance!r}"
                 )
+                raise NormalizeError(msg)
+            if (
+                isinstance(provenance, dict)
+                and "run_id" in provenance
+                and provenance["run_id"] != raw_root.name
+            ):
+                msg = f"raw evidence in {path} has a mismatched provenance run_id"
                 raise NormalizeError(msg)
             buckets.setdefault((repo_id, pr_number), []).append(record.get("payload"))
     return buckets
@@ -432,12 +469,20 @@ def _flatten(payloads: list[Any], *, source: str) -> list[dict[str, Any]]:
                     msg = f"{source} page element must be an object, got {item!r}"
                     raise NormalizeError(msg)
                 records.append(item)
-        elif isinstance(payload, dict):
-            records.append(payload)
         else:
-            msg = f"{source} page payload must be an object or array, got {payload!r}"
+            msg = f"{source} page payload must be an array, got {payload!r}"
             raise NormalizeError(msg)
-    return records
+    # Exact duplicate observations are harmless; conflicting identities cannot
+    # be resolved into a coherent single-run snapshot.
+    unique: dict[str, dict[str, Any]] = {}
+    for record in records:
+        identity = record.get("id", record.get("sha"))
+        key = json.dumps(identity if identity is not None else record, sort_keys=True)
+        previous = unique.setdefault(key, record)
+        if previous != record:
+            msg = f"{source} has conflicting records for one identity"
+            raise NormalizeError(msg)
+    return list(unique.values())
 
 
 @dataclass(slots=True)
@@ -483,15 +528,30 @@ def _build_run_bundles(
     files = {name: _read_run_bucket(raw_root, name) for name in _BUNDLE_FILES}
     bundles: list[_Bundle] = []
     for key in pr_ids:
-        pr_payloads = files["pulls.ndjson"].get(key, [])
-        pr_object = next(
-            (p for p in reversed(pr_payloads) if isinstance(p, dict)), None
-        )
-        if pr_object is None:
+        missing = [name for name, buckets in files.items() if key not in buckets]
+        if missing:
             msg = (
-                f"committed run {run_id} has no PR object for {key[0]}#{key[1]}; "
+                f"committed run {run_id} is missing bundle records for {key}: {missing}"
+            )
+            raise NormalizeError(msg)
+        pr_payloads = files["pulls.ndjson"][key]
+        pr_object = pr_payloads[0]
+        if not isinstance(pr_object, dict) or any(p != pr_object for p in pr_payloads):
+            msg = (
+                f"committed run {run_id} has no coherent PR object for {key}; "
                 "the committed lineage points at damaged evidence"
             )
+            raise NormalizeError(msg)
+        if type(pr_object.get("number")) is not int or pr_object["number"] != key[1]:
+            msg = f"committed run {run_id} PR object identity does not match {key}"
+            raise NormalizeError(msg)
+        base = pr_object.get("base")
+        if (
+            isinstance(base, dict)
+            and isinstance(base.get("repo"), dict)
+            and base["repo"].get("id") != key[0]
+        ):
+            msg = f"committed run {run_id} PR repository identity does not match {key}"
             raise NormalizeError(msg)
         bundles.append(
             _Bundle(
@@ -569,8 +629,21 @@ def _pr_row(bundle: _Bundle, actor_map: ActorMap) -> dict[str, Any]:
 
     Returns:
         The normalized PR row.
+
+    Raises:
+        NormalizeError: If required PR timestamps or draft state are malformed.
     """
     pr = bundle.pr_object
+    if _lifecycle_timestamp(pr.get("created_at")) is None:
+        msg = f"{bundle.repo_id}#{bundle.pr_number}: PR created_at is invalid"
+        raise NormalizeError(msg)
+    if type(pr.get("draft")) is not bool:
+        msg = f"{bundle.repo_id}#{bundle.pr_number}: PR draft must be a boolean"
+        raise NormalizeError(msg)
+    for field in ("merged_at", "closed_at"):
+        if pr.get(field) is not None and _lifecycle_timestamp(pr[field]) is None:
+            msg = f"{bundle.repo_id}#{bundle.pr_number}: PR {field} is invalid"
+            raise NormalizeError(msg)
     author = pr.get("user")
     author = author if isinstance(author, dict) else None
     classification = classify_actor(author, actor_map)[0]
@@ -609,11 +682,17 @@ def _review_rows(bundle: _Bundle, actor_map: ActorMap) -> list[dict[str, Any]]:
 
     Returns:
         Normalized review rows, one per formal review, sorted by review ID.
+
+    Raises:
+        NormalizeError: If a review lacks a positive integer identity.
     """
     author = bundle.pr_object.get("user")
     author_id = author.get("id") if isinstance(author, dict) else None
     rows: list[dict[str, Any]] = []
     for review in bundle.reviews:
+        if type(review.get("id")) is not int or review["id"] <= 0:
+            msg = "review must have a positive integer id"
+            raise NormalizeError(msg)
         reviewer = review.get("user")
         reviewer = reviewer if isinstance(reviewer, dict) else None
         classification = classify_actor(reviewer, actor_map)[0]
@@ -656,19 +735,34 @@ def _commit_rows(bundle: _Bundle) -> list[dict[str, Any]]:
         "pr_number": bundle.pr_number,
         "source_run_id": bundle.source_run_id,
     }
+    expected = bundle.pr_object.get("commits")
+    if bundle.commits_capped and (
+        type(expected) is not int or expected <= _PR_COMMITS_ENDPOINT_CAP
+    ):
+        msg = "commit cap limitation contradicts the PR commit count"
+        raise NormalizeError(msg)
+    if (
+        type(expected) is int
+        and expected > _PR_COMMITS_ENDPOINT_CAP
+        and not bundle.commits_capped
+    ):
+        msg = "PR exceeds commit cap but has no recorded limitation"
+        raise NormalizeError(msg)
     if bundle.commits_capped:
         return [
             {**common, "available": False, "reason": "pr_commits_exceed_endpoint_cap"}
         ]
-    expected = bundle.pr_object.get("commits")
     actual = len(bundle.commits)
-    if not isinstance(expected, int) or expected != actual:
+    if type(expected) is not int or expected < 0 or expected != actual:
         msg = (
             f"{bundle.repo_id}#{bundle.pr_number}: PR object reports "
             f"{expected!r} commits but the committed commits.ndjson bundle "
             f"has {actual}; the committed lineage points at damaged or "
             "truncated evidence"
         )
+        raise NormalizeError(msg)
+    if any(not isinstance(c.get("sha"), str) or not c["sha"] for c in bundle.commits):
+        msg = f"{bundle.repo_id}#{bundle.pr_number}: commit is missing a valid sha"
         raise NormalizeError(msg)
     return [
         {**common, "available": True, "position": position, "sha": commit.get("sha")}
@@ -726,7 +820,9 @@ def _draft_lifecycle_row(bundle: _Bundle) -> dict[str, Any]:
         "source_run_id": bundle.source_run_id,
         "transitions": transitions,
     }
-    if any(not isinstance(t["created_at"], str) for t in transitions):
+    created = _lifecycle_timestamp(created_at)
+    instants = [_lifecycle_timestamp(t["created_at"]) for t in transitions]
+    if created is None or any(t is None or t < created for t in instants):
         return {
             **common,
             "initially_draft": None,
@@ -750,7 +846,21 @@ def _draft_lifecycle_row(bundle: _Bundle) -> dict[str, Any]:
             "queue_entry_available": isinstance(created_at, str),
             "reason": "no_lifecycle_events_not_draft",
         }
-    earliest = min(transitions, key=lambda t: str(t["created_at"]))
+    ordered = sorted(
+        zip([t for t in instants if t is not None], transitions, strict=True),
+        key=operator.itemgetter(0),
+    )
+    if any(
+        before[1]["event"] == after[1]["event"] for before, after in pairwise(ordered)
+    ):
+        return {
+            **common,
+            "initially_draft": None,
+            "first_queue_entry": None,
+            "queue_entry_available": False,
+            "reason": "inconsistent_history",
+        }
+    earliest = ordered[0][1]
     if earliest["event"] == "ready_for_review":
         return {
             **common,
@@ -766,6 +876,21 @@ def _draft_lifecycle_row(bundle: _Bundle) -> dict[str, Any]:
         "queue_entry_available": isinstance(created_at, str),
         "reason": "convert_to_draft",
     }
+
+
+def _lifecycle_timestamp(value: object) -> datetime | None:
+    """Parse an aware lifecycle instant.
+
+    Returns:
+        The instant, or unavailable for malformed history.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        result = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return result if result.tzinfo is not None else None
 
 
 def _collect_actors(
@@ -829,7 +954,7 @@ def _repository_rows(state: dict[str, Any]) -> list[dict[str, Any]]:
             drop repositories.
     """
     rows: list[dict[str, Any]] = []
-    repositories = state.get("repositories", {})
+    repositories = state.get("repositories")
     if not isinstance(repositories, dict):
         msg = f"state 'repositories' must be an object, got {repositories!r}"
         raise NormalizeError(msg)
@@ -873,13 +998,15 @@ def _existing_is_current(
     """
     path = workdir_path / "normalized" / "derivation.json"
     try:
-        derivation = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        derivation = workdir.read_json_object(path)
+        digests = entity_file_digests(path.parent)
+    except (OSError, ValueError):
         return False
     return (
         derivation.get("committed_run_id") == committed_run_id
         and derivation.get("actor_classification_fingerprint") == fingerprint
         and derivation.get("normalizer_schema_version") == NORMALIZE_SCHEMA_VERSION
+        and derivation.get("entity_sha256") == digests
     )
 
 
@@ -979,7 +1106,7 @@ def run_normalize(
     """
     try:
         state = workdir.read_state(workdir_path)
-    except (json.JSONDecodeError, OSError) as exc:
+    except (ValueError, OSError) as exc:
         msg = f"committed state in {workdir_path} is unreadable: {exc}"
         raise NormalizeError(msg) from exc
     if not state or not state.get("committed_run_id"):
@@ -996,12 +1123,16 @@ def run_normalize(
     if not lineage:
         msg = f"committed run {committed_run_id} resolves to an empty lineage"
         raise NormalizeError(msg)
+    for newer, older in pairwise(lineage):
+        if _parse_manifest_ts(newer) < _parse_manifest_ts(older):
+            msg = "committed lineage refresh timestamps run backwards"
+            raise NormalizeError(msg)
     ordered_runs = sorted(
         lineage,
         key=lambda m: (_parse_manifest_ts(m), str(m.get("run_id") or "")),
         reverse=True,
     )
-    newest = ordered_runs[0]
+    newest = lineage[0]
     derivation = {
         "committed_run_id": committed_run_id,
         "source_run_ids": [str(m.get("run_id") or "") for m in ordered_runs],
@@ -1020,5 +1151,6 @@ def run_normalize(
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "derivation.json").unlink(missing_ok=True)
     _write_entities(out_dir, state, bundles, actor_map)
+    derivation["entity_sha256"] = entity_file_digests(out_dir)
     workdir.atomic_write_json(out_dir / "derivation.json", derivation)
     return NormalizeOutcome(committed_run_id, "written", derivation)

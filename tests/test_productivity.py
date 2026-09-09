@@ -177,10 +177,14 @@ def test_collect_command_returns_invalid_args_exit_code_on_organization_mismatch
 
 
 @pytest.mark.parametrize("command", ["aggregate", "analyze", "report"])
-def test_followup_subcommands_are_not_registered(command: str) -> None:
-    """Aggregation/analysis/report subcommands land in later work."""
-    with pytest.raises(SystemExit):
-        productivity.main([command])
+def test_followup_subcommands_are_registered(
+    command: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """All documented subcommands expose help with their required workdir option."""
+    with pytest.raises(SystemExit) as caught:
+        productivity.main([command, "--help"])
+    assert caught.value.code == 0
+    assert "--workdir" in capsys.readouterr().out
 
 
 def test_normalize_command_dispatches_and_returns_ok(
@@ -213,3 +217,72 @@ def test_normalize_command_returns_derivation_failed_on_error(
     monkeypatch.setattr(productivity, "run_normalize", fake_run_normalize)
     exit_code = productivity.main(["normalize", "--workdir", str(tmp_path)])
     assert exit_code == productivity.EXIT_DERIVATION_FAILED
+
+
+@pytest.mark.parametrize(
+    ("command", "filename", "expected"),
+    [
+        ("collect", "state.json", productivity.EXIT_INVALID_ARGS),
+        ("normalize", "state.json", productivity.EXIT_DERIVATION_FAILED),
+        (
+            "analyze",
+            "report/organization-week.meta.json",
+            productivity.EXIT_DERIVATION_FAILED,
+        ),
+        (
+            "report",
+            "report/organization-week.meta.json",
+            productivity.EXIT_DERIVATION_FAILED,
+        ),
+    ],
+)
+@pytest.mark.parametrize("content", ["[]", "null", "{invalid"])
+def test_malformed_documents_return_expected_exit_code(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+    filename: str,
+    expected: int,
+    content: str,
+) -> None:
+    """User/data failures produce a concise error rather than an internal traceback."""
+    path = tmp_path / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    args = [command, "--workdir", str(tmp_path)]
+    if command == "collect":
+        args.extend(["--org", "acme", "--start", "2026-01-01", "--end", "2026-02-01"])
+    assert productivity.main(args) == expected
+    assert "error:" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", ["collect", "aggregate"])
+def test_overlap_overflow_is_invalid_args(tmp_path: Path, command: str) -> None:
+    """Huge overlap values are rejected before datetime arithmetic can crash."""
+    args = [
+        command,
+        "--workdir",
+        str(tmp_path),
+        "--start",
+        "2026-01-01",
+        "--end",
+        "2026-02-01",
+        "--overlap-hours",
+        "999999999999999999999",
+    ]
+    if command == "collect":
+        args.extend(["--org", "acme"])
+    assert productivity.main(args) == productivity.EXIT_INVALID_ARGS
+
+
+def test_programming_errors_are_not_hidden(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arbitrary implementation TypeError must not become a data error."""
+
+    def fail(**_kwargs: object) -> None:
+        raise TypeError
+
+    monkeypatch.setattr(productivity, "run_normalize", fail)
+    with pytest.raises(TypeError):
+        productivity.main(["normalize", "--workdir", str(tmp_path)])

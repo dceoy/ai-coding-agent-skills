@@ -1120,3 +1120,185 @@ def test_derivation_json_records_freshness_provenance(tmp_path: Path) -> None:
         "end": "2026-07-01T00:00:00Z",
     }
     assert outcome.derivation["as_of"] == "2026-03-08T00:00:00Z"
+
+
+@pytest.mark.parametrize(
+    "filename", ["pulls.ndjson", "reviews.ndjson", "commits.ndjson", "timeline.ndjson"]
+)
+def test_missing_pr_bucket_is_not_an_empty_collection(
+    tmp_path: Path, filename: str
+) -> None:
+    """A surviving file for another PR does not prove this PR's bundle complete."""
+    commit_run(
+        tmp_path,
+        run_id="run",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}, 8: {"pr": _pr_object(8)}},
+    )
+    path = workdir.raw_dir(tmp_path, "run") / filename
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    workdir.atomic_write_ndjson(path, [row for row in rows if row["pr_number"] != 7])
+    with pytest.raises(normalize.NormalizeError, match="missing bundle"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "fields", [("repositories",), ("repositories", "1", "touched_pr_numbers")]
+)
+def test_missing_manifest_inventory_fails_closed(
+    tmp_path: Path, fields: tuple[str, ...]
+) -> None:
+    """Required inventory fields cannot default to an empty historical lineage."""
+    commit_run(
+        tmp_path,
+        run_id="run",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    path = workdir.manifest_path(tmp_path, "run")
+    manifest = workdir.read_manifest(tmp_path, "run")
+    parent = manifest
+    for field in fields[:-1]:
+        parent = parent[field]
+    del parent[fields[-1]]
+    workdir.atomic_write_json(path, manifest)
+    with pytest.raises(normalize.NormalizeError):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("kind", "record", "output", "commits"),
+    [
+        ("reviews", {"id": 1, "state": "APPROVED"}, "reviews.ndjson", 0),
+        ("commits", {"sha": "c1"}, "pr_commits.ndjson", 1),
+        ("timeline", {"id": 1, "event": "reviewed"}, "timeline_events.ndjson", 0),
+    ],
+)
+def test_duplicate_raw_children_do_not_duplicate_entities(
+    tmp_path: Path, kind: str, record: dict[str, Any], output: str, commits: int
+) -> None:
+    """Repeated identical records within a winning bundle normalize once."""
+    commit_run(
+        tmp_path,
+        run_id="run",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7, commits=commits), kind: [record, record]}},
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    assert len(_rows(tmp_path, output)) == 1
+
+
+@pytest.mark.parametrize(
+    "timeline",
+    [
+        [{"event": "ready_for_review", "created_at": "bad"}],
+        [{"event": "ready_for_review", "created_at": "2026-02-02T00:00:00"}],
+        [{"event": "ready_for_review", "created_at": "2026-01-01T00:00:00Z"}],
+        [
+            {"event": "ready_for_review", "created_at": "2026-02-02T00:00:00Z"},
+            {"event": "ready_for_review", "created_at": "2026-02-03T00:00:00Z"},
+        ],
+    ],
+)
+def test_invalid_lifecycle_is_explicitly_unavailable(
+    tmp_path: Path, timeline: list[dict[str, Any]]
+) -> None:
+    """Bad timestamps and impossible repeated transitions cannot supply queue entry."""
+    commit_run(
+        tmp_path,
+        run_id="run",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7), "timeline": timeline}},
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    row = _rows(tmp_path, "draft_lifecycle.ndjson")[0]
+    assert row["reason"] == "inconsistent_history"
+    assert row["queue_entry_available"] is False
+
+
+def test_draft_transitions_order_by_instant_not_timestamp_text(tmp_path: Path) -> None:
+    """Offset spellings cannot reorder ready/draft transitions."""
+    ready = "2026-02-02T02:00:00+02:00"
+    commit_run(
+        tmp_path,
+        run_id="run",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={
+            7: {
+                "pr": _pr_object(7, draft=True),
+                "timeline": [
+                    {"event": "convert_to_draft", "created_at": "2026-02-02T01:00:00Z"},
+                    {"event": "ready_for_review", "created_at": ready},
+                ],
+            }
+        },
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    assert _rows(tmp_path, "draft_lifecycle.ndjson")[0]["first_queue_entry"] == ready
+
+
+def test_normalize_rejects_lineage_clock_rollback(tmp_path: Path) -> None:
+    """Persisted non-monotonic lineage must not silently prefer an older snapshot."""
+    commit_run(
+        tmp_path,
+        run_id="first",
+        refresh_started_at="2026-03-08T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    commit_run(
+        tmp_path,
+        run_id="second",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        previous_committed_run_id="first",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    with pytest.raises(normalize.NormalizeError, match="backwards"):
+        normalize.run_normalize(workdir_path=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "filename", ["repositories.ndjson", "reviews.ndjson", "draft_lifecycle.ndjson"]
+)
+def test_damaged_entity_generation_is_rebuilt(tmp_path: Path, filename: str) -> None:
+    """The same derivation marker cannot hide deleted or truncated entity output."""
+    commit_run(
+        tmp_path,
+        run_id="run",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7)}},
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    path = tmp_path / "normalized" / filename
+    before = path.read_bytes()
+    path.unlink()
+    outcome = normalize.run_normalize(workdir_path=tmp_path)
+    assert outcome.status == "written"
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("kind", "records"),
+    [
+        ("reviews", [{"id": 1, "state": "APPROVED"}, {"id": 1, "state": "COMMENTED"}]),
+        (
+            "timeline",
+            [
+                {"id": 1, "event": "ready_for_review"},
+                {"id": 1, "event": "convert_to_draft"},
+            ],
+        ),
+        ("commits", [{"sha": "c1", "message": "a"}, {"sha": "c1", "message": "b"}]),
+    ],
+)
+def test_conflicting_duplicate_child_identity_fails_closed(
+    tmp_path: Path, kind: str, records: list[dict[str, Any]]
+) -> None:
+    """A duplicated stable identity with different payloads is an incoherent bundle."""
+    commit_run(
+        tmp_path,
+        run_id="run",
+        refresh_started_at="2026-03-01T00:00:00Z",
+        prs={7: {"pr": _pr_object(7), kind: records}},
+    )
+    with pytest.raises(normalize.NormalizeError, match="conflicting"):
+        normalize.run_normalize(workdir_path=tmp_path)

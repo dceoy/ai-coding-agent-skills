@@ -28,6 +28,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import workdir
+from normalize import NORMALIZE_SCHEMA_VERSION, entity_file_digests
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
 #: Bump when the panel's column set or derivation rules change.
 #: v2 adds ``normalized_derivation`` (the full derivation identity, not just
 #: ``committed_run_id``) to ``organization-week.meta.json``.
-AGGREGATE_SCHEMA_VERSION = 2
+AGGREGATE_SCHEMA_VERSION = 3
 
 _HUMAN = "human"
 _AI = "explicit-ai-agent"
@@ -140,6 +141,12 @@ def _read_ndjson(path: Path) -> list[dict[str, Any]]:
             raise AggregateError(msg) from exc
         if not isinstance(row, dict):
             msg = f"{path} line {lineno} must be a JSON object, got {row!r}"
+            raise AggregateError(msg)
+        fields = ["repository_id"]
+        if path.name != "repositories.ndjson":
+            fields.append("pr_number")
+        if any(type(row.get(key)) is not int or row[key] <= 0 for key in fields):
+            msg = f"{path} line {lineno} has an invalid entity identity"
             raise AggregateError(msg)
         rows.append(row)
     return rows
@@ -270,11 +277,7 @@ def load_entities(workdir_path: Path) -> Entities:
             ) = _read_entity_tables(normalized_dir)
             after_text = _read_derivation_text(derivation_path)
             if after_text == before_text:
-                try:
-                    derivation = json.loads(before_text)
-                except json.JSONDecodeError as exc:
-                    msg = f"{derivation_path} is not valid JSON: {exc}"
-                    raise AggregateError(msg) from exc
+                derivation = _validate_entity_marker(before_text, normalized_dir)
                 return Entities(
                     repositories=repositories,
                     pull_requests=pull_requests,
@@ -298,6 +301,38 @@ def load_entities(workdir_path: Path) -> Entities:
     raise AggregateError(msg)
 
 
+def _validate_entity_marker(text: str, normalized_dir: Path) -> dict[str, Any]:
+    """Validate the entity generation's commit marker and content fingerprints.
+
+    Returns:
+        The decoded, verified derivation mapping.
+
+    Raises:
+        AggregateError: If the marker or entity generation is damaged.
+    """
+    try:
+        derivation = json.loads(text)
+    except json.JSONDecodeError as exc:
+        msg = "normalized derivation is not valid JSON"
+        raise AggregateError(msg) from exc
+    if not isinstance(derivation, dict):
+        msg = "normalized derivation must be a JSON object"
+        raise AggregateError(msg)
+    if (
+        "entity_sha256" in derivation
+        or derivation.get("normalizer_schema_version") == NORMALIZE_SCHEMA_VERSION
+    ):
+        try:
+            digests = entity_file_digests(normalized_dir)
+        except OSError as exc:
+            msg = "normalized generation is incomplete; run 'normalize'"
+            raise AggregateError(msg) from exc
+        if derivation.get("entity_sha256") != digests:
+            msg = "normalized entity fingerprints do not match; run 'normalize'"
+            raise AggregateError(msg)
+    return derivation
+
+
 def resolve_effective_observation_end(
     entities: Entities, requested_end: datetime
 ) -> datetime:
@@ -318,12 +353,10 @@ def resolve_effective_observation_end(
         msg = "normalized/derivation.json is missing a valid 'as_of' timestamp"
         raise AggregateError(msg)
     try:
-        as_of = datetime.fromisoformat(as_of_raw)
+        as_of = workdir.parse_timestamp(as_of_raw)
     except ValueError as exc:
         msg = f"normalized/derivation.json 'as_of' is not a valid timestamp: {exc}"
         raise AggregateError(msg) from exc
-    if as_of.tzinfo is None:
-        as_of = as_of.replace(tzinfo=UTC)
     return min(requested_end, as_of)
 
 
@@ -342,8 +375,20 @@ def normalized_derivation_identity(derivation: dict[str, Any]) -> dict[str, Any]
         derivation: A parsed ``normalized/derivation.json`` document.
 
     Returns:
-        The identity dict, with ``None`` for any missing field.
+        The validated identity dict.
+
+    Raises:
+        AggregateError: If required identity fields are missing or obsolete.
     """
+    if (
+        not isinstance(derivation.get("committed_run_id"), str)
+        or not derivation["committed_run_id"]
+        or not isinstance(derivation.get("actor_classification_fingerprint"), str)
+        or not derivation["actor_classification_fingerprint"]
+        or derivation.get("normalizer_schema_version") != NORMALIZE_SCHEMA_VERSION
+    ):
+        msg = "normalized derivation is invalid or obsolete; run 'normalize' again"
+        raise AggregateError(msg)
     return {
         "committed_run_id": derivation.get("committed_run_id"),
         "actor_classification_fingerprint": derivation.get(
@@ -417,7 +462,15 @@ def check_history_coverage_for_state(
             does not reach ``start - overlap_hours``.
     """
     required_boundary = start - timedelta(hours=overlap_hours)
-    repositories = state.get("repositories", {})
+    repositories = state.get("repositories")
+    if not isinstance(repositories, dict):
+        msg = "committed state repositories must be an object"
+        raise AggregateError(msg)
+    if repository_ids is not None and not repository_ids <= {
+        int(key) for key in repositories
+    }:
+        msg = "normalized repository has no committed historical coverage"
+        raise AggregateError(msg)
     for key, entry in repositories.items():
         repo_id = int(key)
         if repository_ids is not None and repo_id not in repository_ids:
@@ -427,15 +480,13 @@ def check_history_coverage_for_state(
             msg = f"repository {repo_id} has no committed 'history_boundary'"
             raise AggregateError(msg)
         try:
-            boundary = datetime.fromisoformat(boundary_raw)
+            boundary = workdir.parse_timestamp(boundary_raw)
         except ValueError as exc:
             msg = (
                 f"repository {repo_id} 'history_boundary' is not a valid "
                 f"timestamp: {boundary_raw!r}"
             )
             raise AggregateError(msg) from exc
-        if boundary.tzinfo is None:
-            boundary = boundary.replace(tzinfo=UTC)
         if boundary > required_boundary:
             msg = (
                 f"repository {repo_id} historical coverage ({boundary.isoformat()}) "
@@ -476,18 +527,21 @@ def _actor_identity_key(actor_id: object, actor_login: object) -> tuple[str, obj
 
 
 def parse_ts(value: object) -> datetime | None:
-    """Parse an ISO-8601 UTC timestamp field, or return ``None`` if absent/invalid.
+    """Parse an ISO-8601 UTC timestamp field, or return ``None`` if absent.
 
     Returns:
         The parsed, timezone-aware UTC instant, or ``None``.
+
+    Raises:
+        AggregateError: If a non-empty timestamp is malformed or naive.
     """
     if not isinstance(value, str) or not value:
         return None
     try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+        return workdir.parse_timestamp(value)
+    except ValueError as exc:
+        msg = "normalized entity has an invalid or naive timestamp"
+        raise AggregateError(msg) from exc
 
 
 def _median_or_na(values: list[float]) -> float | None:
@@ -530,7 +584,7 @@ def _reconstruct_review_states(
         ``review_id`` -> effective state, or ``None`` if the review was
         dismissed but its pre-dismissal state could not be reconstructed.
     """
-    dismissed_state: dict[Any, str | None] = {}
+    dismissed_state: dict[str, str | None] = {}
     for row in timeline:
         if row.get("event") != "review_dismissed":
             continue
@@ -543,13 +597,23 @@ def _reconstruct_review_states(
         review_id = dismissed_review.get("review_id")
         state = dismissed_review.get("state")
         if review_id is not None:
-            dismissed_state[review_id] = state if isinstance(state, str) else None
+            dismissed_state[str(review_id)] = _historical_review_state(state)
     return {
         review["review_id"]: dismissed_state.get(
-            review["review_id"], review.get("state")
+            str(review["review_id"]), _historical_review_state(review.get("state"))
         )
         for review in reviews
     }
+
+
+def _historical_review_state(value: object) -> str | None:
+    """Canonicalize a submitted review state.
+
+    Returns:
+        The historical state, or unavailable if it cannot be reconstructed.
+    """
+    state = value.upper() if isinstance(value, str) else None
+    return state if state in {"COMMENTED", "APPROVED", "CHANGES_REQUESTED"} else None
 
 
 def _first_qualifying_human_review(
@@ -1149,6 +1213,9 @@ def run_aggregate(
             not cover the requested window.
     """
     entities = load_entities(workdir_path)
+    if entities.derivation.get("normalizer_schema_version") != NORMALIZE_SCHEMA_VERSION:
+        msg = "normalized schema is obsolete; run 'normalize' again"
+        raise AggregateError(msg)
     state = workdir.read_state(workdir_path)
     if not state:
         msg = f"workdir {workdir_path} has no committed collection state"
@@ -1180,6 +1247,9 @@ def run_aggregate(
     report_dir = workdir_path / "report"
     report_dir.mkdir(parents=True, exist_ok=True)
     csv_path = report_dir / "organization-week.csv"
+    meta_path = report_dir / "organization-week.meta.json"
+    # Invalidate the old generation before replacing any of its artifacts.
+    meta_path.unlink(missing_ok=True)
     _write_csv(csv_path, panel)
     latest_run = workdir.latest_manifest_run_id_and_status(workdir_path)
     last_refresh_attempt_failed = bool(
@@ -1187,14 +1257,13 @@ def run_aggregate(
         and latest_run[0] != state.get("committed_run_id")
         and latest_run[1] != "complete"
     )
-    meta_path = report_dir / "organization-week.meta.json"
     workdir.atomic_write_json(
         meta_path,
         {
             "schema_version": AGGREGATE_SCHEMA_VERSION,
-            "requested_start": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "requested_end": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "effective_observation_end": effective_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "requested_start": workdir.format_timestamp(start),
+            "requested_end": workdir.format_timestamp(end),
+            "effective_observation_end": workdir.format_timestamp(effective_end),
             "overlap_hours": overlap_hours,
             "include_forks": include_forks,
             "committed_run_id": entities.derivation.get("committed_run_id"),

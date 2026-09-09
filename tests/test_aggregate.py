@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import aggregate
 import pytest
@@ -185,7 +185,12 @@ def test_history_coverage_gate_fails_closed(tmp_path: Path) -> None:
         )
 
 
-def test_changes_requested_reconstructs_pre_dismissal_state(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("review_id", "state"), [(101, "CHANGES_REQUESTED"), ("101", "changes_requested")]
+)
+def test_changes_requested_reconstructs_pre_dismissal_state(
+    tmp_path: Path, review_id: int | str, state: str
+) -> None:
     """A dismissed CHANGES_REQUESTED review still counts via timeline replay."""
     write_state(tmp_path, repository_ids=[1])
     write_normalized(
@@ -214,8 +219,8 @@ def test_changes_requested_reconstructs_pre_dismissal_state(tmp_path: Path) -> N
                 1,
                 1,
                 observed_index=0,
-                review_id=101,
-                pre_dismissal_state="CHANGES_REQUESTED",
+                review_id=review_id,
+                pre_dismissal_state=state,
             )
         ],
         pr_commits=commit_rows(1, 1, ["c1"]),
@@ -230,8 +235,20 @@ def test_changes_requested_reconstructs_pre_dismissal_state(tmp_path: Path) -> N
     assert week.metrics["changes_requested_rate"] == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize(
+    "timeline",
+    [
+        [],
+        [
+            dismissal_timeline_row(
+                1, 1, observed_index=0, review_id=101, pre_dismissal_state=None
+            )
+        ],
+    ],
+)
 def test_changes_requested_unavailable_when_dismissal_unreconstructable(
     tmp_path: Path,
+    timeline: list[dict[str, Any]],
 ) -> None:
     """A dismissed review with no recorded pre-dismissal state is unavailable."""
     write_state(tmp_path, repository_ids=[1])
@@ -256,11 +273,7 @@ def test_changes_requested_unavailable_when_dismissal_unreconstructable(
                 commit_id="c1",
             )
         ],
-        timeline_events=[
-            dismissal_timeline_row(
-                1, 1, observed_index=0, review_id=101, pre_dismissal_state=None
-            )
-        ],
+        timeline_events=timeline,
         pr_commits=commit_rows(1, 1, ["c1"]),
         draft_lifecycle=[draft_row(1, 1, first_queue_entry="2026-01-01T00:00:00Z")],
     )
@@ -630,7 +643,7 @@ def test_meta_records_full_normalized_derivation_identity(tmp_path: Path) -> Non
     assert meta["normalized_derivation"] == {
         "committed_run_id": "run1",
         "actor_classification_fingerprint": "fp-xyz",
-        "normalizer_schema_version": 1,
+        "normalizer_schema_version": 2,
     }
 
 
@@ -719,3 +732,41 @@ def test_history_coverage_gate_still_checks_included_forks(tmp_path: Path) -> No
             end=_ts("2026-01-12T00:00:00Z"),
             include_forks=True,
         )
+
+
+@pytest.mark.parametrize("value", ["2026-01-01T00:00:00", "bad", None])
+def test_as_of_requires_an_aware_timestamp(tmp_path: Path, value: str | None) -> None:
+    """The conservative cutoff cannot silently interpret malformed data as UTC."""
+    write_normalized(tmp_path, repositories=[], pull_requests=[])
+    entities = aggregate.load_entities(tmp_path)
+    entities.derivation["as_of"] = value
+    with pytest.raises(aggregate.AggregateError):
+        aggregate.resolve_effective_observation_end(
+            entities, _ts("2026-02-01T00:00:00Z")
+        )
+
+
+def test_coverage_cannot_omit_a_normalized_repository(tmp_path: Path) -> None:
+    """Coverage must prove every in-scope normalized repository, not just known keys."""
+    write_state(tmp_path, repository_ids=[])
+    write_normalized(tmp_path, repositories=[repo_row(1)], pull_requests=[])
+    with pytest.raises(
+        aggregate.AggregateError, match="no committed historical coverage"
+    ):
+        aggregate.run_aggregate(
+            workdir_path=tmp_path,
+            start=_ts("2026-01-01T00:00:00Z"),
+            end=_ts("2026-02-01T00:00:00Z"),
+        )
+
+
+def test_truncated_normalized_file_fails_fingerprint_check(tmp_path: Path) -> None:
+    """Valid NDJSON truncation must not turn observed activity into empty evidence."""
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[pr_row(1, 1, created_at="2026-01-01T00:00:00Z")],
+    )
+    (tmp_path / "normalized" / "pull_requests.ndjson").write_text("", encoding="utf-8")
+    with pytest.raises(aggregate.AggregateError, match="fingerprint"):
+        aggregate.load_entities(tmp_path)

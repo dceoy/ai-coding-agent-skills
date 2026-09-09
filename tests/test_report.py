@@ -2,16 +2,29 @@
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import aggregate
 import analyze
+import collect
+import normalize
 import pytest
 import report
 import workdir
+from matplotlib.figure import Figure
 
-from tests.conftest import draft_row, pr_row, repo_row, write_normalized, write_state
+from tests.conftest import (
+    FakeGh,
+    draft_row,
+    make_pr,
+    make_repo,
+    pr_row,
+    repo_row,
+    write_normalized,
+    write_state,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -235,3 +248,111 @@ def test_report_renders_full_its_statistics_and_fitted_trend(tmp_path: Path) -> 
     delivery_svg = next(p for p in outcome.chart_paths if p.name == "delivery.svg")
     svg_text = delivery_svg.read_text(encoding="utf-8")
     assert "merged_prs (fitted)" in svg_text
+
+
+def test_fractional_windows_round_trip_entire_pipeline(
+    tmp_path: Path, fake_gh: FakeGh
+) -> None:
+    """API evidence yields identical half-open panels at every derivation stage."""
+    start = datetime.fromisoformat("2026-01-05T00:00:00.500000Z")
+    end = datetime.fromisoformat("2026-01-12T00:00:00.500000Z")
+    fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
+    fake_gh.set_list(
+        "/repos/acme/repo1/pulls",
+        [[make_pr(n, "2026-01-20T00:00:00Z") for n in (1, 2)]],
+    )
+    for number, created in [(1, "2026-01-05T00:00:00Z"), (2, "2026-01-12T00:00:00Z")]:
+        fake_gh.set_object(
+            f"/repos/acme/repo1/pulls/{number}",
+            {
+                "number": number,
+                "base": {"repo": {"id": 1}},
+                "commits": 1,
+                "created_at": created,
+                "merged_at": "2026-01-06T00:00:00Z" if number == 1 else None,
+                "draft": False,
+                "state": "closed" if number == 1 else "open",
+                "user": {"id": 1, "login": "alice", "type": "User"},
+            },
+        )
+        fake_gh.set_list(f"/repos/acme/repo1/pulls/{number}/commits", [[{"sha": "c1"}]])
+    collected = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=start, end=end
+    )
+    assert collected.status == "complete"
+    assert (
+        datetime.fromisoformat(collected.manifest["requested_interval"]["start"])
+        == start
+    )
+    assert (
+        datetime.fromisoformat(collected.manifest["requested_interval"]["end"]) == end
+    )
+    normalize.run_normalize(workdir_path=tmp_path)
+    result = aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    expected = aggregate.panel_to_rows(result.panel)
+    assert [row["opened_prs"] for row in expected] == [0, 1]
+    assert [row["complete_week"] for row in expected] == [False, False]
+    analysis = analyze.run_analyze(
+        workdir_path=tmp_path, intervention_at=start
+    ).analysis
+    assert analysis["sensitivities"]["actor"]["rows"] == expected
+    assert datetime.fromisoformat(analysis["intervention_at"]) == start
+    meta = workdir.read_json_object(result.meta_path)
+    assert report._rebuild_panel_rows(tmp_path, meta)[0] == expected  # pyright: ignore[reportPrivateUsage]
+    generated = report.run_report(workdir_path=tmp_path).report_path.read_text(
+        encoding="utf-8"
+    )
+    assert "post-period conditioned" in generated
+    assert "not the primary estimand" in generated
+    assert "no_qualifying_two_sided_repositories" in generated
+
+
+def test_failed_aggregate_regeneration_invalidates_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An interrupted CSV/meta replacement cannot advertise a mixed valid generation."""
+    start, end, _ = _build_workdir(tmp_path)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+
+    def fail_scan(_path: Path) -> None:
+        msg = "simulated scan failure"
+        raise OSError(msg)
+
+    monkeypatch.setattr(workdir, "latest_manifest_run_id_and_status", fail_scan)
+    with pytest.raises(OSError, match="simulated scan failure"):
+        aggregate.run_aggregate(
+            workdir_path=tmp_path, start=start + timedelta(days=7), end=end
+        )
+    assert not (tmp_path / "report" / "organization-week.meta.json").exists()
+    with pytest.raises(analyze.AnalyzeError, match="aggregate"):
+        analyze.run_analyze(workdir_path=tmp_path)
+
+
+@pytest.mark.parametrize("values", [[1.0, None, 3.0], [None, None, None]])
+def test_charts_preserve_missing_week_gaps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, values: list[float | None]
+) -> None:
+    """Unavailable weeks stay as gaps on a calendar axis, not interpolated lines."""
+    figures = []
+    close = report.plt.close
+
+    def record_close(figure: Figure | int | str | None) -> None:
+        if isinstance(figure, Figure):
+            figures.append(figure)
+        close(figure)
+
+    monkeypatch.setattr(report.plt, "close", record_close)
+    weeks = [_monday(i) for i in range(3)]
+    report._draw_chart(  # pyright: ignore[reportPrivateUsage]
+        tmp_path / "chart.svg",
+        weeks,
+        {"metric": values},
+        title="Test",
+        intervention_at=None,
+    )
+    line = figures[-1].axes[0].lines[0]
+    assert len(line.get_xdata()) == 3
+    assert math.isnan(line.get_ydata()[1])
+    assert (
+        figures[-1].axes[0].get_xlim()[0] > 19000
+    )  # Calendar dates, not default 0..1.

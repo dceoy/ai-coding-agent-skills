@@ -11,10 +11,9 @@ limitations are kept in clearly separated sections.
 
 from __future__ import annotations
 
-import json
 import secrets
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 import matplotlib as mpl
@@ -33,6 +32,7 @@ from aggregate import (
 )
 
 if TYPE_CHECKING:
+    from datetime import datetime
     from pathlib import Path
 
 plt.rcParams["svg.hashsalt"] = "github-productivity"
@@ -42,7 +42,7 @@ plt.rcParams["svg.hashsalt"] = "github-productivity"
 #: pre/post week and coverage counts), overlays the persisted fitted ITS
 #: trend on eligible chart series, and pins the report to the full
 #: normalized-derivation identity.
-REPORT_SCHEMA_VERSION = 2
+REPORT_SCHEMA_VERSION = 3
 
 _DELIVERY_METRICS = ("merged_prs", "median_queue_to_merge", "median_changed_lines")
 _REVIEW_METRICS = (
@@ -81,11 +81,11 @@ def _read_json(path: Path, *, what: str) -> dict[str, Any]:
         ReportError: If the file does not exist or cannot be read/parsed.
     """
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return workdir.read_json_object(path)
     except FileNotFoundError as exc:
         msg = f"{path} does not exist; run '{what}' before 'report'"
         raise ReportError(msg) from exc
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         msg = f"{path} could not be read: {exc}"
         raise ReportError(msg) from exc
 
@@ -112,26 +112,22 @@ def _draw_chart(
     """
     fig, ax = plt.subplots(figsize=(8, 4))
     for name, values in series.items():
-        xs = [w for w, v in zip(weeks, values, strict=True) if v is not None]
-        ys = [v for v in values if v is not None]
-        if xs:
+        if weeks:
             # matplotlib accepts datetime x-values at runtime via its date
             # unit converter; the stubs only type this as ArrayLike | float.
             ax.plot(
-                xs,  # pyright: ignore[reportArgumentType]
-                ys,
+                weeks,  # pyright: ignore[reportArgumentType]
+                [float("nan") if v is None else v for v in values],
                 marker="o",
                 markersize=2,
                 linewidth=1,
                 label=name,
             )
     for name, values in (fitted or {}).items():
-        xs = [w for w, v in zip(weeks, values, strict=True) if v is not None]
-        ys = [v for v in values if v is not None]
-        if xs:
+        if weeks:
             ax.plot(
-                xs,  # pyright: ignore[reportArgumentType]
-                ys,
+                weeks,  # pyright: ignore[reportArgumentType]
+                [float("nan") if v is None else v for v in values],
                 linestyle="--",
                 linewidth=1,
                 label=name,
@@ -144,6 +140,8 @@ def _draw_chart(
             linewidth=1,
             label="intervention",
         )
+    if weeks:
+        ax.set_xlim(weeks[0], weeks[-1] + timedelta(days=7))  # pyright: ignore[reportArgumentType]
     ax.set_title(title)
     ax.legend(fontsize="small")
     fig.autofmt_xdate()
@@ -279,8 +277,8 @@ def _rebuild_panel_rows(
         )
         raise ReportError(msg)
     try:
-        start = datetime.fromisoformat(meta["requested_start"])
-        end = datetime.fromisoformat(meta["requested_end"])
+        start = workdir.parse_timestamp(meta["requested_start"])
+        end = workdir.parse_timestamp(meta["requested_end"])
     except (KeyError, ValueError) as exc:
         msg = f"aggregate's window sidecar has an invalid requested_start/end: {exc}"
         raise ReportError(msg) from exc
@@ -347,7 +345,7 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
     rows, weeks = _rebuild_panel_rows(workdir_path, meta)
     try:
         intervention_at = (
-            datetime.fromisoformat(analysis["intervention_at"])
+            workdir.parse_timestamp(analysis["intervention_at"])
             if analysis.get("intervention_at")
             else None
         )
@@ -663,6 +661,10 @@ def _sensitivity_section(
     stable = sens.get("stable_cohort", {})
     stable_block = [
         f"- Repositories in cohort: {len(stable.get('repository_ids', []))}",
+        (
+            f"- Available: {stable.get('available')}; "
+            f"reason: {stable.get('reason') or 'none'}"
+        ),
         "",
         *_its_table(stable.get("results", {})),
     ]
@@ -672,6 +674,10 @@ def _sensitivity_section(
         "### Window sensitivity",
         *_window_sensitivity_block(sens),
         "### Stable / two-sided repository cohort",
+        (
+            "This cohort requires activity before and after the intervention; it is "
+            "post-period conditioned and is not the primary estimand."
+        ),
         *stable_block,
         "",
         "### Leave-one-repository-out",

@@ -11,7 +11,6 @@ guard thresholds, and the sensitivity definitions -- is fixed in
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -41,7 +40,7 @@ if TYPE_CHECKING:
 #: v2 adds per-metric ``beta1``/``conf_int`` reporting fields, the persisted
 #: ``fitted_series`` ITS trend, denominator/coverage totals, and the full
 #: normalized-derivation identity in ``aggregate_derivation``.
-ANALYZE_SCHEMA_VERSION = 2
+ANALYZE_SCHEMA_VERSION = 3
 
 #: Fixed HAC/Newey-West lag, in observed (non-missing) weekly rows.
 HAC_MAXLAGS = 4
@@ -70,11 +69,11 @@ def _read_meta(workdir_path: Path) -> dict[str, Any]:
     """
     path = workdir_path / "report" / "organization-week.meta.json"
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return workdir.read_json_object(path)
     except FileNotFoundError as exc:
         msg = f"{path} does not exist; run 'aggregate' before 'analyze'"
         raise AnalyzeError(msg) from exc
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         msg = f"{path} could not be read: {exc}"
         raise AnalyzeError(msg) from exc
 
@@ -715,8 +714,8 @@ def run_analyze(
         )
         raise AnalyzeError(msg)
     try:
-        start = datetime.fromisoformat(meta["requested_start"])
-        end = datetime.fromisoformat(meta["requested_end"])
+        start = workdir.parse_timestamp(meta["requested_start"])
+        end = workdir.parse_timestamp(meta["requested_end"])
     except (KeyError, ValueError) as exc:
         msg = f"aggregate's window sidecar has an invalid requested_start/end: {exc}"
         raise AnalyzeError(msg) from exc
@@ -755,7 +754,7 @@ def run_analyze(
             "include_forks": meta.get("include_forks"),
             "normalized_derivation": meta_identity,
         },
-        "intervention_at": intervention_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        "intervention_at": workdir.format_timestamp(intervention_at)
         if intervention_at
         else None,
         "first_complete_post_week": (
@@ -777,6 +776,10 @@ def run_analyze(
                 for w in _WINDOW_SENSITIVITIES
             },
             "stable_cohort": {
+                "available": bool(stable_ids),
+                "reason": None
+                if stable_ids
+                else "no_qualifying_two_sided_repositories",
                 "repository_ids": sorted(stable_ids),
                 "results": (
                     {
