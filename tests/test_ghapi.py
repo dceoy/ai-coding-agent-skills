@@ -206,3 +206,83 @@ def test_request_raises_gh_api_error_on_timeout(
         ghapi.request(endpoint="/repos/o/r", params={}, repository_id=1, run_id="run-1")
     expected_timeout = ghapi._REQUEST_TIMEOUT_SECONDS  # pyright: ignore[reportPrivateUsage]
     assert captured_kwargs["timeout"] == expected_timeout
+
+
+@pytest.mark.parametrize("per_page", [0, -1, 101, True])
+def test_paginate_rejects_invalid_page_size(
+    monkeypatch: pytest.MonkeyPatch, per_page: int
+) -> None:
+    """Invalid page sizes fail before making a request or silently truncating."""
+    calls = _stub_run(monkeypatch, lambda _argv: _FakeCompletedProcess(0, "[]"))
+    with pytest.raises(ghapi.GhApiError, match="per_page"):
+        list(
+            ghapi.paginate(
+                endpoint="/x",
+                params={},
+                repository_id=1,
+                run_id="run",
+                per_page=per_page,
+            )
+        )
+    assert calls == []
+
+
+@pytest.mark.parametrize("params", [{"page": 2}, {"per_page": 20}])
+def test_paginate_rejects_conflicting_parameters(params: dict[str, str | int]) -> None:
+    """Caller pagination parameters cannot be silently overwritten."""
+    with pytest.raises(ghapi.GhApiError, match="parameters"):
+        list(
+            ghapi.paginate(endpoint="/x", params=params, repository_id=1, run_id="run")
+        )
+
+
+def test_paginate_rejects_repeated_full_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An endpoint ignoring page cannot consume requests or disk forever."""
+    count = 0
+
+    def handler(_argv: list[str]) -> _FakeCompletedProcess:
+        nonlocal count
+        count += 1
+        assert count <= 2, "pagination failed to terminate"
+        return _FakeCompletedProcess(0, json.dumps([{"id": 1, "updated": count}]))
+
+    _stub_run(monkeypatch, handler)
+    with pytest.raises(ghapi.GhApiError, match="repeated full page"):
+        list(
+            ghapi.paginate(
+                endpoint="/x", params={}, repository_id=1, run_id="run", per_page=1
+            )
+        )
+    assert count == 2
+
+
+@pytest.mark.parametrize("payload", [[None], [1], [{"id": 1}, {"id": 2}]])
+def test_paginate_rejects_malformed_pages(
+    monkeypatch: pytest.MonkeyPatch, payload: list[object]
+) -> None:
+    """Wrong item shapes and oversized pages fail closed."""
+    _stub_run(monkeypatch, lambda _argv: _FakeCompletedProcess(0, json.dumps(payload)))
+    with pytest.raises(ghapi.GhApiError, match="invalid list page"):
+        list(
+            ghapi.paginate(
+                endpoint="/x", params={}, repository_id=1, run_id="run", per_page=1
+            )
+        )
+
+
+@pytest.mark.parametrize("error", [FileNotFoundError, PermissionError])
+def test_request_translates_launch_errors(
+    monkeypatch: pytest.MonkeyPatch, error: type[OSError]
+) -> None:
+    """An unavailable executable becomes a structured API error."""
+
+    def fail(*_args: object, **kwargs: object) -> None:
+        assert kwargs["stdin"] == subprocess.DEVNULL
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        assert env["GH_PROMPT_DISABLED"] == "1"
+        raise error
+
+    monkeypatch.setattr(subprocess, "run", fail)
+    with pytest.raises(ghapi.GhApiError, match="could not launch"):
+        ghapi.request(endpoint="/x", params={}, repository_id=1, run_id="run")

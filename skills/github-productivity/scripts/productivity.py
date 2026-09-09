@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import workdir
@@ -177,7 +177,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _validate_collect_args(args: argparse.Namespace) -> tuple[datetime, datetime] | int:
+def _validate_window_args(args: argparse.Namespace) -> tuple[datetime, datetime] | int:
     """Parse and validate the ``collect`` subcommand's arguments.
 
     Args:
@@ -199,6 +199,14 @@ def _validate_collect_args(args: argparse.Namespace) -> tuple[datetime, datetime
     if args.overlap_hours < 0:
         print("error: --overlap-hours must not be negative", file=sys.stderr)
         return EXIT_INVALID_ARGS
+    try:
+        _ = start - timedelta(hours=args.overlap_hours, seconds=1)
+    except OverflowError:
+        print(
+            "error: --start and --overlap-hours exceed the supported date range",
+            file=sys.stderr,
+        )
+        return EXIT_INVALID_ARGS
     return start, end
 
 
@@ -211,7 +219,7 @@ def _run_collect_command(args: argparse.Namespace) -> int:
     Returns:
         The process exit code.
     """
-    validated = _validate_collect_args(args)
+    validated = _validate_window_args(args)
     if isinstance(validated, int):
         return validated
     start, end = validated
@@ -257,40 +265,14 @@ def _run_normalize_command(args: argparse.Namespace) -> int:
     except (
         NormalizeError,
         workdir.CommittedLineageError,
+        workdir.WorkdirDataError,
         json.JSONDecodeError,
         OSError,
-        AttributeError,
-        TypeError,
     ) as exc:
-        # AttributeError/TypeError are a backstop for committed evidence
-        # corrupted out of band into an unexpected shape: fail closed with
-        # exit 4 rather than surfacing a raw traceback.
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_DERIVATION_FAILED
     print(f"normalized {outcome.committed_run_id} ({outcome.status})")
     return EXIT_OK
-
-
-def _validate_window_args(args: argparse.Namespace) -> tuple[datetime, datetime] | int:
-    """Parse and validate a subcommand's shared ``--start``/``--end`` window.
-
-    Args:
-        args: Parsed CLI arguments carrying ``start``/``end`` strings.
-
-    Returns:
-        The parsed ``(start, end)`` boundaries if valid, otherwise the
-        exit code to return for the first validation failure found.
-    """
-    try:
-        start = parse_boundary(args.start)
-        end = parse_boundary(args.end)
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return EXIT_INVALID_ARGS
-    if end <= start:
-        print("error: --end must be strictly after --start", file=sys.stderr)
-        return EXIT_INVALID_ARGS
-    return start, end
 
 
 def _run_aggregate_command(args: argparse.Namespace) -> int:
@@ -306,9 +288,6 @@ def _run_aggregate_command(args: argparse.Namespace) -> int:
     if isinstance(validated, int):
         return validated
     start, end = validated
-    if args.overlap_hours < 0:
-        print("error: --overlap-hours must not be negative", file=sys.stderr)
-        return EXIT_INVALID_ARGS
     try:
         outcome = run_aggregate(
             workdir_path=args.workdir,
@@ -381,17 +360,28 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     if args.command == "collect":
-        return _run_collect_command(args)
-    if args.command == "normalize":
-        return _run_normalize_command(args)
-    if args.command == "aggregate":
-        return _run_aggregate_command(args)
-    if args.command == "analyze":
-        return _run_analyze_command(args)
-    if args.command == "report":
-        return _run_report_command(args)
-    parser.error(f"unknown command {args.command!r}")
-    return EXIT_INVALID_ARGS
+        runner = _run_collect_command
+    else:
+        runner = {
+            "normalize": _run_normalize_command,
+            "aggregate": _run_aggregate_command,
+            "analyze": _run_analyze_command,
+            "report": _run_report_command,
+        }[args.command]
+    try:
+        return runner(args)
+    except (
+        workdir.WorkdirDataError,
+        workdir.CommittedLineageError,
+        json.JSONDecodeError,
+        OSError,
+        UnicodeError,
+        AggregateError,
+    ) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return (
+            EXIT_INVALID_ARGS if args.command == "collect" else EXIT_DERIVATION_FAILED
+        )
 
 
 if __name__ == "__main__":

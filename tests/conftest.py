@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import ghapi
+import normalize
 import pytest
 import workdir
 
@@ -61,9 +62,9 @@ class FakeGh:
         *,
         endpoint: str,
         params: dict[str, Any],
-        repository_id: int | None,  # noqa: ARG002
-        run_id: str,  # noqa: ARG002
-        per_page: int = 100,  # noqa: ARG002
+        repository_id: int | None,
+        run_id: str,
+        per_page: int = 100,
     ) -> Any:  # noqa: ANN401
         """Fake replacement for ``ghapi.paginate``."""
         self.calls.append(("paginate", endpoint, dict(params)))
@@ -76,9 +77,15 @@ class FakeGh:
         )
         return (
             ghapi.GhApiResponse(
-                payload=page, provenance={"endpoint": endpoint, "params": dict(params)}
+                payload=page,
+                provenance={
+                    "endpoint": endpoint,
+                    "repository_id": repository_id,
+                    "run_id": run_id,
+                    "params": {**params, "page": index, "per_page": per_page},
+                },
             )
-            for page in pages
+            for index, page in enumerate(pages, 1)
         )
 
     def request(
@@ -86,8 +93,8 @@ class FakeGh:
         *,
         endpoint: str,
         params: dict[str, Any],
-        repository_id: int | None,  # noqa: ARG002
-        run_id: str,  # noqa: ARG002
+        repository_id: int | None,
+        run_id: str,
     ) -> ghapi.GhApiResponse:
         """Fake replacement for ``ghapi.request``."""
         self.calls.append(("request", endpoint, dict(params)))
@@ -95,7 +102,13 @@ class FakeGh:
             msg = f"forced failure for {endpoint}"
             raise ghapi.GhApiError(msg)
         return ghapi.GhApiResponse(
-            payload=self.objects.get(endpoint, {}), provenance={"endpoint": endpoint}
+            payload=self.objects.get(endpoint, {}),
+            provenance={
+                "endpoint": endpoint,
+                "repository_id": repository_id,
+                "run_id": run_id,
+                "params": dict(params),
+            },
         )
 
 
@@ -317,7 +330,7 @@ def dismissal_timeline_row(
     pr_number: int,
     *,
     observed_index: int,
-    review_id: int,
+    review_id: int | str,
     pre_dismissal_state: str | None,
 ) -> dict[str, Any]:
     """Build one ``review_dismissed`` timeline row."""
@@ -363,6 +376,7 @@ def write_normalized(
     workdir.atomic_write_ndjson(out / "pr_commits.ndjson", pr_commits or [])
     workdir.atomic_write_ndjson(out / "timeline_events.ndjson", timeline_events or [])
     workdir.atomic_write_ndjson(out / "draft_lifecycle.ndjson", draft_lifecycle or [])
+    workdir.atomic_write_ndjson(out / "actors.ndjson", [])
     workdir.atomic_write_json(
         out / "derivation.json",
         {
@@ -371,9 +385,10 @@ def write_normalized(
             "as_of": as_of,
             "requested_interval": None,
             "schema_version": workdir.SCHEMA_VERSION,
-            "normalizer_schema_version": 1,
+            "normalizer_schema_version": 2,
             "actor_classification_fingerprint": actor_classification_fingerprint,
             "actor_map": {"actor_ids": [], "logins": []},
             "normalizer_revision": "test",
+            "entity_sha256": normalize.entity_file_digests(out),
         },
     )

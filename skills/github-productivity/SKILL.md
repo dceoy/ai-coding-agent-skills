@@ -31,7 +31,7 @@ uv run skills/github-productivity/scripts/productivity.py collect \
   --overlap-hours 24
 ```
 
-- `--start` / `--end` accept either a date-only value (`YYYY-MM-DD`, converted to UTC midnight) or a timestamp with an explicit UTC offset. The requested interval is half-open `[start, end)`; `--end` must be strictly after `--start`. `--start` bounds how far back discovery/backfill looks; `--end` is validated and recorded as provenance for the follow-up derivation work, but does **not** stop `collect` from fetching evidence past it — collection always discovers through "now" so a later re-run with a later `--end` never needs to recollect. Event-level filtering by `end` happens at derivation time (not yet implemented — see the top of this document); see [Observation-range semantics](references/methodology.md#observation-range-semantics).
+- `--start` / `--end` accept either a date-only value (`YYYY-MM-DD`, converted to UTC midnight) or a timestamp with an explicit UTC offset. The requested interval is half-open `[start, end)`; `--end` must be strictly after `--start`. `--start` bounds how far back discovery/backfill looks; `--end` is validated and recorded as derivation provenance, but does **not** stop `collect` from fetching evidence past it — collection always discovers through "now" so later analysis can reuse evidence within retained coverage. Observing newer activity still requires a refresh. Event-level filtering by `end` happens in `aggregate`; see [Observation-range semantics](references/methodology.md#observation-range-semantics).
 - `--overlap-hours` (default `24`, must be non-negative) is the deterministic overlap applied to discovery boundaries and watermarks.
 - Exit codes: `0` success, `1` the run was incomplete (fail closed; committed state is unchanged), `2` invalid arguments — including a negative `--overlap-hours` or reusing a `--workdir` for a different `--org` than it already has evidence for — `3` the workdir is already locked by another collection run, including by a since-killed process (see [Known limitations](references/methodology.md#known-limitations) for recovery).
 
@@ -105,7 +105,7 @@ uv run skills/github-productivity/scripts/productivity.py report \
     └── rework.svg
 ```
 
-`collect` is single-writer per workdir: a second concurrent `collect` invocation is rejected before it performs any live collection. `normalize` is a lock-free reader: it pins one committed `state.json` snapshot at start and never reads a half-committed mixture of old and new coverage. `derivation.json` is written last, so a crash mid-regeneration leaves a mismatched fingerprint that the next `normalize` fully rewrites.
+`collect` is single-writer per workdir: a second concurrent `collect` invocation is rejected before it performs any live collection. `normalize` is a lock-free reader: it pins one committed `state.json` snapshot at start and never reads a half-committed mixture of old and new coverage. `derivation.json` is removed before regeneration and written last with entity-file digests. A crash mid-regeneration leaves no valid commit marker; missing or changed entity files trigger regeneration and are rejected by downstream consumers. After upgrading to normalizer schema 2, rerun `normalize`, `aggregate`, `analyze`, and `report` using retained raw evidence.
 
 ## Interpretation contract
 

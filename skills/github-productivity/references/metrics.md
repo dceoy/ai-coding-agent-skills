@@ -220,7 +220,8 @@ are limitations, not covariates added post hoc.
    organization-week metrics from normalized entities restricted to this
    repository set (full recompute, not aggregate-level subtraction).
    Labeled explicitly as a post-period-conditioned sensitivity, not the
-   primary estimand.
+   primary estimand. An empty qualifying cohort is explicitly unavailable with
+   reason `no_qualifying_two_sided_repositories`.
 3. **Leave-one-repository-out.** For each repository ID in the primary
    cohort, recompute the full panel from entities excluding that repository,
    then refit ITS. Report the distribution (min/max) of `β2`/`β3` across
@@ -237,9 +238,15 @@ later work; they are not required for v1.
 
 - Median: Python's `statistics.median` (exact tie behavior, no numpy
   interpolation).
-- Durations reported as float hours.
+- Durations reported as float hours. All interval and intervention timestamps
+  preserve fractional seconds and require explicit timezone offsets.
+- Dismissed review reconstruction accepts GitHub's string review IDs and
+  lowercase historical states. Missing or unrecognized dismissal history is
+  unavailable, never evidence that changes were not requested.
 - `report` charts use a fixed `Agg` backend and strip timestamp/hash
-  metadata so identical input produces byte-identical SVG output.
+  metadata so identical input produces byte-identical SVG output. Missing
+  observations remain gaps, and axes span the panel's calendar weeks even
+  when all observations are unavailable.
 
 ## Optional GitHub Actions (CI) metrics — out of scope for this PR
 

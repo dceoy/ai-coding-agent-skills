@@ -11,10 +11,9 @@ limitations are kept in clearly separated sections.
 
 from __future__ import annotations
 
-import json
 import secrets
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 import matplotlib as mpl
@@ -24,6 +23,7 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt
 import workdir
 from aggregate import (
+    AGGREGATE_SCHEMA_VERSION,
     AggregateError,
     build_panel,
     load_entities,
@@ -31,8 +31,10 @@ from aggregate import (
     panel_to_rows,
     resolve_effective_observation_end,
 )
+from analyze import ANALYZE_SCHEMA_VERSION
 
 if TYPE_CHECKING:
+    from datetime import datetime
     from pathlib import Path
 
 plt.rcParams["svg.hashsalt"] = "github-productivity"
@@ -42,7 +44,7 @@ plt.rcParams["svg.hashsalt"] = "github-productivity"
 #: pre/post week and coverage counts), overlays the persisted fitted ITS
 #: trend on eligible chart series, and pins the report to the full
 #: normalized-derivation identity.
-REPORT_SCHEMA_VERSION = 2
+REPORT_SCHEMA_VERSION = 3
 
 _DELIVERY_METRICS = ("merged_prs", "median_queue_to_merge", "median_changed_lines")
 _REVIEW_METRICS = (
@@ -81,11 +83,11 @@ def _read_json(path: Path, *, what: str) -> dict[str, Any]:
         ReportError: If the file does not exist or cannot be read/parsed.
     """
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return workdir.read_json_object(path)
     except FileNotFoundError as exc:
         msg = f"{path} does not exist; run '{what}' before 'report'"
         raise ReportError(msg) from exc
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         msg = f"{path} could not be read: {exc}"
         raise ReportError(msg) from exc
 
@@ -112,26 +114,22 @@ def _draw_chart(
     """
     fig, ax = plt.subplots(figsize=(8, 4))
     for name, values in series.items():
-        xs = [w for w, v in zip(weeks, values, strict=True) if v is not None]
-        ys = [v for v in values if v is not None]
-        if xs:
+        if weeks:
             # matplotlib accepts datetime x-values at runtime via its date
             # unit converter; the stubs only type this as ArrayLike | float.
             ax.plot(
-                xs,  # pyright: ignore[reportArgumentType]
-                ys,
+                weeks,  # pyright: ignore[reportArgumentType]
+                [float("nan") if v is None else v for v in values],
                 marker="o",
                 markersize=2,
                 linewidth=1,
                 label=name,
             )
     for name, values in (fitted or {}).items():
-        xs = [w for w, v in zip(weeks, values, strict=True) if v is not None]
-        ys = [v for v in values if v is not None]
-        if xs:
+        if weeks:
             ax.plot(
-                xs,  # pyright: ignore[reportArgumentType]
-                ys,
+                weeks,  # pyright: ignore[reportArgumentType]
+                [float("nan") if v is None else v for v in values],
                 linestyle="--",
                 linewidth=1,
                 label=name,
@@ -144,6 +142,8 @@ def _draw_chart(
             linewidth=1,
             label="intervention",
         )
+    if weeks:
+        ax.set_xlim(weeks[0], weeks[-1] + timedelta(days=7))  # pyright: ignore[reportArgumentType]
     ax.set_title(title)
     ax.legend(fontsize="small")
     fig.autofmt_xdate()
@@ -279,8 +279,8 @@ def _rebuild_panel_rows(
         )
         raise ReportError(msg)
     try:
-        start = datetime.fromisoformat(meta["requested_start"])
-        end = datetime.fromisoformat(meta["requested_end"])
+        start = workdir.parse_timestamp(meta["requested_start"])
+        end = workdir.parse_timestamp(meta["requested_end"])
     except (KeyError, ValueError) as exc:
         msg = f"aggregate's window sidecar has an invalid requested_start/end: {exc}"
         raise ReportError(msg) from exc
@@ -297,6 +297,32 @@ def _rebuild_panel_rows(
         msg = str(exc)
         raise ReportError(msg) from exc
     return panel_to_rows(panel), [w.week_start for w in panel.weeks]
+
+
+def _validate_schema_versions(meta: dict[str, Any], analysis: dict[str, Any]) -> None:
+    """Fail closed if either sidecar's schema_version is not the expected one.
+
+    Raises:
+        ReportError: If ``meta``'s or ``analysis``'s ``schema_version`` does
+            not match ``AGGREGATE_SCHEMA_VERSION``/``ANALYZE_SCHEMA_VERSION``.
+    """
+    aggregate_schema_version = meta.get("schema_version")
+    if aggregate_schema_version != AGGREGATE_SCHEMA_VERSION:
+        msg = (
+            f"organization-week.meta.json has schema_version "
+            f"{aggregate_schema_version!r}, but this reporter expects "
+            f"{AGGREGATE_SCHEMA_VERSION!r}; rerun 'aggregate' with the matching "
+            "version before 'report'"
+        )
+        raise ReportError(msg)
+    analysis_schema_version = analysis.get("schema_version")
+    if analysis_schema_version != ANALYZE_SCHEMA_VERSION:
+        msg = (
+            f"analysis.json has schema_version {analysis_schema_version!r}, but "
+            f"this reporter expects {ANALYZE_SCHEMA_VERSION!r}; rerun 'analyze' "
+            "with the matching version before 'report'"
+        )
+        raise ReportError(msg)
 
 
 def run_report(*, workdir_path: Path) -> ReportOutcome:
@@ -319,6 +345,7 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
     report_dir = workdir_path / "report"
     meta = _read_json(report_dir / "organization-week.meta.json", what="aggregate")
     analysis = _read_json(report_dir / "analysis.json", what="analyze")
+    _validate_schema_versions(meta, analysis)
     state = workdir.read_state(workdir_path)
     committed_run_id = state.get("committed_run_id") if state else None
     if committed_run_id != meta.get("committed_run_id"):
@@ -347,7 +374,7 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
     rows, weeks = _rebuild_panel_rows(workdir_path, meta)
     try:
         intervention_at = (
-            datetime.fromisoformat(analysis["intervention_at"])
+            workdir.parse_timestamp(analysis["intervention_at"])
             if analysis.get("intervention_at")
             else None
         )
@@ -355,11 +382,19 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
         msg = f"analyze's analysis.json has an invalid intervention_at: {exc}"
         raise ReportError(msg) from exc
 
+    # ``report.md`` is this generation's commit marker, mirroring how
+    # ``normalize``/``aggregate`` unlink their own marker before rewriting
+    # entities/the panel: invalidate it before any chart is replaced so a
+    # failure partway through chart drawing (or the report render itself)
+    # never leaves a stale ``report.md`` pointing at a mixed old/new chart
+    # set.
+    report_path = report_dir / "report.md"
+    report_path.unlink(missing_ok=True)
+
     chart_paths = _draw_all_charts(
         report_dir, rows, weeks, analysis, intervention_at=intervention_at
     )
 
-    report_path = report_dir / "report.md"
     report_tmp = report_path.with_name(f"{report_path.name}.tmp.{secrets.token_hex(4)}")
     try:
         report_tmp.write_text(
@@ -389,24 +424,35 @@ def _current_refresh_status(workdir_path: Path, meta: dict[str, Any]) -> str | N
     """Re-evaluate refresh-freshness status against the manifests on disk.
 
     ``aggregate`` snapshots this status into ``meta`` at aggregate time, but a
-    ``collect`` can fail, or finish but never get committed, after
-    ``aggregate``/``analyze`` and before ``report``; re-scanning here (rather
-    than trusting the snapshot) keeps the freshness statement current as of
-    report generation. A run that finished with ``status: complete`` but was
-    never committed (the crash window between a manifest being finalized and
-    ``state.json`` being replaced) is orphan evidence, not a clean "no newer
-    attempt" state, even though it isn't a failure either.
+    ``collect`` can fail, finish but never get committed, or finish and get
+    committed, after ``aggregate``/``analyze`` and before ``report``;
+    re-scanning here (rather than trusting the snapshot) keeps the freshness
+    statement current as of report generation. A run that finished with
+    ``status: complete`` but was never committed (the crash window between a
+    manifest being finalized and ``state.json`` being replaced) is orphan
+    evidence, not a clean "no newer attempt" state, even though it isn't a
+    failure either. A run that finished *and* was committed is neither: it is
+    now this workdir's actual committed head, distinct from a true orphan.
 
     Returns:
         ``None`` if the pinned ``committed_run_id`` is still the most
         recently started run; ``"failed"`` if a newer run started and did
         not complete; ``"orphan"`` if a newer run completed but was never
-        committed.
+        committed; ``"advanced"`` if a newer run completed and is now the
+        current committed state (the report itself is stale relative to it).
     """
     latest_run = workdir.latest_manifest_run_id_and_status(workdir_path)
     if latest_run is None or latest_run[0] == meta.get("committed_run_id"):
         return None
-    return "orphan" if latest_run[1] == "complete" else "failed"
+    if latest_run[1] != "complete":
+        return "failed"
+    current_state = workdir.read_state(workdir_path)
+    if (
+        current_state is not None
+        and current_state.get("committed_run_id") == latest_run[0]
+    ):
+        return "advanced"
+    return "orphan"
 
 
 def _freshness_section(
@@ -429,6 +475,10 @@ def _freshness_section(
         "orphan": (
             "a newer refresh completed but was never committed; this report "
             "uses the prior committed state"
+        ),
+        "advanced": (
+            "a newer refresh completed and is now the committed state; "
+            "re-run 'aggregate', 'analyze', and 'report' to reflect it"
         ),
     }[refresh_status]
     return (
@@ -663,6 +713,10 @@ def _sensitivity_section(
     stable = sens.get("stable_cohort", {})
     stable_block = [
         f"- Repositories in cohort: {len(stable.get('repository_ids', []))}",
+        (
+            f"- Available: {stable.get('available')}; "
+            f"reason: {stable.get('reason') or 'none'}"
+        ),
         "",
         *_its_table(stable.get("results", {})),
     ]
@@ -672,6 +726,10 @@ def _sensitivity_section(
         "### Window sensitivity",
         *_window_sensitivity_block(sens),
         "### Stable / two-sided repository cohort",
+        (
+            "This cohort requires activity before and after the intervention; it is "
+            "post-period conditioned and is not the primary estimand."
+        ),
         *stable_block,
         "",
         "### Leave-one-repository-out",

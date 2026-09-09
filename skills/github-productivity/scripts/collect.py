@@ -35,6 +35,10 @@ class CollectOutcome:
     manifest: dict[str, Any]
 
 
+class _CollectionAbortedError(Exception):
+    """Internal control flow used to stop after the first GitHub API failure."""
+
+
 @dataclass(slots=True)
 class _RunContext:
     """Mutable bookkeeping threaded through one collection run."""
@@ -46,6 +50,40 @@ class _RunContext:
     overlap_hours: int
     failures: list[dict[str, Any]] = field(default_factory=list)
     limitations: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _abort_collection(
+    ctx: _RunContext,
+    *,
+    endpoint: str,
+    repository_id: int | None,
+    pr_number: int | None,
+    exc: ghapi.GhApiError,
+) -> None:
+    """Record the first API failure and abort the remaining live collection.
+
+    Once any endpoint fails, the transaction cannot commit its new state.
+    Continuing to issue GitHub requests would only delay the inevitable
+    ``incomplete`` result, and repeated per-call timeouts can otherwise keep
+    a synchronous run alive for hours.
+
+    Args:
+        ctx: The active run context.
+        endpoint: Stable endpoint-family tag recorded in the manifest.
+        repository_id: Repository ID associated with the failed request.
+        pr_number: PR number associated with the failed request, when any.
+        exc: The underlying GitHub API failure.
+
+    Raises:
+        _CollectionAbortedError: Always, after persisting the failure in memory.
+    """
+    ctx.failures.append({
+        "endpoint": endpoint,
+        "repository_id": repository_id,
+        "pr_number": pr_number,
+        "reason": str(exc),
+    })
+    raise _CollectionAbortedError from exc
 
 
 def collection_affecting_fingerprint(ci_workflow_ids: list[int]) -> str:
@@ -72,7 +110,7 @@ def _parse_ts(value: str) -> datetime:
     Returns:
         The equivalent timezone-aware ``datetime`` in UTC.
     """
-    return datetime.fromisoformat(value).astimezone(UTC)
+    return workdir.parse_timestamp(value)
 
 
 def _fmt_ts(value: datetime) -> str:
@@ -117,7 +155,7 @@ def fetch_organization_repositories(ctx: _RunContext) -> list[dict[str, Any]]:
         ``archived``, ``fork``, and ``created_at``, including archived
         repositories.
     """
-    repositories: list[dict[str, Any]] = []
+    repositories: dict[int, dict[str, Any]] = {}
     raw_path = workdir.raw_dir(ctx.workdir, ctx.run_id) / "repos.ndjson"
     try:
         for page in ghapi.paginate(
@@ -129,25 +167,98 @@ def fetch_organization_repositories(ctx: _RunContext) -> list[dict[str, Any]]:
             workdir.append_ndjson(
                 raw_path, {"provenance": page.provenance, "payload": page.payload}
             )
-            repositories.extend(
-                {
-                    "id": item["id"],
-                    "name": item["name"],
-                    "full_name": item["full_name"],
-                    "archived": item["archived"],
-                    "fork": item["fork"],
-                    "created_at": item["created_at"],
-                }
-                for item in page.payload
-            )
+            for item in page.payload:
+                _record_repository(repositories, item)
     except ghapi.GhApiError as exc:
-        ctx.failures.append({
-            "endpoint": "repos",
-            "repository_id": None,
-            "pr_number": None,
-            "reason": str(exc),
-        })
-    return repositories
+        _abort_collection(
+            ctx,
+            endpoint="repos",
+            repository_id=None,
+            pr_number=None,
+            exc=exc,
+        )
+    return [repositories[key] for key in sorted(repositories)]
+
+
+def _record_repository(repositories: dict[int, dict[str, Any]], item: Any) -> None:  # noqa: ANN401
+    """Retain an enumeration identity once, rejecting contradictory snapshots.
+
+    Raises:
+        ghapi.GhApiError: If the repeated repository has conflicting fields.
+    """
+    repo = _repository_summary(item)
+    if repositories.setdefault(repo["id"], repo) != repo:
+        msg = f"conflicting enumeration for repository {repo['id']}"
+        raise ghapi.GhApiError(msg)
+
+
+def _repository_summary(item: Any) -> dict[str, Any]:  # noqa: ANN401
+    """Validate the repository fields that control identity and collection.
+
+    Returns:
+        The stable repository summary.
+
+    Raises:
+        ghapi.GhApiError: If a repository list item is malformed.
+    """
+    fields = {"id", "name", "full_name", "archived", "fork", "created_at"}
+    if not isinstance(item, dict) or not fields <= item.keys():
+        msg = "repository list item is missing required fields"
+        raise ghapi.GhApiError(msg)
+    expected_types = {
+        "id": int,
+        "archived": bool,
+        "fork": bool,
+        "name": str,
+        "full_name": str,
+    }
+    if any(type(item[key]) is not expected for key, expected in expected_types.items()):
+        msg = "repository list item has invalid identity or cohort fields"
+        raise ghapi.GhApiError(msg)
+    owner, separator, name = item["full_name"].partition("/")
+    if (
+        item["id"] <= 0
+        or not owner
+        or not separator
+        or name != item["name"]
+        or "/" in name
+    ):
+        msg = "repository list item has an invalid full_name or id"
+        raise ghapi.GhApiError(msg)
+    _api_timestamp(item["created_at"])
+    return {key: item[key] for key in fields}
+
+
+def _api_timestamp(value: Any) -> datetime:  # noqa: ANN401
+    """Parse an API timestamp, translating malformed evidence to API failure.
+
+    Returns:
+        The aware UTC instant.
+
+    Raises:
+        ghapi.GhApiError: If the value is not an aware timestamp.
+    """
+    try:
+        return _parse_ts(value)
+    except (TypeError, ValueError) as exc:
+        msg = "API response has an invalid timestamp"
+        raise ghapi.GhApiError(msg) from exc
+
+
+def _discovered_number(item: Any) -> int:  # noqa: ANN401
+    """Validate a discovery item and return its positive PR/issue number.
+
+    Returns:
+        The PR/issue number.
+
+    Raises:
+        ghapi.GhApiError: If the discovery item has an invalid identity.
+    """
+    number = item.get("number") if isinstance(item, dict) else None
+    if type(number) is not int or number <= 0:
+        msg = "discovery item must have a positive integer number"
+        raise ghapi.GhApiError(msg)
+    return number
 
 
 def _consume_backfill_page(
@@ -166,9 +277,10 @@ def _consume_backfill_page(
         the caller to stop paging.
     """
     for item in page.payload:
-        if _parse_ts(item["updated_at"]) < boundary:
+        number = _discovered_number(item)
+        if _api_timestamp(item.get("updated_at")) < boundary:
             return True
-        touched.add(item["number"])
+        touched.add(number)
     return False
 
 
@@ -205,12 +317,13 @@ def _discover_backfill(
             if _consume_backfill_page(page, boundary, touched):
                 break
     except ghapi.GhApiError as exc:
-        ctx.failures.append({
-            "endpoint": "pulls-backfill",
-            "repository_id": repo["id"],
-            "pr_number": None,
-            "reason": str(exc),
-        })
+        _abort_collection(
+            ctx,
+            endpoint="pulls-backfill",
+            repository_id=repo["id"],
+            pr_number=None,
+            exc=exc,
+        )
     return touched
 
 
@@ -246,7 +359,7 @@ def _discover_issues(
             endpoint=f"/repos/{owner}/{name}/issues",
             params={
                 "state": "all",
-                "since": _fmt_ts(since),
+                "since": _fmt_ts(since - timedelta(seconds=1)),
                 "sort": sort,
                 "direction": direction,
             },
@@ -256,16 +369,18 @@ def _discover_issues(
             workdir.append_ndjson(
                 raw_path, {"provenance": page.provenance, "payload": page.payload}
             )
-            touched.update(
-                item["number"] for item in page.payload if "pull_request" in item
-            )
+            for item in page.payload:
+                number = _discovered_number(item)
+                if "pull_request" in item:
+                    touched.add(number)
     except ghapi.GhApiError as exc:
-        ctx.failures.append({
-            "endpoint": endpoint_tag,
-            "repository_id": repo["id"],
-            "pr_number": None,
-            "reason": str(exc),
-        })
+        _abort_collection(
+            ctx,
+            endpoint=endpoint_tag,
+            repository_id=repo["id"],
+            pr_number=None,
+            exc=exc,
+        )
     return touched
 
 
@@ -323,12 +438,13 @@ def _fetch_pr_bundle(ctx: _RunContext, repo: dict[str, Any], pr_number: int) -> 
                 pr_payload,
             )
         except ghapi.GhApiError as exc:
-            ctx.failures.append({
-                "endpoint": tag,
-                "repository_id": repo["id"],
-                "pr_number": pr_number,
-                "reason": str(exc),
-            })
+            _abort_collection(
+                ctx,
+                endpoint=tag,
+                repository_id=repo["id"],
+                pr_number=pr_number,
+                exc=exc,
+            )
 
 
 def _fetch_bundle_entry(
@@ -370,6 +486,7 @@ def _fetch_bundle_entry(
     response = ghapi.request(
         endpoint=endpoint, params={}, repository_id=repo["id"], run_id=ctx.run_id
     )
+    _validate_pr_payload(response.payload, repo["id"], pr_number)
     workdir.append_ndjson(
         raw_root / filename,
         {
@@ -381,6 +498,33 @@ def _fetch_bundle_entry(
     if tag == "pulls" and isinstance(response.payload, dict):
         return response.payload
     return pr_payload
+
+
+def _validate_pr_payload(payload: Any, repo_id: int, number: int) -> None:  # noqa: ANN401
+    """Reject a malformed or mismatched PR detail before fetching its children.
+
+    Raises:
+        ghapi.GhApiError: If the detail does not match the requested identity
+            or lacks a non-negative integer commit count.
+    """
+    if not isinstance(payload, dict):
+        msg = "PR detail must be an object"
+        raise ghapi.GhApiError(msg)
+    base = payload.get("base")
+    repository = base.get("repo") if isinstance(base, dict) else None
+    if (
+        type(payload.get("number")) is not int
+        or payload["number"] != number
+        or not isinstance(repository, dict)
+        or type(repository.get("id")) is not int
+        or repository["id"] != repo_id
+    ):
+        msg = f"PR detail identity does not match repository {repo_id} PR #{number}"
+        raise ghapi.GhApiError(msg)
+    expected = payload.get("commits")
+    if type(expected) is not int or expected < 0:
+        msg = f"could not read a non-negative integer commit count for PR #{number}"
+        raise ghapi.GhApiError(msg)
 
 
 def _check_commit_bundle_completeness(
@@ -416,7 +560,7 @@ def _check_commit_bundle_completeness(
             ``<= 250`` and does not exactly match the number collected.
     """
     expected = pr_payload.get("commits") if pr_payload else None
-    if not isinstance(expected, int):
+    if type(expected) is not int or expected < 0:
         msg = (
             f"could not read an integer commit count for PR #{pr_number}; "
             "the commits bundle cannot be verified complete"
@@ -470,7 +614,9 @@ def _collect_repository(
     previous_watermark = repo_state.get("discovery_watermark") if repo_state else None
     previous_boundary = repo_state.get("history_boundary") if repo_state else None
     needs_backfill = (
-        previous_boundary is None or _parse_ts(previous_boundary) > required_boundary
+        previous_boundary is None
+        or previous_watermark is None
+        or _parse_ts(previous_boundary) > required_boundary
     )
     touched: set[int] = set()
     if needs_backfill:
@@ -507,7 +653,7 @@ def _collect_repository(
         "previous_watermark": previous_watermark,
         "previous_history_boundary": previous_boundary,
         "touched_pr_numbers": sorted(touched),
-        "required_history_boundary": _fmt_ts(required_boundary),
+        "required_history_boundary": workdir.format_timestamp(required_boundary),
     }
 
 
@@ -549,7 +695,7 @@ def _process_repo(
         "fork": repo["fork"],
         "created_at": repo["created_at"],
         "discovery_watermark": _fmt_ts_precise(ctx.refresh_started_at),
-        "history_boundary": _fmt_ts(history_boundary),
+        "history_boundary": workdir.format_timestamp(history_boundary),
         "last_seen_in_enumeration_at": _fmt_ts_precise(ctx.refresh_started_at),
     }
     return entry, state_entry
@@ -591,6 +737,66 @@ def _ensure_matching_organization(org: str, workdir_path: Path) -> None:
     raise workdir.OrganizationMismatchError(msg)
 
 
+def _validate_previous_state(
+    state: dict[str, Any], org: str, path: Path, refresh_started_at: datetime
+) -> None:
+    """Check the acceptance frontier before issuing any successor-run requests.
+
+    Raises:
+        workdir.OrganizationMismatchError: If state belongs to another org.
+        workdir.WorkdirDataError: If state or its watermarks are malformed.
+    """
+    recorded = state.get("organization")
+    if not isinstance(recorded, str) or recorded.casefold() != org.casefold():
+        msg = "committed state organization does not match --org"
+        raise workdir.OrganizationMismatchError(msg)
+    repositories = state.get("repositories")
+    if not isinstance(repositories, dict):
+        msg = "committed state repositories must be an object"
+        raise workdir.WorkdirDataError(msg)
+    lineage = workdir.resolve_committed_lineage(path, state)
+    for manifest in lineage:
+        started = workdir.parse_manifest_started_at(manifest)
+        if started is None or started > refresh_started_at:
+            msg = (
+                "committed refresh timestamp is invalid or later than the current clock"
+            )
+            raise workdir.WorkdirDataError(msg)
+    for key, entry in repositories.items():
+        if (
+            not key.isdecimal()
+            or int(key) <= 0
+            or str(int(key)) != key
+            or not isinstance(entry, dict)
+        ):
+            msg = "committed state has an invalid repository identity or entry"
+            raise workdir.WorkdirDataError(msg)
+        _validate_watermarks(key, entry, refresh_started_at)
+
+
+def _validate_watermarks(
+    key: str, entry: dict[str, Any], refresh_started_at: datetime
+) -> None:
+    """Reject malformed or future incremental watermarks before any API access.
+
+    Raises:
+        workdir.WorkdirDataError: If a timestamp is invalid or in the future.
+    """
+    for name in ("history_boundary", "discovery_watermark"):
+        value = entry.get(name)
+        if value is None:
+            # Missing coverage requires backfill, never an incremental skip.
+            continue
+        try:
+            instant = _parse_ts(value)
+        except (TypeError, ValueError) as exc:
+            msg = f"repository {key} has an invalid {name}"
+            raise workdir.WorkdirDataError(msg) from exc
+        if name == "discovery_watermark" and instant > refresh_started_at:
+            msg = f"repository {key} watermark is later than the current clock"
+            raise workdir.WorkdirDataError(msg)
+
+
 def run_collect(
     *,
     org: str,
@@ -620,9 +826,13 @@ def run_collect(
     run_id = workdir.new_run_id()
     with workdir.CollectionLock(workdir_path, run_id):
         _ensure_matching_organization(org, workdir_path)
-        workdir.bind_organization(workdir_path, org)
         refresh_started_at = datetime.now(UTC)
         previous_state = workdir.read_state(workdir_path)
+        if previous_state is not None:
+            _validate_previous_state(
+                previous_state, org, workdir_path, refresh_started_at
+            )
+        workdir.bind_organization(workdir_path, org)
         previous_committed_run_id = (
             previous_state.get("committed_run_id") if previous_state else None
         )
@@ -634,29 +844,36 @@ def run_collect(
             refresh_started_at=refresh_started_at,
             overlap_hours=overlap_hours,
         )
-        repositories = fetch_organization_repositories(ctx)
         previous_repositories: dict[str, Any] = (
             previous_state.get("repositories", {}) if previous_state else {}
         )
         manifest_repositories: dict[str, Any] = {}
         new_state_repositories: dict[str, Any] = dict(previous_repositories)
-        for repo in repositories:
-            entry, state_entry = _process_repo(
-                ctx, repo, previous_repositories, start=start
-            )
-            key = str(repo["id"])
-            manifest_repositories[key] = entry
-            new_state_repositories[key] = state_entry
-        status = "incomplete" if ctx.failures else "complete"
+        try:
+            repositories = fetch_organization_repositories(ctx)
+            for repo in repositories:
+                entry, state_entry = _process_repo(
+                    ctx, repo, previous_repositories, start=start
+                )
+                key = str(repo["id"])
+                manifest_repositories[key] = entry
+                new_state_repositories[key] = state_entry
+        except _CollectionAbortedError:
+            status = "incomplete"
+        else:
+            status = "complete"
         manifest = {
             "schema_version": workdir.SCHEMA_VERSION,
             "run_id": run_id,
             "status": status,
             "previous_committed_run_id": previous_committed_run_id,
             "organization": org,
-            "requested_interval": {"start": _fmt_ts(start), "end": _fmt_ts(end)},
+            "requested_interval": {
+                "start": workdir.format_timestamp(start),
+                "end": workdir.format_timestamp(end),
+            },
             "refresh_started_at": _fmt_ts_precise(refresh_started_at),
-            "collection_ended_at": _fmt_ts(datetime.now(UTC)),
+            "collection_ended_at": workdir.format_timestamp(datetime.now(UTC)),
             "github_api_version": ghapi.GITHUB_API_VERSION,
             "collector_revision": workdir.resolve_collector_revision() or "unavailable",
             "overlap_hours": overlap_hours,
@@ -668,6 +885,7 @@ def run_collect(
             "failures": ctx.failures,
             "limitations": ctx.limitations,
         }
+        workdir.sync_raw_evidence(workdir_path, run_id)
         workdir.finalize_manifest(workdir_path, run_id, manifest)
         if status == "complete":
             workdir.write_state(

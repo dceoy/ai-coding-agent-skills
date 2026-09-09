@@ -8,7 +8,9 @@ directly.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -175,9 +177,14 @@ def request(
             text=True,
             check=False,
             timeout=_REQUEST_TIMEOUT_SECONDS,
+            stdin=subprocess.DEVNULL,
+            env={**os.environ, "GH_PROMPT_DISABLED": "1"},
         )
     except subprocess.TimeoutExpired as exc:
         msg = f"gh api timed out for {endpoint} after {_REQUEST_TIMEOUT_SECONDS}s"
+        raise GhApiError(msg) from exc
+    except OSError as exc:
+        msg = f"could not launch gh api: {_redact_secret_values(str(exc))}"
         raise GhApiError(msg) from exc
     provenance = scrub_provenance({
         "endpoint": endpoint,
@@ -229,7 +236,14 @@ def paginate(
         GhApiError: If any page request fails, or a page's payload is not a
             JSON array.
     """
+    if type(per_page) is not int or not 1 <= per_page <= _DEFAULT_PER_PAGE:
+        msg = "per_page must be an integer between 1 and 100"
+        raise GhApiError(msg)
+    if {"page", "per_page"} & params.keys():
+        msg = "pagination parameters must not contain page or per_page"
+        raise GhApiError(msg)
     page = 1
+    seen_pages: set[str] = set()
     while True:
         page_params: dict[str, str | int] = {
             **params,
@@ -245,6 +259,22 @@ def paginate(
         if not isinstance(response.payload, list):
             msg = f"expected a JSON array from {endpoint}, got {type(response.payload)}"
             raise GhApiError(msg)
+        if len(response.payload) > per_page or any(
+            not isinstance(item, dict) for item in response.payload
+        ):
+            msg = f"invalid list page from {endpoint} (per_page={per_page})"
+            raise GhApiError(msg)
+        # Stable IDs also catch repeated pages whose mutable fields changed.
+        identities = [
+            json.dumps(item.get("id", item.get("sha", item)), sort_keys=True)
+            for item in response.payload
+        ]
+        digest = hashlib.sha256(json.dumps(sorted(identities)).encode()).hexdigest()
+        if len(response.payload) == per_page:
+            if digest in seen_pages:
+                msg = f"pagination made no progress for {endpoint}: repeated full page"
+                raise GhApiError(msg)
+            seen_pages.add(digest)
         yield response
         if len(response.payload) < per_page:
             return
