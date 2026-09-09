@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import aggregate
+import normalize
 import pytest
 import workdir
 
@@ -644,6 +645,7 @@ def test_meta_records_full_normalized_derivation_identity(tmp_path: Path) -> Non
         "committed_run_id": "run1",
         "actor_classification_fingerprint": "fp-xyz",
         "normalizer_schema_version": 2,
+        "entity_sha256": normalize.entity_file_digests(tmp_path / "normalized"),
     }
 
 

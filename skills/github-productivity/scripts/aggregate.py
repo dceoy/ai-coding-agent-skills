@@ -36,7 +36,10 @@ if TYPE_CHECKING:
 #: Bump when the panel's column set or derivation rules change.
 #: v2 adds ``normalized_derivation`` (the full derivation identity, not just
 #: ``committed_run_id``) to ``organization-week.meta.json``.
-AGGREGATE_SCHEMA_VERSION = 3
+#: v4 adds ``entity_sha256`` to that identity, so a ``normalize --force`` that
+#: replaces entity bytes under an unchanged run/actor-map/schema identity is
+#: no longer indistinguishable from the prior generation.
+AGGREGATE_SCHEMA_VERSION = 4
 
 _HUMAN = "human"
 _AI = "explicit-ai-agent"
@@ -364,12 +367,16 @@ def normalized_derivation_identity(derivation: dict[str, Any]) -> dict[str, Any]
     """Extract the full identity that pins one committed normalized derivation.
 
     ``normalize`` treats ``(committed_run_id, actor_classification_fingerprint,
-    normalizer_schema_version)`` as the identity of a current normalized tree:
-    re-running ``normalize`` for the same committed run with a different actor
-    map (or a bumped normalizer schema) produces a different derivation that
-    can change author/reviewer classifications. ``aggregate``/``analyze``/
-    ``report`` persist and compare this whole triple so a stale aggregate or
-    analysis can never be silently paired with a re-normalized entity tree.
+    normalizer_schema_version, entity_sha256)`` as the identity of a current
+    normalized tree: re-running ``normalize`` for the same committed run with
+    a different actor map (or a bumped normalizer schema) produces a
+    different derivation that can change author/reviewer classifications, and
+    ``entity_sha256`` additionally pins the exact entity bytes so a
+    ``normalize --force`` that rewrites entities under an otherwise-unchanged
+    run/actor-map/schema identity is not silently treated as the same
+    generation. ``aggregate``/``analyze``/``report`` persist and compare this
+    whole identity so a stale aggregate or analysis can never be silently
+    paired with a re-normalized entity tree.
 
     Args:
         derivation: A parsed ``normalized/derivation.json`` document.
@@ -380,12 +387,12 @@ def normalized_derivation_identity(derivation: dict[str, Any]) -> dict[str, Any]
     Raises:
         AggregateError: If required identity fields are missing or obsolete.
     """
+    entity_sha256 = derivation.get("entity_sha256")
     if (
-        not isinstance(derivation.get("committed_run_id"), str)
-        or not derivation["committed_run_id"]
-        or not isinstance(derivation.get("actor_classification_fingerprint"), str)
-        or not derivation["actor_classification_fingerprint"]
+        not _is_nonempty_str(derivation.get("committed_run_id"))
+        or not _is_nonempty_str(derivation.get("actor_classification_fingerprint"))
         or derivation.get("normalizer_schema_version") != NORMALIZE_SCHEMA_VERSION
+        or not _is_entity_digest_map(entity_sha256)
     ):
         msg = "normalized derivation is invalid or obsolete; run 'normalize' again"
         raise AggregateError(msg)
@@ -395,7 +402,22 @@ def normalized_derivation_identity(derivation: dict[str, Any]) -> dict[str, Any]
             "actor_classification_fingerprint"
         ),
         "normalizer_schema_version": derivation.get("normalizer_schema_version"),
+        "entity_sha256": entity_sha256,
     }
+
+
+def _is_nonempty_str(value: object) -> bool:
+    """Return whether ``value`` is a non-empty string."""
+    return isinstance(value, str) and bool(value)
+
+
+def _is_entity_digest_map(value: object) -> bool:
+    """Return whether ``value`` is a non-empty filename-to-digest mapping."""
+    return (
+        isinstance(value, dict)
+        and bool(value)
+        and all(isinstance(k, str) and isinstance(v, str) for k, v in value.items())
+    )
 
 
 def check_history_coverage(

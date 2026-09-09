@@ -382,11 +382,19 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
         msg = f"analyze's analysis.json has an invalid intervention_at: {exc}"
         raise ReportError(msg) from exc
 
+    # ``report.md`` is this generation's commit marker, mirroring how
+    # ``normalize``/``aggregate`` unlink their own marker before rewriting
+    # entities/the panel: invalidate it before any chart is replaced so a
+    # failure partway through chart drawing (or the report render itself)
+    # never leaves a stale ``report.md`` pointing at a mixed old/new chart
+    # set.
+    report_path = report_dir / "report.md"
+    report_path.unlink(missing_ok=True)
+
     chart_paths = _draw_all_charts(
         report_dir, rows, weeks, analysis, intervention_at=intervention_at
     )
 
-    report_path = report_dir / "report.md"
     report_tmp = report_path.with_name(f"{report_path.name}.tmp.{secrets.token_hex(4)}")
     try:
         report_tmp.write_text(

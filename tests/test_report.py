@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -226,6 +227,80 @@ def test_report_fails_closed_on_stale_aggregate_schema_version(tmp_path: Path) -
     workdir.atomic_write_json(meta_path, meta)
     with pytest.raises(report.ReportError, match="schema_version"):
         report.run_report(workdir_path=tmp_path)
+
+
+def test_report_fails_closed_when_normalize_force_rewrites_entities_in_place(
+    tmp_path: Path,
+) -> None:
+    """Reject a stale aggregate/analysis/report after a same-identity force-renormalize.
+
+    Regression: ``normalized_derivation_identity()`` used to reduce identity
+    to ``(committed_run_id, actor_classification_fingerprint,
+    normalizer_schema_version)``, so ``normalize --force`` rewriting entity
+    bytes under an otherwise-unchanged identity was indistinguishable from
+    the prior generation -- ``report`` could rebuild a panel from the new
+    entities while ``organization-week.csv``/``analysis.json`` still came
+    from the old generation. Comparing ``entity_sha256`` closes that gap.
+    """
+    start, end, intervention_at = _build_workdir(tmp_path)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    analyze.run_analyze(workdir_path=tmp_path, intervention_at=intervention_at)
+    report.run_report(workdir_path=tmp_path)
+
+    # Simulate 'normalize --force' rewriting entity bytes (an extra PR) while
+    # keeping the committed run, actor fingerprint, and normalizer schema
+    # version unchanged -- only entity_sha256 drifts.
+    week0_created = _monday(0).strftime("%Y-%m-%dT%H:%M:%SZ")
+    week0_merged = (_monday(0) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    write_normalized(
+        tmp_path,
+        repositories=[repo_row(1)],
+        pull_requests=[
+            *[
+                pr_row(1, n + 1, created_at=week0_created, merged_at=week0_merged)
+                for n in range(3)
+            ],
+            pr_row(1, 999, created_at=week0_created, merged_at=week0_merged),
+        ],
+        as_of=end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+
+    with pytest.raises(report.ReportError, match=re.escape("'normalize' has re-run")):
+        report.run_report(workdir_path=tmp_path)
+
+
+def test_report_invalidates_report_md_before_chart_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rerun that fails partway through chart drawing leaves no stale report.md.
+
+    Regression: ``report.md`` previously stayed on disk from a prior
+    successful run even when a rerun failed while replacing a later chart,
+    leaving it pointing at a mixed old/new chart set. ``report.md`` is now
+    unlinked before any chart is replaced, so a mid-generation failure
+    leaves no report at all rather than one that misdescribes stale charts.
+    """
+    start, end, intervention_at = _build_workdir(tmp_path)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    analyze.run_analyze(workdir_path=tmp_path, intervention_at=intervention_at)
+    first = report.run_report(workdir_path=tmp_path)
+    assert first.report_path.exists()
+
+    calls = {"n": 0}
+    original_draw_chart = report._draw_chart  # pyright: ignore[reportPrivateUsage]
+
+    def _failing_draw_chart(*args: object, **kwargs: object) -> None:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            msg = "simulated chart failure"
+            raise RuntimeError(msg)
+        original_draw_chart(*args, **kwargs)  # pyright: ignore[reportArgumentType]
+
+    monkeypatch.setattr(report, "_draw_chart", _failing_draw_chart)
+    with pytest.raises(RuntimeError, match="simulated chart failure"):
+        report.run_report(workdir_path=tmp_path)
+
+    assert not first.report_path.exists()
 
 
 def test_report_fails_closed_when_analysis_predates_a_rerun_aggregate(

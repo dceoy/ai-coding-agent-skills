@@ -995,14 +995,15 @@ def _existing_is_current(
         fingerprint: The actor-classification fingerprint for this run.
 
     Returns:
-        The persisted ``normalized/derivation.json`` content if it exists
-        and was derived from the same committed run, actor fingerprint, and
-        normalizer schema version; ``None`` otherwise. It trusts
-        ``derivation.json`` alone -- an entity file deleted or truncated out
-        of band is not detected here; rerun with ``force=True`` to rebuild
-        the whole tree. Returning the persisted dict (rather than a bool)
-        lets the caller report the tree's actual origin instead of
-        restamping it with the current process's revision.
+        The persisted ``normalized/derivation.json`` content if it exists,
+        was derived from the same committed run, actor fingerprint, and
+        normalizer schema version, and its ``entity_sha256`` digests still
+        match the on-disk entity files; ``None`` otherwise. Recomputing and
+        comparing the digests (rather than trusting ``derivation.json``
+        alone) means an entity file deleted or truncated out of band is
+        detected here too, forcing a full rebuild. Returning the persisted
+        dict (rather than a bool) lets the caller report the tree's actual
+        origin instead of restamping it with the current process's revision.
     """
     path = workdir_path / "normalized" / "derivation.json"
     try:
