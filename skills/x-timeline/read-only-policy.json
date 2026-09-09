@@ -6,6 +6,7 @@
     "click",
     "scroll",
     "wait",
+    "get",
     "waitforloadstate",
     "url",
     "confirm",
