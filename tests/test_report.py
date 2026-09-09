@@ -210,6 +210,24 @@ def test_report_fails_closed_on_stale_analyze_schema_version(tmp_path: Path) -> 
         report.run_report(workdir_path=tmp_path)
 
 
+def test_report_fails_closed_on_stale_aggregate_schema_version(tmp_path: Path) -> None:
+    """Report rejects an aggregate meta sidecar written by an older schema.
+
+    A future incompatible ``AGGREGATE_SCHEMA_VERSION`` bump must not let
+    ``report`` silently consume an old-shaped aggregate meta sidecar, even
+    though ``analysis.json`` still matches ``ANALYZE_SCHEMA_VERSION``.
+    """
+    start, end, intervention_at = _build_workdir(tmp_path)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    analyze.run_analyze(workdir_path=tmp_path, intervention_at=intervention_at)
+    meta_path = tmp_path / "report" / "organization-week.meta.json"
+    meta = workdir.read_json_object(meta_path)
+    meta["schema_version"] = aggregate.AGGREGATE_SCHEMA_VERSION - 1
+    workdir.atomic_write_json(meta_path, meta)
+    with pytest.raises(report.ReportError, match="schema_version"):
+        report.run_report(workdir_path=tmp_path)
+
+
 def test_report_fails_closed_when_analysis_predates_a_rerun_aggregate(
     tmp_path: Path,
 ) -> None:

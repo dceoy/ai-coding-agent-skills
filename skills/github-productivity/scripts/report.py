@@ -23,6 +23,7 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt
 import workdir
 from aggregate import (
+    AGGREGATE_SCHEMA_VERSION,
     AggregateError,
     build_panel,
     load_entities,
@@ -298,6 +299,32 @@ def _rebuild_panel_rows(
     return panel_to_rows(panel), [w.week_start for w in panel.weeks]
 
 
+def _validate_schema_versions(meta: dict[str, Any], analysis: dict[str, Any]) -> None:
+    """Fail closed if either sidecar's schema_version is not the expected one.
+
+    Raises:
+        ReportError: If ``meta``'s or ``analysis``'s ``schema_version`` does
+            not match ``AGGREGATE_SCHEMA_VERSION``/``ANALYZE_SCHEMA_VERSION``.
+    """
+    aggregate_schema_version = meta.get("schema_version")
+    if aggregate_schema_version != AGGREGATE_SCHEMA_VERSION:
+        msg = (
+            f"organization-week.meta.json has schema_version "
+            f"{aggregate_schema_version!r}, but this reporter expects "
+            f"{AGGREGATE_SCHEMA_VERSION!r}; rerun 'aggregate' with the matching "
+            "version before 'report'"
+        )
+        raise ReportError(msg)
+    analysis_schema_version = analysis.get("schema_version")
+    if analysis_schema_version != ANALYZE_SCHEMA_VERSION:
+        msg = (
+            f"analysis.json has schema_version {analysis_schema_version!r}, but "
+            f"this reporter expects {ANALYZE_SCHEMA_VERSION!r}; rerun 'analyze' "
+            "with the matching version before 'report'"
+        )
+        raise ReportError(msg)
+
+
 def run_report(*, workdir_path: Path) -> ReportOutcome:
     """Generate the fixed chart set and Markdown report for a workdir.
 
@@ -318,14 +345,7 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
     report_dir = workdir_path / "report"
     meta = _read_json(report_dir / "organization-week.meta.json", what="aggregate")
     analysis = _read_json(report_dir / "analysis.json", what="analyze")
-    analysis_schema_version = analysis.get("schema_version")
-    if analysis_schema_version != ANALYZE_SCHEMA_VERSION:
-        msg = (
-            f"analysis.json has schema_version {analysis_schema_version!r}, but "
-            f"this reporter expects {ANALYZE_SCHEMA_VERSION!r}; rerun 'analyze' "
-            "with the matching version before 'report'"
-        )
-        raise ReportError(msg)
+    _validate_schema_versions(meta, analysis)
     state = workdir.read_state(workdir_path)
     committed_run_id = state.get("committed_run_id") if state else None
     if committed_run_id != meta.get("committed_run_id"):
