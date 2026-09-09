@@ -40,6 +40,12 @@ The policy is deny-by-default and permits only the actions needed for reading, b
 home navigation/tab selection, confirmation, and cleanup. It must continue to deny form filling, typing, arbitrary
 interaction, evaluation/script execution, network inspection, state mutation, uploads, and downloads.
 
+Action-policy matching is version-sensitive. Current `agent-browser` workflows categorize `get url` as `get` and
+load-state waits as `wait`, while older workflows may expose raw action names such as `url` and `waitforloadstate`.
+The bundled policy therefore permits the read-only `get` category and retains those legacy raw names. Before collection,
+verify that every required command maps to an allowed read-only entry in the installed workflow; fail closed rather
+than broadening the policy to unrelated categories.
+
 Pass `--content-boundaries`, `--max-output 50000`, the literal bundled action-policy path, and
 `--confirm-actions navigate,click` to every policy-bound browser command. Keep rendered snapshots non-JSON when the
 installed workflow uses a native truncation marker that must be checked; use structured JSON for guarded actions and
