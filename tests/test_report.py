@@ -161,6 +161,55 @@ def test_report_surfaces_orphan_complete_refresh_attempt(tmp_path: Path) -> None
     assert "Refresh status: a newer refresh completed but was never committed" in text
 
 
+def test_refresh_status_distinguishes_committed_successor_from_orphan(
+    tmp_path: Path,
+) -> None:
+    """A newer run that is now the committed head is not mislabeled orphan.
+
+    ``_current_refresh_status`` re-scans manifests on disk against the
+    ``meta`` snapshot pinned at aggregate time. If a newer run both
+    completed *and* was committed in the window between that pin and
+    report generation, it is this workdir's actual committed successor,
+    not orphan (finalized-but-uncommitted) evidence.
+    """
+    start, end, intervention_at = _build_workdir(tmp_path)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    analyze.run_analyze(workdir_path=tmp_path, intervention_at=intervention_at)
+    meta = workdir.read_json_object(tmp_path / "report" / "organization-week.meta.json")
+    workdir.finalize_manifest(
+        tmp_path,
+        "run2",
+        {
+            "run_id": "run2",
+            "status": "complete",
+            "organization": "acme",
+            "refresh_started_at": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+    )
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run2")
+    assert (
+        report._current_refresh_status(tmp_path, meta)  # pyright: ignore[reportPrivateUsage]
+        == "advanced"
+    )
+
+
+def test_report_fails_closed_on_stale_analyze_schema_version(tmp_path: Path) -> None:
+    """Report rejects an analysis.json written by an older analyze schema.
+
+    A future incompatible ``ANALYZE_SCHEMA_VERSION`` bump must not let
+    ``report`` silently consume an old-shaped ``analysis.json``.
+    """
+    start, end, intervention_at = _build_workdir(tmp_path)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    analyze.run_analyze(workdir_path=tmp_path, intervention_at=intervention_at)
+    analysis_path = tmp_path / "report" / "analysis.json"
+    analysis = workdir.read_json_object(analysis_path)
+    analysis["schema_version"] = analyze.ANALYZE_SCHEMA_VERSION - 1
+    workdir.atomic_write_json(analysis_path, analysis)
+    with pytest.raises(report.ReportError, match="schema_version"):
+        report.run_report(workdir_path=tmp_path)
+
+
 def test_report_fails_closed_when_analysis_predates_a_rerun_aggregate(
     tmp_path: Path,
 ) -> None:

@@ -206,16 +206,26 @@ def test_normalize_is_byte_identical_on_repeated_runs(tmp_path: Path) -> None:
 
 
 def test_already_current_tree_is_not_rewritten(tmp_path: Path) -> None:
-    """A second normalize with the same inputs reports already-current."""
+    """A second normalize with the same inputs reports already-current.
+
+    The reported ``derivation`` must be the persisted tree's own record
+    (including its ``entity_sha256`` and the revision that actually wrote
+    it), not a freshly restamped one from the current process.
+    """
     commit_run(
         tmp_path,
         run_id="run-a",
         refresh_started_at="2026-03-01T00:00:00Z",
         prs={7: {"pr": _pr_object(7)}},
     )
-    normalize.run_normalize(workdir_path=tmp_path)
+    written = normalize.run_normalize(workdir_path=tmp_path)
     outcome = normalize.run_normalize(workdir_path=tmp_path)
     assert outcome.status == "already-current"
+    assert outcome.derivation["entity_sha256"] == written.derivation["entity_sha256"]
+    assert (
+        outcome.derivation["normalizer_revision"]
+        == written.derivation["normalizer_revision"]
+    )
 
 
 def test_interrupted_regeneration_cannot_report_stale_already_current(
@@ -384,10 +394,11 @@ def test_winning_run_matches_chain_order_on_refresh_started_at_tie(
         previous_committed_run_id="run-old",
         prs={7: {"pr": _pr_object(7, additions=99)}},
     )
-    normalize.run_normalize(workdir_path=tmp_path)
+    outcome = normalize.run_normalize(workdir_path=tmp_path)
     pr_rows = _rows(tmp_path, "pull_requests.ndjson")
     assert pr_rows[0]["source_run_id"] == "run-new"
     assert pr_rows[0]["additions"] == 99
+    assert outcome.derivation["source_run_ids"][0] == "run-new"
 
 
 def test_pr_commits_endpoint_cap_yields_unavailable_row(tmp_path: Path) -> None:

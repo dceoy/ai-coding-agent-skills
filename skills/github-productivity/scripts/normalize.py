@@ -807,9 +807,10 @@ def _draft_lifecycle_row(bundle: _Bundle) -> dict[str, Any]:
         bundle: The PR's winning snapshot bundle.
 
     Returns:
-        The ``draft_lifecycle.ndjson`` row: the ordered draft transitions
-        plus the derived ``first_queue_entry`` / ``queue_entry_available``
-        / ``reason``. v1 does not subtract later draft intervals.
+        The ``draft_lifecycle.ndjson`` row: the draft transitions in
+        observed order plus the derived ``first_queue_entry`` /
+        ``queue_entry_available`` / ``reason``. v1 does not subtract later
+        draft intervals.
     """
     created_at = bundle.pr_object.get("created_at")
     currently_draft = bool(bundle.pr_object.get("draft"))
@@ -985,8 +986,8 @@ def _repository_rows(state: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _existing_is_current(
     workdir_path: Path, committed_run_id: str, fingerprint: str
-) -> bool:
-    """Report whether an existing ``normalized/`` tree is still current.
+) -> dict[str, Any] | None:
+    """Return the existing ``normalized/`` tree's derivation if still current.
 
     Args:
         workdir_path: The skill's workdir root.
@@ -994,29 +995,33 @@ def _existing_is_current(
         fingerprint: The actor-classification fingerprint for this run.
 
     Returns:
-        ``True`` if ``normalized/derivation.json`` exists and was derived
-        from the same committed run, actor fingerprint, and normalizer
-        schema version. It trusts ``derivation.json`` alone -- an entity
-        file deleted or truncated out of band is not detected here; rerun
-        with ``force=True`` to rebuild the whole tree.
+        The persisted ``normalized/derivation.json`` content if it exists
+        and was derived from the same committed run, actor fingerprint, and
+        normalizer schema version; ``None`` otherwise. It trusts
+        ``derivation.json`` alone -- an entity file deleted or truncated out
+        of band is not detected here; rerun with ``force=True`` to rebuild
+        the whole tree. Returning the persisted dict (rather than a bool)
+        lets the caller report the tree's actual origin instead of
+        restamping it with the current process's revision.
     """
     path = workdir_path / "normalized" / "derivation.json"
     try:
         derivation = workdir.read_json_object(path)
         digests = entity_file_digests(path.parent)
     except (OSError, ValueError):
-        return False
-    return (
+        return None
+    if (
         derivation.get("committed_run_id") == committed_run_id
         and derivation.get("actor_classification_fingerprint") == fingerprint
         and derivation.get("normalizer_schema_version") == NORMALIZE_SCHEMA_VERSION
         and derivation.get("entity_sha256") == digests
-    )
+    ):
+        return derivation
+    return None
 
 
 def _gather_bundles(
     workdir_path: Path,
-    ordered_runs: list[dict[str, Any]],
     lineage: list[dict[str, Any]],
 ) -> list[_Bundle]:
     """Resolve every touched PR to its winning bundle, in stable key order.
@@ -1026,11 +1031,9 @@ def _gather_bundles(
 
     Args:
         workdir_path: The skill's workdir root.
-        ordered_runs: Lineage manifests, newest first by
-            ``(refresh_started_at, run_id)``; used only to key manifests by
-            ``run_id`` here.
         lineage: Committed-lineage manifests in true chain order, newest
-            first, used to pick each touched PR's winning run.
+            first, used to pick each touched PR's winning run and to key
+            manifests by ``run_id``.
 
     Returns:
         One :class:`_Bundle` per touched ``(repository_id, pr_number)``,
@@ -1038,9 +1041,7 @@ def _gather_bundles(
     """
     winning_run = _select_winning_runs(lineage)
     pr_ids = sorted(winning_run)
-    runs_by_id = {
-        m["run_id"]: m for m in ordered_runs if isinstance(m.get("run_id"), str)
-    }
+    runs_by_id = {m["run_id"]: m for m in lineage if isinstance(m.get("run_id"), str)}
     by_run: dict[str, list[tuple[int, int]]] = {}
     for pair in pr_ids:
         by_run.setdefault(winning_run[pair], []).append(pair)
@@ -1133,19 +1134,15 @@ def run_normalize(
     if not lineage:
         msg = f"committed run {committed_run_id} resolves to an empty lineage"
         raise NormalizeError(msg)
-    for newer, older in pairwise(lineage):
-        if _parse_manifest_ts(newer) < _parse_manifest_ts(older):
+    lineage_ts = [_parse_manifest_ts(m) for m in lineage]
+    for newer, older in pairwise(lineage_ts):
+        if newer < older:
             msg = "committed lineage refresh timestamps run backwards"
             raise NormalizeError(msg)
-    ordered_runs = sorted(
-        lineage,
-        key=lambda m: (_parse_manifest_ts(m), str(m.get("run_id") or "")),
-        reverse=True,
-    )
     newest = lineage[0]
     derivation = {
         "committed_run_id": committed_run_id,
-        "source_run_ids": [str(m.get("run_id") or "") for m in ordered_runs],
+        "source_run_ids": [str(m.get("run_id") or "") for m in lineage],
         "as_of": newest.get("refresh_started_at"),
         "requested_interval": newest.get("requested_interval"),
         "schema_version": workdir.SCHEMA_VERSION,
@@ -1154,9 +1151,11 @@ def run_normalize(
         "actor_map": actor_map.canonical(),
         "normalizer_revision": workdir.resolve_collector_revision() or "unavailable",
     }
-    if not force and _existing_is_current(workdir_path, committed_run_id, fingerprint):
-        return NormalizeOutcome(committed_run_id, "already-current", derivation)
-    bundles = _gather_bundles(workdir_path, ordered_runs, lineage)
+    if not force:
+        existing = _existing_is_current(workdir_path, committed_run_id, fingerprint)
+        if existing is not None:
+            return NormalizeOutcome(committed_run_id, "already-current", existing)
+    bundles = _gather_bundles(workdir_path, lineage)
     out_dir = workdir_path / "normalized"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "derivation.json").unlink(missing_ok=True)

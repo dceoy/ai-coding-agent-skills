@@ -19,6 +19,7 @@ import numpy as np
 import statsmodels.api as sm
 import workdir
 from aggregate import (
+    AGGREGATE_SCHEMA_VERSION,
     ITS_ELIGIBLE_METRICS,
     NOT_KNOWN_BOT_AUTHOR_CLASSES,
     PRIMARY_AUTHOR_CLASSES,
@@ -69,13 +70,22 @@ def _read_meta(workdir_path: Path) -> dict[str, Any]:
     """
     path = workdir_path / "report" / "organization-week.meta.json"
     try:
-        return workdir.read_json_object(path)
+        meta = workdir.read_json_object(path)
     except FileNotFoundError as exc:
         msg = f"{path} does not exist; run 'aggregate' before 'analyze'"
         raise AnalyzeError(msg) from exc
     except (OSError, ValueError) as exc:
         msg = f"{path} could not be read: {exc}"
         raise AnalyzeError(msg) from exc
+    schema_version = meta.get("schema_version")
+    if schema_version != AGGREGATE_SCHEMA_VERSION:
+        msg = (
+            f"{path} has schema_version {schema_version!r}, but this analyzer "
+            f"expects {AGGREGATE_SCHEMA_VERSION!r}; rerun 'aggregate' with the "
+            "matching version before 'analyze'"
+        )
+        raise AnalyzeError(msg)
+    return meta
 
 
 def _check_state_pinned(workdir_path: Path, meta: dict[str, Any]) -> None:

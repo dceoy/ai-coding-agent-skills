@@ -466,13 +466,21 @@ def check_history_coverage_for_state(
     if not isinstance(repositories, dict):
         msg = "committed state repositories must be an object"
         raise AggregateError(msg)
+
+    def _repo_id(key: str) -> int:
+        try:
+            return int(key)
+        except ValueError as exc:
+            msg = f"committed state has a non-numeric repository key: {key!r}"
+            raise AggregateError(msg) from exc
+
     if repository_ids is not None and not repository_ids <= {
-        int(key) for key in repositories
+        _repo_id(key) for key in repositories
     }:
         msg = "normalized repository has no committed historical coverage"
         raise AggregateError(msg)
     for key, entry in repositories.items():
-        repo_id = int(key)
+        repo_id = _repo_id(key)
         if repository_ids is not None and repo_id not in repository_ids:
             continue
         boundary_raw = entry.get("history_boundary")

@@ -30,6 +30,7 @@ from aggregate import (
     panel_to_rows,
     resolve_effective_observation_end,
 )
+from analyze import ANALYZE_SCHEMA_VERSION
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -317,6 +318,14 @@ def run_report(*, workdir_path: Path) -> ReportOutcome:
     report_dir = workdir_path / "report"
     meta = _read_json(report_dir / "organization-week.meta.json", what="aggregate")
     analysis = _read_json(report_dir / "analysis.json", what="analyze")
+    analysis_schema_version = analysis.get("schema_version")
+    if analysis_schema_version != ANALYZE_SCHEMA_VERSION:
+        msg = (
+            f"analysis.json has schema_version {analysis_schema_version!r}, but "
+            f"this reporter expects {ANALYZE_SCHEMA_VERSION!r}; rerun 'analyze' "
+            "with the matching version before 'report'"
+        )
+        raise ReportError(msg)
     state = workdir.read_state(workdir_path)
     committed_run_id = state.get("committed_run_id") if state else None
     if committed_run_id != meta.get("committed_run_id"):
@@ -387,24 +396,35 @@ def _current_refresh_status(workdir_path: Path, meta: dict[str, Any]) -> str | N
     """Re-evaluate refresh-freshness status against the manifests on disk.
 
     ``aggregate`` snapshots this status into ``meta`` at aggregate time, but a
-    ``collect`` can fail, or finish but never get committed, after
-    ``aggregate``/``analyze`` and before ``report``; re-scanning here (rather
-    than trusting the snapshot) keeps the freshness statement current as of
-    report generation. A run that finished with ``status: complete`` but was
-    never committed (the crash window between a manifest being finalized and
-    ``state.json`` being replaced) is orphan evidence, not a clean "no newer
-    attempt" state, even though it isn't a failure either.
+    ``collect`` can fail, finish but never get committed, or finish and get
+    committed, after ``aggregate``/``analyze`` and before ``report``;
+    re-scanning here (rather than trusting the snapshot) keeps the freshness
+    statement current as of report generation. A run that finished with
+    ``status: complete`` but was never committed (the crash window between a
+    manifest being finalized and ``state.json`` being replaced) is orphan
+    evidence, not a clean "no newer attempt" state, even though it isn't a
+    failure either. A run that finished *and* was committed is neither: it is
+    now this workdir's actual committed head, distinct from a true orphan.
 
     Returns:
         ``None`` if the pinned ``committed_run_id`` is still the most
         recently started run; ``"failed"`` if a newer run started and did
         not complete; ``"orphan"`` if a newer run completed but was never
-        committed.
+        committed; ``"advanced"`` if a newer run completed and is now the
+        current committed state (the report itself is stale relative to it).
     """
     latest_run = workdir.latest_manifest_run_id_and_status(workdir_path)
     if latest_run is None or latest_run[0] == meta.get("committed_run_id"):
         return None
-    return "orphan" if latest_run[1] == "complete" else "failed"
+    if latest_run[1] != "complete":
+        return "failed"
+    current_state = workdir.read_state(workdir_path)
+    if (
+        current_state is not None
+        and current_state.get("committed_run_id") == latest_run[0]
+    ):
+        return "advanced"
+    return "orphan"
 
 
 def _freshness_section(
@@ -427,6 +447,10 @@ def _freshness_section(
         "orphan": (
             "a newer refresh completed but was never committed; this report "
             "uses the prior committed state"
+        ),
+        "advanced": (
+            "a newer refresh completed and is now the committed state; "
+            "re-run 'aggregate', 'analyze', and 'report' to reflect it"
         ),
     }[refresh_status]
     return (

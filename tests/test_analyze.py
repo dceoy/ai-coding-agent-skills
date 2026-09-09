@@ -9,6 +9,7 @@ import aggregate
 import analyze
 import numpy as np
 import pytest
+import workdir
 
 from tests.conftest import (
     draft_row,
@@ -597,6 +598,29 @@ def test_run_analyze_fails_closed_on_changed_actor_fingerprint(
         actor_classification_fingerprint="fp-b",
     )
     with pytest.raises(analyze.AnalyzeError, match="actor-classification fingerprint"):
+        analyze.run_analyze(workdir_path=tmp_path)
+
+
+def test_run_analyze_fails_closed_on_stale_aggregate_schema_version(
+    tmp_path: Path,
+) -> None:
+    """Analyze rejects a window sidecar written by an older aggregate schema.
+
+    A future incompatible ``AGGREGATE_SCHEMA_VERSION`` bump must not let
+    ``analyze`` silently consume an old-shaped sidecar.
+    """
+    write_state(tmp_path, repository_ids=[1], committed_run_id="run1")
+    write_normalized(
+        tmp_path, repositories=[repo_row(1)], pull_requests=[], committed_run_id="run1"
+    )
+    start = _monday(0)
+    end = _monday(4)
+    aggregate.run_aggregate(workdir_path=tmp_path, start=start, end=end)
+    meta_path = tmp_path / "report" / "organization-week.meta.json"
+    meta = workdir.read_json_object(meta_path)
+    meta["schema_version"] = aggregate.AGGREGATE_SCHEMA_VERSION - 1
+    workdir.atomic_write_json(meta_path, meta)
+    with pytest.raises(analyze.AnalyzeError, match="schema_version"):
         analyze.run_analyze(workdir_path=tmp_path)
 
 
