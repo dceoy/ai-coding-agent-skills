@@ -247,10 +247,14 @@ For a requested time window, continue past the initial visible sample until one 
 safe lower time boundary is established. A lower boundary may be considered established only when all of these are true:
 
 - the selected feed is `following`; never assume the ranked `for-you` feed is time-monotonic;
-- every top-level post used to establish the boundary has an exact timestamp rather than a relative or unknown one;
+- every retained top-level post from the feed start through the candidate boundary has an exact, classifiable timestamp;
 - the exact timestamps observed in rendered feed order have remained non-increasing through collection; and
 - one complete bounded scroll cycle adds new posts that are all older than the requested lower boundary, with no
   in-window or unknown-timestamp top-level post interleaved after that boundary.
+
+If any retained top-level post before the candidate boundary has an unknown or otherwise unclassifiable timestamp, do
+not claim exhaustive coverage for that window: continue until another hard bound is reached, then set
+`time_window.complete: false` and `truncated: true`.
 
 When these conditions hold, stop with `stop_reason: time_boundary`, `time_window.complete: true`, and
 `truncated: false`. Otherwise, filtering by the requested window is still useful but partial: stop at the applicable
