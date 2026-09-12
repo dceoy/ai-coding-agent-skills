@@ -16,7 +16,7 @@ from pathlib import Path
 import workdir
 from aggregate import AggregateError, run_aggregate
 from analyze import AnalyzeError, run_analyze
-from collect_resumable import run_collect
+from collect import run_collect
 from normalize import NormalizeError, run_normalize
 from report import ReportError, run_report
 
