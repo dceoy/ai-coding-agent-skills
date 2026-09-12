@@ -358,7 +358,10 @@ def _fetch_bundle_entry(
     paged: bool,
     pr_payload: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
-    """Fetch and append one bundle endpoint, returning the PR payload to carry forward."""
+    """Fetch and append one bundle endpoint.
+
+    Returns the PR payload to carry forward.
+    """
     if paged:
         collected = 0
         for page in ghapi.paginate(
@@ -852,7 +855,9 @@ def _complete_repository_progress(
     """Derive manifest/state entries after all PR bundles complete."""
     required_boundary = _parse_ts(progress["required_history_boundary"])
     previous_boundary_raw = repo_state.get("history_boundary") if repo_state else None
-    previous_boundary = _parse_ts(previous_boundary_raw) if previous_boundary_raw else None
+    previous_boundary = (
+        _parse_ts(previous_boundary_raw) if previous_boundary_raw else None
+    )
     history_boundary = (
         min(previous_boundary, required_boundary)
         if previous_boundary is not None
