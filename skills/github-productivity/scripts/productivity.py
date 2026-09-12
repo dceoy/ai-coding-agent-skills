@@ -16,7 +16,7 @@ from pathlib import Path
 import workdir
 from aggregate import AggregateError, run_aggregate
 from analyze import AnalyzeError, run_analyze
-from collect import run_collect
+from collect_resumable import run_collect
 from normalize import NormalizeError, run_normalize
 from report import ReportError, run_report
 
@@ -237,6 +237,13 @@ def _run_collect_command(args: argparse.Namespace) -> int:
     except workdir.OrganizationMismatchError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_INVALID_ARGS
+    if outcome.status == "paused":
+        print(
+            f"run {outcome.run_id} paused; rerun collect to resume: "
+            f"{outcome.manifest['failures']}",
+            file=sys.stderr,
+        )
+        return EXIT_INCOMPLETE
     if outcome.status != "complete":
         print(
             f"run {outcome.run_id} incomplete: {outcome.manifest['failures']}",
