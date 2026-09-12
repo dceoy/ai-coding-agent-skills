@@ -1,4 +1,4 @@
-# ruff: noqa: DOC201, DOC501, SLF001
+# ruff: noqa: DOC201, DOC501, PLR0911, SLF001
 """Resumable, rate-limit-tolerant GitHub collection orchestration.
 
 The canonical acceptance frontier remains ``state.json``. Live work is split
