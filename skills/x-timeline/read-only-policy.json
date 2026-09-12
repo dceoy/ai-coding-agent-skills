@@ -7,6 +7,7 @@
     "scroll",
     "wait",
     "get",
+    "getattribute",
     "waitforloadstate",
     "url",
     "confirm",
