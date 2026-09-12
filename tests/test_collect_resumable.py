@@ -1,3 +1,4 @@
+# pyright: reportArgumentType=false, reportPrivateUsage=false
 """Tests for resumable, shard-level GitHub collection progress."""
 
 from __future__ import annotations
