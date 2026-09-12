@@ -1,3 +1,4 @@
+# ruff: noqa: C901
 """Tests for resumable, shard-level GitHub collection progress."""
 
 from __future__ import annotations
