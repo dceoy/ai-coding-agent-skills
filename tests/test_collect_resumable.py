@@ -1,4 +1,3 @@
-# ruff: noqa: C901
 """Tests for resumable, shard-level GitHub collection progress."""
 
 from __future__ import annotations
@@ -179,24 +178,7 @@ def test_completed_shards_are_synced_before_checkpoint(
         synced.add(run_id)
 
     def checked_write(workdir_path: Path, checkpoint: dict[str, object]) -> None:
-        enumeration = checkpoint.get("enumeration_shard_run_id")
-        if isinstance(enumeration, str):
-            assert enumeration in synced
-        progress_map = checkpoint.get("repo_progress")
-        if isinstance(progress_map, dict):
-            for progress in progress_map.values():
-                if not isinstance(progress, dict):
-                    continue
-                discovery = progress.get("discovery_shard_run_id")
-                if isinstance(discovery, str):
-                    assert discovery in synced
-                pr_shards = progress.get("pr_shards")
-                if isinstance(pr_shards, dict):
-                    for shard in pr_shards.values():
-                        if isinstance(shard, dict) and isinstance(
-                            shard.get("run_id"), str
-                        ):
-                            assert shard["run_id"] in synced
+        _assert_completed_shards_synced(checkpoint, synced)
         real_write(workdir_path, checkpoint)
 
     monkeypatch.setattr(workdir, "sync_raw_evidence", recording_sync)
@@ -269,6 +251,30 @@ def test_non_retryable_failure_finalizes_incomplete_generation(
     assert workdir.manifest_path(tmp_path, outcome.run_id).exists()
     assert not (tmp_path / ".collect.pending.json").exists()
     assert workdir.read_state(tmp_path) is None
+
+
+def _assert_completed_shards_synced(
+    checkpoint: dict[str, object], synced: set[str]
+) -> None:
+    """Assert that every shard referenced by a checkpoint is already durable."""
+    enumeration = checkpoint.get("enumeration_shard_run_id")
+    if isinstance(enumeration, str):
+        assert enumeration in synced
+    progress_map = checkpoint.get("repo_progress")
+    if not isinstance(progress_map, dict):
+        return
+    for progress in progress_map.values():
+        if not isinstance(progress, dict):
+            continue
+        discovery = progress.get("discovery_shard_run_id")
+        if isinstance(discovery, str):
+            assert discovery in synced
+        pr_shards = progress.get("pr_shards")
+        if not isinstance(pr_shards, dict):
+            continue
+        for shard in pr_shards.values():
+            if isinstance(shard, dict) and isinstance(shard.get("run_id"), str):
+                assert shard["run_id"] in synced
 
 
 def _configure_two_pr_repository(fake_gh: FakeGh) -> None:
