@@ -13,6 +13,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -84,7 +85,19 @@ def _checkpoint_matches(
         return False
     if checkpoint.get("base_committed_run_id") != previous_committed_run_id:
         return False
-    if any(checkpoint.get(key) != value for key, value in identity.items()):
+    checkpoint_org = checkpoint.get("organization")
+    identity_org = identity.get("organization")
+    if (
+        not isinstance(checkpoint_org, str)
+        or not isinstance(identity_org, str)
+        or checkpoint_org.casefold() != identity_org.casefold()
+    ):
+        return False
+    if any(
+        checkpoint.get(key) != value
+        for key, value in identity.items()
+        if key != "organization"
+    ):
         return False
     run_id = checkpoint.get("run_id")
     if not isinstance(run_id, str):
@@ -338,11 +351,9 @@ def _rewrite_run_id(row: Any, generation_run_id: str) -> dict[str, Any]:  # noqa
 
 
 def _materialize_generation_raw(workdir_path: Path, checkpoint: dict[str, Any]) -> None:
-    """Seal completed shards into the canonical raw directory atomically."""
+    """Seal the current completed-shard set into the canonical raw directory."""
     generation_run_id = str(checkpoint["run_id"])
     final_root = workdir.raw_dir(workdir_path, generation_run_id)
-    if final_root.exists():
-        return
     source_ids = _ordered_source_run_ids(checkpoint)
     bucket_names: set[str] = set()
     for source_id in source_ids:
@@ -370,6 +381,9 @@ def _materialize_generation_raw(workdir_path: Path, checkpoint: dict[str, Any]) 
             output.flush()
             os.fsync(output.fileno())
     workdir.sync_raw_evidence(workdir_path, seal_run_id)
+    if final_root.exists():
+        shutil.rmtree(final_root)
+        workdir.sync_directory(final_root.parent)
     seal_root.replace(final_root)
     workdir.sync_directory(final_root.parent)
 
@@ -507,6 +521,7 @@ def _enumerate_if_needed(
             workdir_path=workdir_path,
             previous_state=previous_state,
         )
+    workdir.sync_raw_evidence(workdir_path, attempt_id)
     checkpoint["repositories"] = repositories
     checkpoint["enumeration_shard_run_id"] = attempt_id
     checkpoint["last_pause"] = None
@@ -542,6 +557,7 @@ def _ensure_discovery(
             workdir_path=workdir_path,
             previous_state=previous_state,
         )
+    workdir.sync_raw_evidence(workdir_path, attempt_id)
     progress_map[repo_key] = progress
     checkpoint["last_pause"] = None
     _write_checkpoint(workdir_path, checkpoint)
@@ -575,6 +591,7 @@ def _collect_pr_bundles(
                 workdir_path=workdir_path,
                 previous_state=previous_state,
             )
+        workdir.sync_raw_evidence(workdir_path, attempt_id)
         pr_shards[pr_key] = {
             "run_id": attempt_id,
             "limitations": list(ctx.limitations),
