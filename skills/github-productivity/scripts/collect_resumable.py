@@ -1,4 +1,4 @@
-# ruff: noqa: DOC201, DOC501, PLR0911, SLF001
+# ruff: noqa: DOC201, DOC501, SLF001
 """Resumable, rate-limit-tolerant GitHub collection orchestration.
 
 The canonical acceptance frontier remains ``state.json``. Live work is split
@@ -81,9 +81,10 @@ def _checkpoint_matches(
     workdir_path: Path,
 ) -> bool:
     """Return whether a pending checkpoint is safe to resume."""
-    if checkpoint.get("checkpoint_schema_version") != _CHECKPOINT_SCHEMA_VERSION:
-        return False
-    if checkpoint.get("base_committed_run_id") != previous_committed_run_id:
+    if (
+        checkpoint.get("checkpoint_schema_version") != _CHECKPOINT_SCHEMA_VERSION
+        or checkpoint.get("base_committed_run_id") != previous_committed_run_id
+    ):
         return False
     checkpoint_org = checkpoint.get("organization")
     identity_org = identity.get("organization")
