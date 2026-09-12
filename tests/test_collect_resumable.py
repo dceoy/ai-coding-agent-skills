@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import collect_resumable
 import ghapi
-import pytest
 import workdir
 
 from tests.conftest import FakeGh, make_pr, make_repo
@@ -16,6 +15,8 @@ from tests.conftest import FakeGh, make_pr, make_repo
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
+
+    import pytest
 
 _START = datetime(2026, 1, 8, tzinfo=UTC)
 _END = datetime(2026, 2, 1, tzinfo=UTC)
@@ -35,7 +36,7 @@ def test_rate_limit_resumes_at_first_unfinished_repository(
     delegate = ghapi.paginate
     failed = False
 
-    def flaky_paginate(**kwargs: Any) -> Iterator[ghapi.GhApiResponse]:
+    def flaky_paginate(**kwargs: object) -> Iterator[ghapi.GhApiResponse]:
         nonlocal failed
         endpoint = str(kwargs["endpoint"])
         if endpoint == "/repos/acme/repo2/pulls" and not failed:
@@ -60,9 +61,7 @@ def test_rate_limit_resumes_at_first_unfinished_repository(
     assert second.status == "complete"
     assert second.run_id == first.run_id
     repo1_backfills = [
-        call
-        for call in fake_gh.calls
-        if call[1] == "/repos/acme/repo1/pulls"
+        call for call in fake_gh.calls if call[1] == "/repos/acme/repo1/pulls"
     ]
     assert len(repo1_backfills) == 1
     committed = workdir.read_state(tmp_path)
@@ -77,10 +76,12 @@ def test_rate_limit_resumes_at_first_unfinished_pr_bundle(
     fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
     fake_gh.set_list(
         "/repos/acme/repo1/pulls",
-        [[
-            make_pr(2, "2026-01-10T00:00:00Z"),
-            make_pr(1, "2026-01-09T00:00:00Z"),
-        ]],
+        [
+            [
+                make_pr(2, "2026-01-10T00:00:00Z"),
+                make_pr(1, "2026-01-09T00:00:00Z"),
+            ]
+        ],
         sort="updated",
         direction="desc",
     )
@@ -93,7 +94,7 @@ def test_rate_limit_resumes_at_first_unfinished_pr_bundle(
     delegate = ghapi.request
     failed = False
 
-    def flaky_request(**kwargs: Any) -> ghapi.GhApiResponse:
+    def flaky_request(**kwargs: object) -> ghapi.GhApiResponse:
         nonlocal failed
         endpoint = str(kwargs["endpoint"])
         if endpoint == "/repos/acme/repo1/pulls/2" and not failed:
@@ -109,9 +110,7 @@ def test_rate_limit_resumes_at_first_unfinished_pr_bundle(
     )
     assert first.status == "paused"
     pr1_calls_after_pause = [
-        call
-        for call in fake_gh.calls
-        if call[1] == "/repos/acme/repo1/pulls/1"
+        call for call in fake_gh.calls if call[1] == "/repos/acme/repo1/pulls/1"
     ]
     assert len(pr1_calls_after_pause) == 1
 
@@ -121,15 +120,16 @@ def test_rate_limit_resumes_at_first_unfinished_pr_bundle(
     assert second.status == "complete"
     assert second.run_id == first.run_id
     pr1_calls_after_resume = [
-        call
-        for call in fake_gh.calls
-        if call[1] == "/repos/acme/repo1/pulls/1"
+        call for call in fake_gh.calls if call[1] == "/repos/acme/repo1/pulls/1"
     ]
     assert len(pr1_calls_after_resume) == 1
     assert second.manifest["repositories"]["1"]["touched_pr_numbers"] == [1, 2]
 
     raw_path = workdir.raw_dir(tmp_path, second.run_id) / "pulls.ndjson"
-    rows = [json.loads(line) for line in raw_path.read_text(encoding="utf-8").splitlines()]
+    rows = [
+        json.loads(line)
+        for line in raw_path.read_text(encoding="utf-8").splitlines()
+    ]
     assert len(rows) == 2
     assert {row["provenance"]["run_id"] for row in rows} == {second.run_id}
 
@@ -141,7 +141,7 @@ def test_non_retryable_failure_finalizes_incomplete_generation(
     fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
     delegate = ghapi.paginate
 
-    def failing_paginate(**kwargs: Any) -> Iterator[ghapi.GhApiResponse]:
+    def failing_paginate(**kwargs: object) -> Iterator[ghapi.GhApiResponse]:
         if kwargs["endpoint"] == "/repos/acme/repo1/pulls":
             msg = "gh api failed (HTTP 404): Not Found"
             raise ghapi.GhApiError(msg)
