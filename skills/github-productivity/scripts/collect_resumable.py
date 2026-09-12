@@ -1,3 +1,4 @@
+# pyright: reportPrivateUsage=false
 # ruff: noqa: DOC201, DOC501, SLF001
 """Resumable, rate-limit-tolerant GitHub collection orchestration.
 
