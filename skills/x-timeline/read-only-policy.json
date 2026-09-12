@@ -6,7 +6,6 @@
     "click",
     "scroll",
     "wait",
-    "get",
     "getattribute",
     "waitforloadstate",
     "url",

@@ -40,13 +40,11 @@ The policy is deny-by-default and permits only the actions needed for reading, b
 home navigation/tab selection, confirmation, and cleanup. It must continue to deny form filling, typing, arbitrary
 interaction, evaluation/script execution, network inspection, state mutation, uploads, and downloads.
 
-Action-policy matching is version-sensitive. The installed `agent-browser` may still exact-match raw protocol action
-names (e.g. `getattribute`, `url`, `waitforloadstate`) rather than category names, since category-aware matching for
-`get`-family actions is not guaranteed to be present. The bundled policy therefore permits both the read-only `get`
-category, for future category-aware versions, and the exact raw read-only action names it depends on today, including
-`getattribute`, `url`, and `waitforloadstate`. Before collection, verify that every required command maps to an
-allowed read-only entry in the installed workflow; fail closed rather than broadening the policy to unrelated
-categories.
+Action-policy matching is version-sensitive. The installed `agent-browser` currently exact-matches raw protocol action
+names such as `getattribute`, `url`, and `waitforloadstate`. The bundled policy is limited to the exact read-only
+actions the installed workflow currently requires for reading, waiting, scrolling, guarded navigation, and cleanup.
+Before collection, verify that every required command maps to an allowed read-only entry in the installed workflow;
+fail closed rather than broadening the policy to unrelated actions or categories.
 
 Pass `--content-boundaries`, `--max-output 50000`, the literal bundled action-policy path, and
 `--confirm-actions navigate,click` to every policy-bound browser command. Keep rendered snapshots non-JSON when the
