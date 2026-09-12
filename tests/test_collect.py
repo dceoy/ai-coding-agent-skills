@@ -1256,6 +1256,47 @@ def test_case_only_organization_change_resumes_checkpoint(
     assert len(repo1_calls) == 1
 
 
+def test_collector_revision_change_discards_pending_checkpoint(
+    tmp_path: Path, fake_gh: FakeGh, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A code update between pause and resume restarts instead of mixing shards."""
+    fake_gh.set_list(
+        "/orgs/acme/repos",
+        [[make_repo(1, "repo1"), make_repo(2, "repo2")]],
+    )
+    fake_gh.set_list("/repos/acme/repo1/pulls", [[]])
+    fake_gh.set_list("/repos/acme/repo2/pulls", [[]])
+    delegate = ghapi.paginate
+    failed = False
+
+    def flaky_paginate(**kwargs: Any) -> Any:  # noqa: ANN401
+        nonlocal failed
+        endpoint = str(kwargs["endpoint"])
+        if endpoint == "/repos/acme/repo2/pulls" and not failed:
+            failed = True
+            msg = "API rate limit exceeded (HTTP 403)"
+            raise ghapi.GhApiError(msg)
+        return delegate(**kwargs)
+
+    monkeypatch.setattr(ghapi, "paginate", flaky_paginate)
+    monkeypatch.setattr(collect.workdir, "resolve_collector_revision", lambda: "rev-1")
+    first = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert first.status == "paused"
+
+    monkeypatch.setattr(collect.workdir, "resolve_collector_revision", lambda: "rev-2")
+    second = collect.run_collect(
+        org="acme", workdir_path=tmp_path, start=_START, end=_END
+    )
+    assert second.status == "complete"
+    assert second.run_id != first.run_id
+    repo1_calls = [
+        call for call in fake_gh.calls if call[1] == "/repos/acme/repo1/pulls"
+    ]
+    assert len(repo1_calls) == 2
+
+
 def test_non_retryable_failure_finalizes_incomplete_generation(
     tmp_path: Path, fake_gh: FakeGh, monkeypatch: pytest.MonkeyPatch
 ) -> None:

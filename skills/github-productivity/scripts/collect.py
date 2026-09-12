@@ -34,7 +34,8 @@ _CHECKPOINT_SCHEMA_VERSION = 1
 _CHECKPOINT_FILENAME = ".collect.pending.json"
 _RETRYABLE_FAILURE_PATTERN = re.compile(
     r"rate limit|secondary rate|abuse detection|http (?:429|5\d\d)|"
-    r"timed out|temporarily unavailable|connection reset",
+    r"timed out|temporarily unavailable|connection reset|"
+    r"i/o timeout|context deadline exceeded|connection refused",
     re.IGNORECASE,
 )
 
@@ -570,6 +571,7 @@ def _checkpoint_matches(
     if (
         checkpoint.get("checkpoint_schema_version") != _CHECKPOINT_SCHEMA_VERSION
         or checkpoint.get("base_committed_run_id") != previous_committed_run_id
+        or checkpoint.get("collector_revision") != workdir.resolve_collector_revision()
     ):
         return False
     checkpoint_org = checkpoint.get("organization")
@@ -642,6 +644,7 @@ def _new_checkpoint(
         "collection_affecting_config": {"ci_workflow_ids": sorted(ci_workflow_ids)},
         "collection_affecting_fingerprint": fingerprint,
         "base_committed_run_id": previous_committed_run_id,
+        "collector_revision": workdir.resolve_collector_revision(),
         "refresh_started_at": _fmt_ts_precise(refresh_started_at),
         "repositories": None,
         "enumeration_shard_run_id": None,
@@ -1148,7 +1151,18 @@ def run_collect(
     overlap_hours: int = 24,
     ci_workflow_ids: list[int] | None = None,
 ) -> CollectOutcome:
-    """Run or resume one transactionally committed collection generation."""
+    """Run or resume one transactionally committed collection generation.
+
+    Returns a ``CollectOutcome`` with one of three statuses:
+
+    - ``"complete"`` / ``"incomplete"``: a fully finalized, canonical manifest
+      (``schema_version``, ``repositories``, and every other finalized field).
+    - ``"paused"``: collection hit a retryable failure and produced a reduced
+      manifest (``run_id``, ``status``, ``organization``, ``refresh_started_at``,
+      ``failures``, ``resumable``) with no ``schema_version`` or
+      ``repositories`` key. A later call with the same request resumes from
+      the durable checkpoint.
+    """
     lock_run_id = workdir.new_run_id()
     with workdir.CollectionLock(workdir_path, lock_run_id):
         _ensure_matching_organization(org, workdir_path)
