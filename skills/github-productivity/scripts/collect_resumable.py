@@ -1,19 +1,10 @@
-# ruff: noqa: SLF001
+# ruff: noqa: DOC201, DOC501, SLF001
 """Resumable, rate-limit-tolerant GitHub collection orchestration.
 
-The original collector treats one organization refresh as one transaction.
-That preserves atomic committed state, but it also means a rate limit after
-many repositories have completed causes the next invocation to repeat all of
-that work. This module keeps the same acceptance frontier while making the
-*pending* generation resumable.
-
-Live collection is sharded into repository discovery and individual PR
-snapshot bundles. A durable checkpoint records only fully completed shards.
-Retryable GitHub failures pause the generation without finalizing a manifest;
-a later invocation with the same collection request resumes from the first
-unfinished shard. Canonical ``state.json`` is still advanced exactly once,
-after every shard has completed and one immutable generation manifest has
-been finalized.
+The canonical acceptance frontier remains ``state.json``. Live work is split
+into repository-discovery and per-PR shards, and only completed shards are
+checkpointed. Retryable API failures therefore pause a pending generation
+without making partial data visible to normalization or reporting.
 """
 
 from __future__ import annotations
@@ -23,11 +14,14 @@ import os
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import collect as base_collect
+import ghapi
 import workdir
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _CHECKPOINT_SCHEMA_VERSION = 1
 _CHECKPOINT_FILENAME = ".collect.pending.json"
@@ -108,7 +102,7 @@ def _load_checkpoint(
     identity: dict[str, Any],
     previous_committed_run_id: str | None,
 ) -> dict[str, Any] | None:
-    """Load a compatible pending generation, abandoning stale checkpoints."""
+    """Load a compatible generation and abandon a stale checkpoint."""
     path = _checkpoint_path(workdir_path)
     if not path.exists():
         return None
@@ -133,6 +127,7 @@ def _new_checkpoint(
     fingerprint: str,
     previous_committed_run_id: str | None,
     refresh_started_at: datetime,
+    ci_workflow_ids: list[int],
 ) -> dict[str, Any]:
     """Create an empty resumable collection generation."""
     return {
@@ -144,7 +139,9 @@ def _new_checkpoint(
             "end": workdir.format_timestamp(end),
         },
         "overlap_hours": overlap_hours,
-        "collection_affecting_config": {"ci_workflow_ids": []},
+        "collection_affecting_config": {
+            "ci_workflow_ids": sorted(ci_workflow_ids)
+        },
         "collection_affecting_fingerprint": fingerprint,
         "base_committed_run_id": previous_committed_run_id,
         "refresh_started_at": base_collect._fmt_ts_precise(refresh_started_at),
@@ -156,7 +153,7 @@ def _new_checkpoint(
 
 
 def _attempt_run_id(generation_run_id: str, tag: str) -> str:
-    """Return a unique raw-evidence run ID for one retryable shard attempt."""
+    """Return a unique raw-evidence run ID for one shard attempt."""
     safe_tag = re.sub(r"[^A-Za-z0-9_-]", "-", tag)
     return f"{generation_run_id}-{safe_tag}-{secrets.token_hex(3)}"
 
@@ -164,7 +161,7 @@ def _attempt_run_id(generation_run_id: str, tag: str) -> str:
 def _attempt_context(
     checkpoint: dict[str, Any], workdir_path: Path, run_id: str
 ) -> base_collect._RunContext:
-    """Build a collector context pinned to the generation's as-of instant."""
+    """Build a collector context pinned to the generation as-of instant."""
     return base_collect._RunContext(
         org=str(checkpoint["organization"]),
         workdir=workdir_path,
@@ -175,7 +172,7 @@ def _attempt_context(
 
 
 def _last_failure(ctx: base_collect._RunContext) -> dict[str, Any]:
-    """Return the failure recorded by the collector's abort path."""
+    """Return the failure recorded by the collector abort path."""
     if not ctx.failures:
         msg = "collection aborted without recording a GitHub API failure"
         raise workdir.WorkdirDataError(msg)
@@ -183,14 +180,15 @@ def _last_failure(ctx: base_collect._RunContext) -> dict[str, Any]:
 
 
 def _is_retryable_failure(failure: dict[str, Any]) -> bool:
-    """Classify rate limits and transient transport/server failures as resumable."""
-    return bool(_RETRYABLE_FAILURE_PATTERN.search(str(failure.get("reason", ""))))
+    """Classify rate limits and transient transport/server errors."""
+    reason = str(failure.get("reason", ""))
+    return bool(_RETRYABLE_FAILURE_PATTERN.search(reason))
 
 
 def _paused_outcome(
     checkpoint: dict[str, Any], failure: dict[str, Any]
 ) -> base_collect.CollectOutcome:
-    """Build a non-finalized outcome instructing the caller to resume later."""
+    """Build a non-finalized outcome instructing a later resume."""
     checkpoint["last_pause"] = {
         "paused_at": workdir.format_timestamp(datetime.now(UTC)),
         "failure": failure,
@@ -216,7 +214,7 @@ def _discover_repository(
     *,
     start: datetime,
 ) -> dict[str, Any]:
-    """Run only the discovery/reconciliation portion for one repository."""
+    """Run discovery and reconciliation without fetching PR bundles."""
     overlap = timedelta(hours=ctx.overlap_hours)
     required_boundary = start - overlap
     previous_watermark = repo_state.get("discovery_watermark") if repo_state else None
@@ -233,11 +231,10 @@ def _discover_repository(
         if previous_watermark is None:
             msg = "incremental discovery requires a previously committed watermark"
             raise AssertionError(msg)
-        since = base_collect._parse_ts(previous_watermark) - overlap
         touched |= base_collect._discover_issues(
             ctx,
             repo,
-            since=since,
+            since=base_collect._parse_ts(previous_watermark) - overlap,
             sort="created",
             direction="asc",
             endpoint_tag="issues-incremental",
@@ -268,7 +265,7 @@ def _complete_repository_progress(
     repo_state: dict[str, Any] | None,
     progress: dict[str, Any],
 ) -> None:
-    """Derive the exact manifest/state entries after all PR bundles complete."""
+    """Derive manifest/state entries after all PR bundles complete."""
     required_boundary = base_collect._parse_ts(progress["required_history_boundary"])
     previous_boundary_raw = repo_state.get("history_boundary") if repo_state else None
     previous_boundary = (
@@ -383,32 +380,22 @@ def _materialize_generation_raw(
     workdir.sync_directory(final_root.parent)
 
 
-def _completed_manifest_entries(checkpoint: dict[str, Any]) -> dict[str, Any]:
-    """Collect fully completed repository manifest entries from checkpoint."""
+def _completed_entries(
+    checkpoint: dict[str, Any], field: str
+) -> dict[str, Any]:
+    """Collect completed repository entries for one checkpoint field."""
     entries: dict[str, Any] = {}
     progress_map = checkpoint.get("repo_progress", {})
     if not isinstance(progress_map, dict):
         return entries
     for key, progress in progress_map.items():
-        if isinstance(progress, dict) and isinstance(progress.get("manifest_entry"), dict):
-            entries[str(key)] = progress["manifest_entry"]
-    return entries
-
-
-def _completed_state_entries(checkpoint: dict[str, Any]) -> dict[str, Any]:
-    """Collect fully completed repository state entries from checkpoint."""
-    entries: dict[str, Any] = {}
-    progress_map = checkpoint.get("repo_progress", {})
-    if not isinstance(progress_map, dict):
-        return entries
-    for key, progress in progress_map.items():
-        if isinstance(progress, dict) and isinstance(progress.get("state_entry"), dict):
-            entries[str(key)] = progress["state_entry"]
+        if isinstance(progress, dict) and isinstance(progress.get(field), dict):
+            entries[str(key)] = progress[field]
     return entries
 
 
 def _limitations(checkpoint: dict[str, Any]) -> list[dict[str, Any]]:
-    """Collect per-PR endpoint limitations from all completed bundle shards."""
+    """Collect limitations from completed PR bundle shards."""
     limitations: list[dict[str, Any]] = []
     progress_map = checkpoint.get("repo_progress", {})
     if not isinstance(progress_map, dict):
@@ -439,7 +426,6 @@ def _finalize_generation(
     """Seal raw shards and finalize one complete or incomplete generation."""
     _materialize_generation_raw(workdir_path, checkpoint)
     run_id = str(checkpoint["run_id"])
-    manifest_repositories = _completed_manifest_entries(checkpoint)
     manifest = {
         "schema_version": workdir.SCHEMA_VERSION,
         "run_id": run_id,
@@ -449,14 +435,14 @@ def _finalize_generation(
         "requested_interval": checkpoint["requested_interval"],
         "refresh_started_at": checkpoint["refresh_started_at"],
         "collection_ended_at": workdir.format_timestamp(datetime.now(UTC)),
-        "github_api_version": base_collect.ghapi.GITHUB_API_VERSION,
+        "github_api_version": ghapi.GITHUB_API_VERSION,
         "collector_revision": workdir.resolve_collector_revision() or "unavailable",
         "overlap_hours": checkpoint["overlap_hours"],
         "collection_affecting_config": checkpoint["collection_affecting_config"],
         "collection_affecting_fingerprint": checkpoint[
             "collection_affecting_fingerprint"
         ],
-        "repositories": manifest_repositories,
+        "repositories": _completed_entries(checkpoint, "manifest_entry"),
         "failures": failures,
         "limitations": _limitations(checkpoint),
     }
@@ -466,8 +452,8 @@ def _finalize_generation(
         previous_repositories = (
             previous_state.get("repositories", {}) if previous_state else {}
         )
-        new_state_repositories = dict(previous_repositories)
-        new_state_repositories.update(_completed_state_entries(checkpoint))
+        repositories = dict(previous_repositories)
+        repositories.update(_completed_entries(checkpoint, "state_entry"))
         workdir.write_state(
             workdir_path,
             {
@@ -480,7 +466,7 @@ def _finalize_generation(
                 "collection_affecting_fingerprint": checkpoint[
                     "collection_affecting_fingerprint"
                 ],
-                "repositories": new_state_repositories,
+                "repositories": repositories,
             },
         )
     _delete_checkpoint(workdir_path)
@@ -494,7 +480,7 @@ def _handle_abort(
     workdir_path: Path,
     previous_state: dict[str, Any] | None,
 ) -> base_collect.CollectOutcome:
-    """Pause retryable failures; finalize permanent failures as incomplete."""
+    """Pause retryable failures and finalize permanent failures."""
     failure = _last_failure(ctx)
     if _is_retryable_failure(failure):
         outcome = _paused_outcome(checkpoint, failure)
@@ -515,7 +501,7 @@ def _enumerate_if_needed(
     workdir_path: Path,
     previous_state: dict[str, Any] | None,
 ) -> base_collect.CollectOutcome | None:
-    """Enumerate repositories once per generation, with retryable attempts."""
+    """Enumerate repositories once per pending generation."""
     if isinstance(checkpoint.get("repositories"), list):
         return None
     attempt_id = _attempt_run_id(str(checkpoint["run_id"]), "enumerate")
@@ -545,7 +531,7 @@ def _ensure_discovery(
     workdir_path: Path,
     previous_state: dict[str, Any] | None,
 ) -> tuple[dict[str, Any] | None, base_collect.CollectOutcome | None]:
-    """Ensure repository discovery is checkpointed before fetching PR bundles."""
+    """Checkpoint repository discovery before any PR bundle work."""
     repo_key = str(repo["id"])
     progress_map = checkpoint["repo_progress"]
     progress = progress_map.get(repo_key)
@@ -578,7 +564,7 @@ def _collect_pr_bundles(
     workdir_path: Path,
     previous_state: dict[str, Any] | None,
 ) -> base_collect.CollectOutcome | None:
-    """Fetch each touched PR as an independently resumable snapshot shard."""
+    """Fetch each touched PR as an independently resumable shard."""
     pr_shards = progress["pr_shards"]
     for pr_number in progress["touched_pr_numbers"]:
         pr_key = str(pr_number)
@@ -613,7 +599,7 @@ def _collect_repositories(
     start: datetime,
     workdir_path: Path,
 ) -> base_collect.CollectOutcome | None:
-    """Collect repositories serially while checkpointing discovery and each PR."""
+    """Collect repositories serially and checkpoint each finished shard."""
     repositories = checkpoint.get("repositories")
     if not isinstance(repositories, list):
         msg = "pending checkpoint repositories must be a list after enumeration"
@@ -703,10 +689,8 @@ def run_collect(
                 fingerprint=fingerprint,
                 previous_committed_run_id=previous_committed_run_id,
                 refresh_started_at=now,
+                ci_workflow_ids=config_ids,
             )
-            checkpoint["collection_affecting_config"] = {
-                "ci_workflow_ids": sorted(config_ids)
-            }
             _write_checkpoint(workdir_path, checkpoint)
         elif workdir.parse_timestamp(checkpoint["refresh_started_at"]) > now:
             msg = "pending collection refresh timestamp is later than the current clock"
@@ -728,7 +712,7 @@ def run_collect(
         if outcome is not None:
             return outcome
         repositories = checkpoint.get("repositories", [])
-        completed = _completed_state_entries(checkpoint)
+        completed = _completed_entries(checkpoint, "state_entry")
         if len(completed) != len(repositories):
             msg = "all enumerated repositories must complete before commit"
             raise workdir.WorkdirDataError(msg)
