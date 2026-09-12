@@ -127,8 +127,7 @@ def test_rate_limit_resumes_at_first_unfinished_pr_bundle(
 
     raw_path = workdir.raw_dir(tmp_path, second.run_id) / "pulls.ndjson"
     rows = [
-        json.loads(line)
-        for line in raw_path.read_text(encoding="utf-8").splitlines()
+        json.loads(line) for line in raw_path.read_text(encoding="utf-8").splitlines()
     ]
     assert len(rows) == 2
     assert {row["provenance"]["run_id"] for row in rows} == {second.run_id}
