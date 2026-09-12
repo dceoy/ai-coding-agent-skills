@@ -139,9 +139,7 @@ def _new_checkpoint(
             "end": workdir.format_timestamp(end),
         },
         "overlap_hours": overlap_hours,
-        "collection_affecting_config": {
-            "ci_workflow_ids": sorted(ci_workflow_ids)
-        },
+        "collection_affecting_config": {"ci_workflow_ids": sorted(ci_workflow_ids)},
         "collection_affecting_fingerprint": fingerprint,
         "base_committed_run_id": previous_committed_run_id,
         "refresh_started_at": base_collect._fmt_ts_precise(refresh_started_at),
@@ -294,9 +292,7 @@ def _complete_repository_progress(
         "created_at": repo["created_at"],
         "discovery_watermark": base_collect._fmt_ts_precise(refresh_started_at),
         "history_boundary": workdir.format_timestamp(history_boundary),
-        "last_seen_in_enumeration_at": base_collect._fmt_ts_precise(
-            refresh_started_at
-        ),
+        "last_seen_in_enumeration_at": base_collect._fmt_ts_precise(refresh_started_at),
     }
 
 
@@ -341,9 +337,7 @@ def _rewrite_run_id(row: Any, generation_run_id: str) -> dict[str, Any]:  # noqa
     return rewritten
 
 
-def _materialize_generation_raw(
-    workdir_path: Path, checkpoint: dict[str, Any]
-) -> None:
+def _materialize_generation_raw(workdir_path: Path, checkpoint: dict[str, Any]) -> None:
     """Seal completed shards into the canonical raw directory atomically."""
     generation_run_id = str(checkpoint["run_id"])
     final_root = workdir.raw_dir(workdir_path, generation_run_id)
@@ -380,9 +374,7 @@ def _materialize_generation_raw(
     workdir.sync_directory(final_root.parent)
 
 
-def _completed_entries(
-    checkpoint: dict[str, Any], field: str
-) -> dict[str, Any]:
+def _completed_entries(checkpoint: dict[str, Any], field: str) -> dict[str, Any]:
     """Collect completed repository entries for one checkpoint field."""
     entries: dict[str, Any] = {}
     progress_map = checkpoint.get("repo_progress", {})
