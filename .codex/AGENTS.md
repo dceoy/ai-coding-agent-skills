@@ -14,22 +14,20 @@ The agent TOML files define role behavior and sandbox defaults but intentionally
 
 Use these model defaults and escalate only when the stated work requires it:
 
-- `planner`: `gpt-5.6-terra` by default; use `gpt-5.6-sol` for architecture, public interfaces, schemas, migrations, security boundaries, broad cross-cutting behavior, or unusually regression-prone planning; use `gpt-6-astra` only for the hardest plans when several such concerns interact, uncertainty remains after inspection, or the cost of a design error is unusually high and the strongest end-to-end reasoning is materially useful.
-- `advisor`: `gpt-5.6-sol` by default; use `gpt-6-astra` for consequential architecture, security, cross-system, or similarly high-impact judgment when the strongest independent analysis materially improves decision quality.
+- `planner`: `gpt-6-sol` by default; use `gpt-6-astra` only for the hardest plans when several architecture, public-interface, schema, migration, security-boundary, broad cross-cutting, or unusually regression-prone concerns interact, uncertainty remains after inspection, or the cost of a design error is unusually high and the strongest end-to-end reasoning is materially useful.
+- `advisor`: `gpt-6-sol` by default; use `gpt-6-astra` for consequential architecture, security, cross-system, or similarly high-impact judgment when the strongest independent analysis materially improves decision quality.
 - `reviewer`: choose the model from the task's hardest selected lens and concrete risk, not from a fixed review slot:
-  - use `gpt-5.6-luna` for documentation, comments, or narrowly scoped test-coverage tasks that need little implementation reasoning;
-  - use `gpt-5.6-terra` by default for correctness, errors, types, compatibility, simplification, ordinary performance, and code-reasoning-heavy test or documentation tasks;
-  - use `gpt-5.6-sol` for authentication, authorization, secrets, untrusted-input or privilege boundaries, migrations, concurrency, difficult state transitions, cross-component invariants, resource exhaustion, broad scalability analysis, or similarly high-risk review work;
-  - use `gpt-6-astra` only for the highest-risk or most cross-cutting reviews, especially when several of the preceding high-risk domains interact, uncertainty remains after inspection, or the cost of a missed defect is unusually high.
+  - use `gpt-6-luna` for documentation, comments, or narrowly scoped test-coverage tasks that need little implementation reasoning;
+  - use `gpt-6-sol` by default for correctness, errors, types, compatibility, simplification, performance, code-reasoning-heavy test or documentation tasks, authentication, authorization, secrets, untrusted-input or privilege boundaries, migrations, concurrency, difficult state transitions, cross-component invariants, resource exhaustion, broad scalability analysis, or similarly substantive review work;
+  - use `gpt-6-astra` only for the highest-risk or most cross-cutting reviews, especially when several high-risk domains interact, uncertainty remains after inspection, or the cost of a missed defect is unusually high.
   - when a task combines lenses, select the highest tier justified by any material risk in that task.
-- `feedback-analyst`: `gpt-5.6-luna`; use Terra when feedback conflicts, root-cause grouping is ambiguous, or dispositions require non-trivial code reasoning. Use `advisor` instead for architecture-level or other consequential judgment, with Astra available there under the advisor escalation criteria.
+- `feedback-analyst`: `gpt-6-luna`; use `gpt-6-sol` when feedback conflicts, root-cause grouping is ambiguous, or dispositions require non-trivial code reasoning. Use `advisor` instead for architecture-level or other consequential judgment, with Astra available there under the advisor escalation criteria.
 
 Treat Astra as a capability-gated escalation. Select it only when the native Codex model catalog or dispatch surface confirms `gpt-6-astra` is supported in the current environment. If Astra support is unavailable or cannot be confirmed, retain Sol and select an appropriate Sol effort rather than attempting Astra and relying on an implicit downgrade.
 
 After selecting the model, choose effort for cost/performance as follows:
 
 - Luna: `max`.
-- Terra: `xhigh` by default; `max` when materially useful.
 - Sol: `high` by default; `xhigh` for unusually demanding work; `max` only for the hardest quality-first work.
 - Astra: `medium` by default; `high` for demanding work; `xhigh` for the hardest cross-cutting work; `max` only when quality is the dominant constraint and the additional reasoning cost is justified.
 
