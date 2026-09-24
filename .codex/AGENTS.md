@@ -28,7 +28,7 @@ Treat Astra as a capability-gated escalation. Select it only when the native Cod
 After selecting the model, choose effort for cost/performance as follows:
 
 - Luna: `max`.
-- Sol: `high` by default; `xhigh` for unusually demanding work; `max` only for the hardest quality-first work.
+- Sol: use `xhigh` for routine planner work; reviewer work centered on correctness, errors, types, compatibility, simplification, ordinary performance, or code-reasoning-heavy tests/docs; and feedback-analysis escalation for conflicting, ambiguous, or code-reasoning-heavy triage. Use `high` for advisor work and for planner/reviewer work centered on architecture, public interfaces, schemas, migrations, security boundaries, authentication/authorization, secrets, untrusted-input or privilege boundaries, concurrency, difficult state transitions, cross-component invariants, resource exhaustion, or broad scalability. Use `max` only for the hardest quality-first Sol work.
 - Astra: `medium` by default; `high` for demanding work; `xhigh` for the hardest cross-cutting work; `max` only when quality is the dominant constraint and the additional reasoning cost is justified.
 
 Do not carry an effort choice across a model escalation; reselect it from the selected model's allowed set. If native dispatch cannot honor an explicit model or effort, do not silently inherit another value. Treat that named invocation as unsupported and follow the caller's permitted fallback contract.
