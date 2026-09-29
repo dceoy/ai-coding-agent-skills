@@ -13,10 +13,10 @@ Implementation remains owned by the top-level main agent. Named agents are fresh
 
 The TOML files intentionally omit `model` and `model_reasoning_effort`; both are selected per native dispatch.
 
-- `planner`: GPT-6 Sol by default → GPT-6 Astra only for the hardest plans when several architecture, public-interface, schema, migration, security-boundary, broad cross-cutting, or unusually regression-prone concerns interact, uncertainty remains, or design-error cost is unusually high.
-- `advisor`: GPT-6 Sol by default → GPT-6 Astra for consequential architecture, security, cross-system, or similarly high-impact judgment.
-- `reviewer`: GPT-6 Luna for lightweight docs/comments/narrow coverage; GPT-6 Sol for substantive correctness/errors/types/compatibility/simplification/performance reasoning and high-risk security, migration, concurrency, state, invariant, exhaustion, or scalability analysis; GPT-6 Astra only for the highest-risk or most cross-cutting reviews.
-- `feedback-analyst`: GPT-6 Luna → GPT-6 Sol for ambiguous or code-reasoning-heavy triage; escalate consequential architecture-level judgment to `advisor`.
+- `planner`: GPT-6.1 Sol by default → GPT-6 Astra only for the hardest plans when several architecture, public-interface, schema, migration, security-boundary, broad cross-cutting, or unusually regression-prone concerns interact, uncertainty remains, or design-error cost is unusually high.
+- `advisor`: GPT-6.1 Sol by default → GPT-6 Astra for consequential architecture, security, cross-system, or similarly high-impact judgment.
+- `reviewer`: GPT-6 Luna for lightweight docs/comments/narrow coverage; GPT-6.1 Sol for substantive correctness/errors/types/compatibility/simplification/performance reasoning and high-risk security, migration, concurrency, state, invariant, exhaustion, or scalability analysis; GPT-6 Astra only for the highest-risk or most cross-cutting reviews.
+- `feedback-analyst`: GPT-6 Luna → GPT-6.1 Sol for ambiguous or code-reasoning-heavy triage; escalate consequential architecture-level judgment to `advisor`.
 
 Astra is capability-gated: use it only when the native Codex model catalog or dispatch surface confirms `gpt-6-astra` support in the current environment. Otherwise remain on Sol with an appropriate Sol effort.
 
