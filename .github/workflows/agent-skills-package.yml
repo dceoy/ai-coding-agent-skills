@@ -1,0 +1,30 @@
+---
+name: Package agent skills
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+  release:
+    types:
+      - published
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    if: github.event_name != 'release'
+    permissions:
+      contents: write
+    uses: dceoy/gha-for-devops/.github/workflows/agent-skills-package.yml@main  # zizmor: ignore[unpinned-uses]
+  package-release:
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+    uses: dceoy/gha-for-devops/.github/workflows/agent-skills-package.yml@main  # zizmor: ignore[unpinned-uses]
