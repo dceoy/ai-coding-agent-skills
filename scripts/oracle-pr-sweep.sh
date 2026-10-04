@@ -256,7 +256,7 @@ process_reviews() {
         {
           commit_id: .head_sha,
           event: "COMMENT",
-          body: (.review_body + "\\n\\n---\\n" + $footer),
+          body: (.review_body + "\n\n---\n" + $footer),
           comments: [.inline_comments[] | {path, line, side, body}]
         }
       ' <<<"$review"
@@ -289,6 +289,7 @@ process_reviews() {
   fi
   (( failed_count == 0 ))
 }
+
 run_with_retries() {
   local exit_code last_stderr last_stdout_error retry_index=0
 
