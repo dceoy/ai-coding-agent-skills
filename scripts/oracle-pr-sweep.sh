@@ -184,7 +184,7 @@ validate_sweep_result() {
       and .effective_limit == $limit
       and ((.eligible_count == null) or (.eligible_count | type == "number" and . >= 0 and floor == .))
       and ((.omitted_count == null) or (.omitted_count | type == "number" and . >= 0 and floor == .))
-      and (.reviews | type == "array")
+      and (.reviews | type == "array" and length <= $limit)
       and (.report | type == "string")
       and all(
         .reviews[];
