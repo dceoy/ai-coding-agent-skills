@@ -215,9 +215,12 @@ validate_sweep_result() {
     ' "$out_file" >/dev/null
 }
 
-publish_reviews() {
+process_reviews() {
   local current_sha failed_count=0 number payload published_count=0 repository review
-  local reviewed_sha stale_count=0 state
+  local reviewed_sha stale_count=0 state validated_count=0
+  local failure_label='PUBLICATION FAILED'
+
+  (( dry_run == 0 )) || failure_label='VALIDATION FAILED'
 
   while IFS= read -r review; do
     state="$(jq -r '.state' <<<"$review")"
@@ -229,13 +232,15 @@ publish_reviews() {
 
     if [[ ! "$repository" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ \
       || "${repository%%/*}" != "$owner_login" ]]; then
-      printf '[PUBLICATION FAILED] %s#%s: invalid repository identity\n' "$repository" "$number" >&2
+      printf '[%s] %s#%s: invalid repository identity\n' \
+        "$failure_label" "$repository" "$number" >&2
       ((failed_count += 1))
       continue
     fi
 
     if ! current_sha="$(gh api "repos/$repository/pulls/$number" --jq .head.sha)"; then
-      printf '[PUBLICATION FAILED] %s#%s: could not re-read current head\n' "$repository" "$number" >&2
+      printf '[%s] %s#%s: could not re-read current head\n' \
+        "$failure_label" "$repository" "$number" >&2
       ((failed_count += 1))
       continue
     fi
@@ -251,11 +256,18 @@ publish_reviews() {
         {
           commit_id: .head_sha,
           event: "COMMENT",
-          body: (.review_body + "\n\n---\n" + $footer),
+          body: (.review_body + "\\n\\n---\\n" + $footer),
           comments: [.inline_comments[] | {path, line, side, body}]
         }
       ' <<<"$review"
     )"
+
+    if (( dry_run )); then
+      printf '[VALIDATED] %s#%s @ %s\n' "$repository" "$number" "$reviewed_sha"
+      ((validated_count += 1))
+      continue
+    fi
+
     if gh api \
       --method POST \
       "repos/$repository/pulls/$number/reviews" \
@@ -268,11 +280,15 @@ publish_reviews() {
     fi
   done < <(jq -c '.reviews[]' "$out_file")
 
-  printf 'Publication summary: published=%d stale=%d failed=%d\n' \
-    "$published_count" "$stale_count" "$failed_count"
+  if (( dry_run )); then
+    printf 'Dry-run summary: validated=%d stale=%d failed=%d\n' \
+      "$validated_count" "$stale_count" "$failed_count"
+  else
+    printf 'Publication summary: published=%d stale=%d failed=%d\n' \
+      "$published_count" "$stale_count" "$failed_count"
+  fi
   (( failed_count == 0 ))
 }
-
 run_with_retries() {
   local exit_code last_stderr last_stdout_error retry_index=0
 
@@ -326,13 +342,7 @@ main() {
   fi
 
   jq -r '.report' "$out_file"
-
-  if (( dry_run )); then
-    printf 'Dry run: review publication skipped.\n'
-    exit 0
-  fi
-
-  publish_reviews || exit 1
+  process_reviews || exit 1
 }
 
 main "$@"
