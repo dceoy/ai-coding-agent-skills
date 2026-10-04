@@ -63,7 +63,7 @@ run_sweep() {
     --heartbeat 15 \
     --engine browser \
     --model gpt-5.6-sol \
-    --browser-thinking-time high \
+    --browser-thinking-time extra-high \
     -p - >"$out_file" 2>"$err_file" <<EOF
 # Account PR sweep
 @GitHub Determine the authenticated GitHub user from the connected GitHub app. Find open, non-draft pull requests in non-archived repositories whose owner login exactly matches that authenticated user. Order eligible PRs by most recently updated first and review at most $max_count. Do not include organization-owned or collaborator repositories.
