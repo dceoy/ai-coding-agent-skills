@@ -44,6 +44,10 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `oracle-chatgpt` - Send one arbitrary prompt to ChatGPT through Oracle browser mode and return the captured response without reinterpretation
 - `x-timeline` - Read authenticated X timelines through agent-browser without engagement actions
 
+### Standalone Tools
+
+- `scripts/oracle-pr-sweep.sh [MAX_COUNT]` - Batch-review open PRs owned by the authenticated GitHub user directly through Oracle + ChatGPT `@GitHub`, without a client AI agent. The default limit is 20 and the accepted range is 1-50.
+
 ### Delivery Analytics
 
 - `github-productivity` - Collect, retain, normalize, and analyze GitHub organization PR/review/timeline/commit data via `gh api` into an organization-week delivery panel with a pre-specified interrupted time-series model, sensitivities, charts, and a report
@@ -80,6 +84,7 @@ See [.codex/AGENTS.md](./.codex/AGENTS.md) for the authoritative routing policy 
 │   └── agents/              # Project-scoped Codex custom subagents
 ├── .github/
 │   └── workflows/           # CI workflows (ci.yml)
+├── scripts/                 # Standalone CLI helpers
 ├── README.md
 └── LICENSE
 ```
@@ -94,7 +99,7 @@ Install and authenticate the required CLI tools before running skills:
 - **Codex CLI** - For `.agents/skills/` and `.codex/agents/`
   - Install: `npm install -g @openai/codex`
   - Auth: run `codex login`
-- **Oracle CLI** - For `oracle-chatgpt`
+- **Oracle CLI** - For `oracle-chatgpt` and `scripts/oracle-pr-sweep.sh`
   - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode
   - Remote browser routing is optional and uses Oracle's native configuration

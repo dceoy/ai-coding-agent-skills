@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly DEFAULT_MAX_COUNT=20
+readonly MAX_ALLOWED_COUNT=50
+readonly MIN_ORACLE_MINOR=18
+
+usage() {
+  printf 'Usage: %s [MAX_COUNT]\n' "${0##*/}"
+  printf '  MAX_COUNT must be an integer from 1 through %d (default: %d).\n' \
+    "$MAX_ALLOWED_COUNT" "$DEFAULT_MAX_COUNT"
+}
+
+if (( $# > 1 )); then
+  usage >&2
+  exit 2
+fi
+
+max_count="${1:-$DEFAULT_MAX_COUNT}"
+if [[ ! "$max_count" =~ ^[0-9]+$ ]]; then
+  printf 'error: MAX_COUNT must be an integer from 1 through %d\n' "$MAX_ALLOWED_COUNT" >&2
+  exit 2
+fi
+max_count=$((10#$max_count))
+if (( max_count < 1 || max_count > MAX_ALLOWED_COUNT )); then
+  printf 'error: MAX_COUNT must be an integer from 1 through %d\n' "$MAX_ALLOWED_COUNT" >&2
+  exit 2
+fi
+
+if ! command -v oracle >/dev/null 2>&1; then
+  printf 'error: oracle is not available in PATH\n' >&2
+  exit 1
+fi
+
+if ! oracle_version_output="$(oracle --version 2>&1)"; then
+  printf '%s\n' "$oracle_version_output" >&2
+  exit 1
+fi
+if [[ ! "$oracle_version_output" =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+  printf 'error: could not parse Oracle version from: %s\n' "$oracle_version_output" >&2
+  exit 1
+fi
+oracle_major="${BASH_REMATCH[1]}"
+oracle_minor="${BASH_REMATCH[2]}"
+if (( oracle_major == 0 && oracle_minor < MIN_ORACLE_MINOR )); then
+  printf 'error: Oracle 0.%d.0 or newer is required; found %s\n' \
+    "$MIN_ORACLE_MINOR" "$oracle_version_output" >&2
+  exit 1
+fi
+
+oracle bridge doctor >&2
+
+out_file="$(mktemp)"
+err_file="$(mktemp)"
+cleanup() {
+  rm -f -- "$out_file" "$err_file"
+}
+trap cleanup EXIT
+
+run_sweep() {
+  oracle \
+    --wait \
+    --heartbeat 15 \
+    --engine browser \
+    --model gpt-5.6-sol \
+    --browser-thinking-time extra-high \
+    -p - >"$out_file" 2>"$err_file" <<EOF
+# Account PR sweep
+@GitHub Determine the authenticated GitHub user from the connected GitHub app. Find open, non-draft pull requests in non-archived repositories whose owner login exactly matches that authenticated user. Order eligible PRs by most recently updated first and review at most $max_count. Do not include organization-owned or collaborator repositories.
+
+Review the selected PRs as one batch. For each PR, inspect the current diff and enough repository context to evaluate correctness, regressions, maintainability, security implications, and dependency/update risk. Inspect CI/check status, existing reviews, and unresolved review feedback when available. Apply KISS, DRY, and YAGNI to concrete maintainability issues and avoid style-only findings.
+
+Bind each result to the exact PR head SHA you reviewed. Before finalizing the report, re-read every reviewed PR head. Label each reviewed PR CURRENT only when that final re-read still matches the reviewed SHA; if it changed, label that PR STALE and do not present its findings as current.
+
+Classify actionable findings as blocking, should-fix, or optional. Do not invent findings. Explicitly identify PRs with no actionable findings and PRs that are blocked or incomplete because required context is unavailable.
+
+Return one consolidated report containing the authenticated owner login, effective limit, eligible/reviewed/omitted/stale/blocked counts when establishable, each reviewed OWNER/REPO#NUMBER with title and exact head SHA, findings grouped by PR with relevant file/path references when available, PRs with no actionable findings, stale or blocked PRs with reasons, and a concise cross-PR summary. If more eligible PRs exist than the limit, clearly state that the sweep was truncated and report the omitted count when establishable.
+
+Do not modify repositories, pull requests, reviews, comments, threads, labels, checks, branches, commits, or any other GitHub state.
+EOF
+}
+
+retry_delays=(1 2 4 8 16 30 30 30 30 30)
+retry_index=0
+
+while :; do
+  : >"$out_file"
+  : >"$err_file"
+
+  if run_sweep; then
+    cat -- "$out_file"
+    if [[ -s "$err_file" ]]; then
+      cat -- "$err_file" >&2
+    fi
+    exit 0
+  else
+    exit_code=$?
+  fi
+
+  last_stderr="$(awk 'NF { line = $0 } END { print line }' "$err_file")"
+  last_stdout_error="$(awk '/^ERROR:/ { line = $0 } END { print line }' "$out_file")"
+
+  if [[ "$last_stderr" == "✖ read ETIMEDOUT" || "$last_stdout_error" == "ERROR: read ETIMEDOUT" ]]; then
+    cat -- "$out_file"
+    cat -- "$err_file" >&2
+    exit "$exit_code"
+  fi
+
+  if [[ "$last_stderr" == "✖ busy" || "$last_stdout_error" == "ERROR: busy" ]]; then
+    if (( retry_index < ${#retry_delays[@]} )); then
+      sleep "${retry_delays[$retry_index]}"
+      ((retry_index += 1))
+      continue
+    fi
+  fi
+
+  cat -- "$out_file"
+  cat -- "$err_file" >&2
+  exit "$exit_code"
+done
