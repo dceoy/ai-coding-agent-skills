@@ -1,32 +1,32 @@
 {
-  "skillListingBudgetFraction": 0.01,
-  "enabledPlugins": {
-    "pr-review-toolkit@claude-plugins-official": false,
-    "skill-creator@claude-plugins-official": true,
-    "code-review@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
-    "commit-commands@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
-    "codex@openai-codex": true
-  },
-  "extraKnownMarketplaces": {
-    "claude-plugins-official": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-plugins-official"
-      }
-    },
-    "anthropic-agent-skills": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/skills"
-      }
-    },
-    "openai-codex": {
-      "source": {
-        "source": "github",
-        "repo": "openai/codex-plugin-cc"
-      }
-    }
-  }
+	"skillListingBudgetFraction": 0.01,
+	"enabledPlugins": {
+		"pr-review-toolkit@claude-plugins-official": false,
+		"skill-creator@claude-plugins-official": true,
+		"code-review@claude-plugins-official": true,
+		"code-simplifier@claude-plugins-official": true,
+		"commit-commands@claude-plugins-official": true,
+		"security-guidance@claude-plugins-official": true,
+		"codex@openai-codex": true
+	},
+	"extraKnownMarketplaces": {
+		"claude-plugins-official": {
+			"source": {
+				"source": "github",
+				"repo": "anthropics/claude-plugins-official"
+			}
+		},
+		"anthropic-agent-skills": {
+			"source": {
+				"source": "github",
+				"repo": "anthropics/skills"
+			}
+		},
+		"openai-codex": {
+			"source": {
+				"source": "github",
+				"repo": "openai/codex-plugin-cc"
+			}
+		}
+	}
 }
