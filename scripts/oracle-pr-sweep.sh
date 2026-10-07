@@ -149,12 +149,12 @@ For each selected PR, inspect the current diff, relevant repository context, CI/
 
 Before posting, re-read the PR head. Skip stale PRs whose head changed. For every current PR, post exactly one COMMENT review directly to that PR through GitHub. Include the reviewed head SHA in the top-level review body. Put actionable findings in inline review comments when they can be safely anchored to changed lines; keep unanchorable findings in the top-level body. If there are no actionable findings, say so in the top-level body. Do not modify GitHub state other than posting the requested COMMENT reviews.
 
-After attempting all reviews, return a concise Markdown summary of which PRs were reviewed, posted, stale, blocked, or failed. If GitHub write access is unavailable, do not claim publication succeeded; report the affected PRs as failed and include the permission limitation.
+After attempting all reviews, return a concise Markdown summary of which PRs were reviewed, posted, stale, blocked, or failed. If GitHub write access is unavailable, do not claim publication succeeded; report the affected PRs as failed and include the permission limitation. End with exactly `RESULT: success` if no review publication failed, otherwise `RESULT: failed`. Stale or blocked PRs alone do not make the result failed.
 EOF_PROMPT
 }
 
 run_with_retries() {
-  local exit_code last_stderr last_stdout_error retry_index=0
+  local exit_code last_result last_stderr last_stdout_error retry_index=0
 
   while :; do
     : >"$out_file"
@@ -163,7 +163,20 @@ run_with_retries() {
     if run_sweep; then
       cat -- "$out_file"
       [[ ! -s "$err_file" ]] || cat -- "$err_file" >&2
-      return 0
+      last_result="$(awk 'NF { line = $0 } END { print line }' "$out_file")"
+      case "$last_result" in
+        'RESULT: success')
+          return 0
+          ;;
+        'RESULT: failed')
+          printf '%s: one or more review publications failed\n' "$COMMAND_NAME" >&2
+          return 1
+          ;;
+        *)
+          printf '%s: missing or invalid result sentinel\n' "$COMMAND_NAME" >&2
+          return 1
+          ;;
+      esac
     else
       exit_code=$?
     fi
