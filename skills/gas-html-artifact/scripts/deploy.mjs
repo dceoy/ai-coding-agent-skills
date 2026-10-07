@@ -455,9 +455,25 @@ try {
       state.previousURL = verifyURL(selected.deploymentId, project);
       const versioned = path.join(work, "selected-version");
       clone(scriptId, versioned, selected.versionNumber);
-      const previousPolicy =
-        requestedPolicy ||
-        policy(json(path.join(versioned, "appsscript.json")).webapp);
+      const deployedPolicy = json(
+        path.join(versioned, "appsscript.json"),
+      ).webapp;
+      const policyKnown =
+        deployedPolicy &&
+        accessValues.includes(deployedPolicy.access) &&
+        executeValues.includes(deployedPolicy.executeAs);
+      const previousPolicy = policyKnown ? policy(deployedPolicy) : undefined;
+      requireThat(
+        previousPolicy || (requestedPolicy && v["allow-manifest-update"]),
+        "Cannot establish deployed policy; supply explicit policy and --allow-manifest-update before changing production.",
+      );
+      requireThat(
+        !requestedPolicy ||
+          same(previousPolicy, requestedPolicy) ||
+          v["allow-manifest-update"],
+        "Production policy change requires --allow-manifest-update, even when remote HEAD already has the requested policy.",
+      );
+      state.previousPolicy = previousPolicy || null;
       chosenPolicy = requestedPolicy || previousPolicy;
     }
     requireThat(

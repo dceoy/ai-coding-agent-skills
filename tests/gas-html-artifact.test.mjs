@@ -516,3 +516,36 @@ test("caller-selected clasp config binds without touching its local project", (t
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(fs.readFileSync(binding), original);
 });
+for (const consent of [false, true]) {
+  test(`production policy change with HEAD already changed requires consent (${consent})`, (t) => {
+    const f = fixture(t, true);
+    const requested = { access: "ANYONE", executeAs: "USER_ACCESSING" };
+    const remoteFiles = f.get("files.json");
+    remoteFiles["appsscript.json"] = JSON.stringify({
+      ...manifest,
+      webapp: requested,
+    });
+    f.put("files.json", remoteFiles);
+    const args = [
+      ...f.args,
+      "--access",
+      requested.access,
+      "--execute-as",
+      requested.executeAs,
+      ...(consent ? ["--allow-manifest-update"] : []),
+    ];
+    const result = f.run(args);
+    assert.equal(result.status, consent ? 0 : 1, result.stderr);
+    assert.equal(
+      f.calls().some((c) => c.cmd === "update-deployment"),
+      consent,
+    );
+    assert.equal(
+      f.calls().some((c) => c.cmd === "push" && c.args.includes("--force")),
+      false,
+    );
+    assert.deepEqual(f.get("deployments.json"), [
+      { deploymentId: "DEPLOY_EXISTING", versionNumber: consent ? 2 : 1 },
+    ]);
+  });
+}

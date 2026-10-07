@@ -30,7 +30,9 @@ Paths with spaces are supported. Parent directories must already exist.
   exclusive deployment coordination, including remote editor activity.
 - `--allow-manifest-update` explicitly authorizes the displayed chosen Web App
   policy change. Obtain authorization for that policy before passing it. This is
-  required for a new project's manifest and for changes to an existing policy.
+  required for a new project's manifest and for changes to an existing deployed policy.
+  Production consent compares against the selected version even if HEAD already
+  has the requested policy; manifest force compares separately against HEAD.
 
 Install Node.js >=20 and **`@google/clasp@3.4.1`** explicitly. Authenticate beforehand
 with interactive `clasp login`, enable the [Apps Script API](https://script.google.com/home/usersettings),
