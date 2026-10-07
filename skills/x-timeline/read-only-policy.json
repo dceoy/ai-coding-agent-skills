@@ -12,8 +12,5 @@
     "confirm",
     "close"
   ],
-  "confirm": [
-    "navigate",
-    "click"
-  ]
+  "confirm": ["navigate", "click"]
 }
