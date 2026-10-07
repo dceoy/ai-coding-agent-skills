@@ -147,7 +147,7 @@ run_sweep() {
 
 For each selected PR, inspect the current diff, relevant repository context, CI/check status, existing reviews, and unresolved review feedback. Report only concrete correctness, regression, maintainability, security, or dependency/update risks; apply KISS, DRY, and YAGNI, and omit style-only findings. Classify findings as blocking, should-fix, or optional.
 
-Before posting, re-read the PR head. Skip stale PRs whose head changed. For every current PR, post exactly one COMMENT review directly to that PR through GitHub. Include the reviewed head SHA in the top-level review body. Put actionable findings in inline review comments when they can be safely anchored to changed lines; keep unanchorable findings in the top-level body. If there are no actionable findings, say so in the top-level body. Do not modify code, branches, labels, checks, or other GitHub state.
+Before posting, re-read the PR head. Skip stale PRs whose head changed. For every current PR, post exactly one COMMENT review directly to that PR through GitHub. Include the reviewed head SHA in the top-level review body. Put actionable findings in inline review comments when they can be safely anchored to changed lines; keep unanchorable findings in the top-level body. If there are no actionable findings, say so in the top-level body. Do not modify GitHub state other than posting the requested COMMENT reviews.
 
 After attempting all reviews, return a concise Markdown summary of which PRs were reviewed, posted, stale, blocked, or failed. If GitHub write access is unavailable, do not claim publication succeeded; report the affected PRs as failed and include the permission limitation.
 EOF_PROMPT
