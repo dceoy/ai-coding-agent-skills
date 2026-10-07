@@ -52,6 +52,10 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 - `github-productivity` - Collect, retain, normalize, and analyze GitHub organization PR/review/timeline/commit data via `gh api` into an organization-week delivery panel with a pre-specified interrupted time-series model, sensitivities, charts, and a report
 
+### Artifact Deployment
+
+- `gas-html-artifact` - Deploy an existing HTML artifact to Apps Script HTML Service with clasp, preserving compatible bytes and existing project files
+
 ### Skill Management
 
 - `claude-agent-converter` - Convert Claude Code agents to portable skills
@@ -92,6 +96,10 @@ See [.codex/AGENTS.md](./.codex/AGENTS.md) for the authoritative routing policy 
 ## Prerequisites
 
 Install and authenticate the required CLI tools before running skills:
+
+- **Node.js >=20 and official `@google/clasp@3.4.1`** - For `gas-html-artifact`
+  - Authenticate interactively with `clasp login` and enable the Apps Script API before deployment
+  - Mocked deployment tests require Node.js but no Google credentials
 
 - **Claude Code** - For `.claude/` agents and skills
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
