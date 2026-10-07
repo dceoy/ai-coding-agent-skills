@@ -103,9 +103,6 @@ Install and authenticate the required CLI tools before running skills:
   - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode
   - Remote browser routing is optional and uses Oracle's native configuration
-- **GitHub CLI + jq** - For `scripts/oracle-pr-sweep.sh` review publication
-  - Authenticate `gh` with write access to pull requests in the repositories to review
-  - The script re-checks each reviewed head SHA immediately before publishing through the GitHub Reviews API
 - **agent-browser** - For `x-timeline`
   - Install: `npm install -g agent-browser` (or the package manager your environment uses), so `agent-browser` is on
     `PATH`
