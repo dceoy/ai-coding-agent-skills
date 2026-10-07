@@ -149,7 +149,7 @@ For each selected PR, inspect the current diff, relevant repository context, CI/
 
 Before posting, re-read the PR head. Skip stale PRs whose head changed. For every current PR, post exactly one COMMENT review directly to that PR through GitHub. Include the reviewed head SHA in the top-level review body. Put actionable findings in inline review comments when they can be safely anchored to changed lines; keep unanchorable findings in the top-level body. If there are no actionable findings, say so in the top-level body. Do not modify GitHub state other than posting the requested COMMENT reviews.
 
-After attempting all reviews, return a concise Markdown summary of which PRs were reviewed, posted, stale, blocked, or failed. If GitHub write access is unavailable, do not claim publication succeeded; report the affected PRs as failed and include the permission limitation. End with exactly `RESULT: success` if no review publication failed, otherwise `RESULT: failed`. Stale or blocked PRs alone do not make the result failed.
+After attempting all reviews, return a concise Markdown summary of which PRs were reviewed, posted, stale, blocked, or failed. If GitHub write access is unavailable, do not claim publication succeeded; report the affected PRs as failed and include the permission limitation. End with exactly RESULT: success if no review publication failed, otherwise RESULT: failed. Stale or blocked PRs alone do not make the result failed.
 EOF_PROMPT
 }
 
