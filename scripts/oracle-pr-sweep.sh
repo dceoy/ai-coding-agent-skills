@@ -155,7 +155,7 @@ run_sweep() {
     --heartbeat 15 \
     --engine browser \
     --model gpt-5.6-sol \
-    --browser-thinking-time extra-high \
+    --browser-thinking-time high \
     -p - >"$out_file" 2>"$err_file" <<EOF_PROMPT
 # Account PR sweep
 @GitHub Review open, non-draft pull requests in non-archived repositories whose owner login is exactly $owner_login. Order eligible PRs by most recently updated first and review at most $max_count. Do not include organization-owned or collaborator repositories.
