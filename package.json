@@ -14,7 +14,7 @@
     "format": "biome format --write . && uv run ruff format .",
     "format:check": "biome format . && uv run ruff format --check .",
     "typecheck": "uv run pyright .",
-    "test:node": "node --test tests/*.test.mjs",
+    "test:node": "node --test",
     "test:python": "uv run pytest",
     "test": "pnpm run test:node && pnpm run test:python",
     "all": "pnpm run format && pnpm run lint:fix && pnpm run typecheck && pnpm run test"
@@ -23,7 +23,7 @@
     "type": "git",
     "url": "git+https://github.com/dceoy/ai-coding-agent-skills.git"
   },
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
     "oxlint": "^1.83.0"
