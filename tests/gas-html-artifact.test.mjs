@@ -29,6 +29,7 @@ const log = path.join(dir, 'calls.json'); const calls = JSON.parse(fs.readFileSy
 calls.push({cmd: cmd || a[0],args:a,cwd:process.cwd()}); fs.writeFileSync(log,JSON.stringify(calls));
 if(a.includes('--version')) {console.log(process.env.MOCK_VERSION || '3.4.1'); process.exit(0);}
 if(a.includes('--help')) {console.log(${JSON.stringify(commands)}); process.exit(0);}
+if(a.includes('--project') && !fs.existsSync(a[a.indexOf('--project')+1])) {console.error('Invalid --project path: file or directory does not exist.');process.exit(12);}
 if(process.env.MOCK_FAIL === cmd) {console.error('credential-token-must-not-leak'); process.exit(7);}
 const load = file => JSON.parse(fs.readFileSync(path.join(dir,file)));
 const save = (file,v) => fs.writeFileSync(path.join(dir,file),JSON.stringify(v));

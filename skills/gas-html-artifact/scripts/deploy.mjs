@@ -148,7 +148,7 @@ function clone(scriptId, destination, version) {
     [
       "--json",
       "--project",
-      path.join(destination, ".clasp.json"),
+      destination,
       "--ignore",
       path.join(work, "empty.claspignore"),
       "clone-script",
@@ -567,7 +567,7 @@ try {
         "clasp",
         [
           "--project",
-          path.join(bootstrap, ".clasp.json"),
+          bootstrap,
           "--ignore",
           path.join(work, "empty.claspignore"),
           "create-script",
