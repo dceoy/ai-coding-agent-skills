@@ -46,7 +46,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 ### Standalone Tools
 
-- `scripts/oracle-pr-sweep.sh [--debug] [--max-count=<int>]` - Batch-review open PRs owned by the authenticated ChatGPT GitHub user through Oracle + ChatGPT `@GitHub` and print one consolidated Markdown report. The backward-compatible positional `[MAX_COUNT]` form remains supported; the default limit is 20 and the accepted range is 1-50.
+- `scripts/oracle-pr-sweep.sh [--debug] [--max-count=<int>]` - Batch-review open PRs owned by the authenticated ChatGPT GitHub user through Oracle + ChatGPT `@GitHub`, ask ChatGPT to post one `COMMENT` review directly to each current PR, and print a consolidated Markdown publication summary. If the connected GitHub app lacks write access, failed publications are reported instead of being treated as successful. The backward-compatible positional `[MAX_COUNT]` form remains supported; the default limit is 20 and the accepted range is 1-50.
 
 ### Delivery Analytics
 
