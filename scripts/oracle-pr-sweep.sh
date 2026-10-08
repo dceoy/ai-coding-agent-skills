@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
 # Review the authenticated user's open pull requests with Oracle + ChatGPT.
+# Runs in the background; exit 0 means the worker was launched, not that reviews were posted.
+# No completion status or wrapper output log is retained.
 #
 # Usage:
 #   oracle-pr-sweep.sh [--debug] [--max-count=<int>]
