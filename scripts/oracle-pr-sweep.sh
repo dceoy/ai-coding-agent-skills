@@ -135,8 +135,6 @@ cleanup() {
 }
 
 run_sweep() {
-  # Signal that the worker has reached the Oracle dispatch step.
-  : > "${ORACLE_PR_SWEEP_RUN_DIR:?}/started"
   oracle \
     --wait \
     --heartbeat 15 \
@@ -206,42 +204,12 @@ run_with_retries() {
   done
 }
 
-run_worker() {
-  local exit_code=0
-
-  create_temp_files
-  trap cleanup EXIT
-  run_with_retries || exit_code=$?
-  printf '%s\n' "$exit_code" > "${ORACLE_PR_SWEEP_RUN_DIR:?}/exit-code"
-  return "$exit_code"
-}
-
 start_background() {
-  local state_dir run_dir worker_pid attempt
-
   require_command nohup
-  state_dir="${XDG_STATE_HOME:-${HOME:?}/.local/state}/oracle-pr-sweep"
-  (umask 077; mkdir -p -- "$state_dir") || abort "cannot create $state_dir"
-  run_dir="$(umask 077; mktemp -d "$state_dir/run.XXXXXXXX")" \
-    || abort "cannot create a run directory in $state_dir"
 
-  ORACLE_PR_SWEEP_WORKER=1 ORACLE_PR_SWEEP_RUN_DIR="$run_dir" \
-    nohup bash "${BASH_SOURCE[0]}" "$@" </dev/null >"$run_dir/output.log" 2>&1 &
-  worker_pid=$!
-
-  # Check that the worker reached Oracle rather than reporting a successful fork.
-  for ((attempt = 0; attempt < 100; attempt++)); do
-    if [[ -f "$run_dir/started" ]]; then
-      printf 'Oracle sweep dispatched (PID %s).\nLog: %s/output.log\nStatus: %s/exit-code\n' \
-        "$worker_pid" "$run_dir" "$run_dir"
-      return 0
-    fi
-    if [[ -f "$run_dir/exit-code" ]] || ! kill -0 "$worker_pid" 2>/dev/null; then
-      abort "background worker failed to start; inspect $run_dir/output.log"
-    fi
-    sleep 0.1
-  done
-  abort "background worker did not reach Oracle dispatch; inspect $run_dir/output.log"
+  ORACLE_PR_SWEEP_WORKER=1 \
+    nohup bash "${BASH_SOURCE[0]}" "$@" </dev/null >/dev/null 2>&1 &
+  printf 'Oracle sweep started in background (PID %s).\n' "$!"
 }
 
 main() {
@@ -249,7 +217,9 @@ main() {
   validate_max_count
 
   if [[ "${ORACLE_PR_SWEEP_WORKER:-0}" == 1 ]]; then
-    run_worker
+    create_temp_files
+    trap cleanup EXIT
+    run_with_retries
   else
     check_prerequisites
     start_background "$@"
