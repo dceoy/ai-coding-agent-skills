@@ -1,0 +1,6 @@
+# @google/clasp 3.4.1 uses micromatch, which depends on braces@3.0.3.
+# No patched braces release is available yet; clasp uses it only for non-empty ignore patterns.
+# gas-html-artifact creates an explicit empty .claspignore. Remove this exception after a patched release.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
