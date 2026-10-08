@@ -156,8 +156,9 @@ Readback checks project binding, deployment ID, version, deployed manifest polic
 and the Web App entry point. `open-web-app ID --json` retrieves the official
 entry point with piped stdout, so it does not launch a browser. Return only the
 verified `/exec` URL and recorded identifiers; never guess a URL or substitute `/dev`.
-Both consumer `/macros/s/<deploymentId>/exec` and Workspace domain
-`/a/macros/<domain>/s/<deploymentId>/exec` entry points are supported.
+Consumer `/macros/s/<deploymentId>/exec` and both Workspace forms,
+`/a/macros/<domain>/s/<deploymentId>/exec` and
+`/a/<domain>/macros/s/<deploymentId>/exec`, are supported.
 Runtime smoke testing is separately reported as **not performed**.
 
 ```mermaid

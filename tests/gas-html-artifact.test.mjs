@@ -447,6 +447,14 @@ for (const [name, url] of [
 		"Workspace domain",
 		"https://script.google.com/a/macros/example.com/s/{id}/exec",
 	],
+	[
+		"Workspace domain-first",
+		"https://script.google.com/a/example.com/macros/s/{id}/exec",
+	],
+	[
+		"Workspace account selector",
+		"https://script.google.com/a/~/macros/s/{id}/exec",
+	],
 ]) {
 	for (const existing of [false, true]) {
 		test(`${name} URL is verified for ${existing ? "update" : "initial deployment"}`, (t) => {
@@ -467,6 +475,22 @@ for (const [name, url] of [
 	[
 		"Workspace dev",
 		"https://script.google.com/a/macros/example.com/s/{id}/dev",
+	],
+	[
+		"Workspace domain-first dev",
+		"https://script.google.com/a/example.com/macros/s/{id}/dev",
+	],
+	[
+		"Workspace domain-first wrong deployment",
+		"https://script.google.com/a/example.com/macros/s/OTHER/exec",
+	],
+	[
+		"Workspace domain-first empty domain",
+		"https://script.google.com/a//macros/s/{id}/exec",
+	],
+	[
+		"Workspace domain-first extra segment",
+		"https://script.google.com/a/example.com/extra/macros/s/{id}/exec",
 	],
 	[
 		"wrong deployment",

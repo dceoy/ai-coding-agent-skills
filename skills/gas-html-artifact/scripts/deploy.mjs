@@ -229,7 +229,240 @@ function verifyURL(id, cwd) {
 			!url.password &&
 			url.hostname === "script.google.com" &&
 			(url.pathname === `/macros/s/${id}/exec` ||
-				new RegExp(`^/a/macros/[^/]+/s/${id}/exec$`).test(url.pathname)),
+				new RegExp(`^/a/(?:macros/[^/]+|[^/]+/macros)/s/${id}/exec#!/usr/bin/env node
+// Deterministic packaging only. Compatibility assessment belongs to the agent.
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
+import { spawn, spawnSync } from "node:child_process";
+import { parseArgs } from "node:util";
+
+const templates = fileURLToPath(new URL("../templates/", import.meta.url));
+const accessValues = ["MYSELF", "DOMAIN", "ANYONE", "ANYONE_ANONYMOUS"];
+const executeValues = ["USER_ACCESSING", "USER_DEPLOYING"];
+let stage = "local validation";
+let work;
+let state;
+let pushed = false;
+let deploymentAttempted = false;
+let pushAttempted = false;
+function requireThat(condition, message) {
+	if (!condition) throw new Error(message);
+}
+function parseJSON(text) {
+	try {
+		return JSON.parse(text);
+	} catch {
+		throw new Error("Invalid JSON; contents withheld.");
+	}
+}
+function json(file) {
+	return parseJSON(fs.readFileSync(file, "utf8"));
+}
+function digest(bytes) {
+	return createHash("sha256").update(bytes).digest("hex");
+}
+function writeJSON(file, value) {
+	const temporary = `${file}.tmp`;
+	fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, {
+		mode: 0o600,
+		flag: "wx",
+	});
+	fs.renameSync(temporary, file);
+}
+function identifier(value) {
+	return typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
+}
+function readArtifact(file) {
+	const resolved = fs.realpathSync(file);
+	requireThat(
+		fs.statSync(resolved).isFile(),
+		"Artifact must be a readable file.",
+	);
+	const bytes = fs.readFileSync(resolved);
+	new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+	requireThat(
+		bytes.length > 0 && /\.html?$/i.test(resolved),
+		"Artifact must be non-empty HTML.",
+	);
+	return { path: resolved, bytes, sha256: digest(bytes) };
+}
+function inside(parent, child) {
+	return child === parent || child.startsWith(`${parent}${path.sep}`);
+}
+function files(root, prefix = "") {
+	return fs
+		.readdirSync(path.join(root, prefix), { withFileTypes: true })
+		.flatMap((entry) => {
+			const name = path.join(prefix, entry.name);
+			requireThat(
+				!entry.isSymbolicLink(),
+				"Symlinks are forbidden in the staged payload.",
+			);
+			if (entry.isDirectory()) return files(root, name);
+			requireThat(entry.isFile(), "Non-regular staged file.");
+			return [name];
+		})
+		.sort();
+}
+function payload(root) {
+	const entries = files(root)
+		.filter(
+			(name) =>
+				/\.(gs|js|html|json)$/.test(name) &&
+				!path.basename(name).startsWith("."),
+		)
+		.map((name) => [
+			name.replace(/\.gs$/, ".js"),
+			digest(fs.readFileSync(path.join(root, name))),
+		])
+		.sort(([a], [b]) => a.localeCompare(b));
+	requireThat(
+		new Set(entries.map(([name]) => name)).size === entries.length,
+		"Conflicting logical script names.",
+	);
+	return Object.fromEntries(entries);
+}
+function same(a, b) {
+	return JSON.stringify(a) === JSON.stringify(b);
+}
+function claspEnvironment() {
+	// Never inherit target overrides or verbose OAuth diagnostics from the caller.
+	const env = { ...process.env };
+	for (const key of Object.keys(env)) {
+		if (/^(clasp_config_|DEBUG$|NODE_OPTIONS$|NODE_PATH$)/.test(key))
+			delete env[key];
+	}
+	return env;
+}
+function run(args, cwd = work, asJSON = true) {
+	const result = spawnSync("clasp", args, {
+		cwd,
+		env: claspEnvironment(),
+		input: "",
+		encoding: "utf8",
+		maxBuffer: 16 * 1024 * 1024,
+	});
+	if (result.error?.code === "ENOENT") {
+		throw new Error(
+			"Missing clasp: install official @google/clasp@3.4.1 explicitly, authenticate and enable the Apps Script API.",
+		);
+	}
+	if (result.error || result.status !== 0) {
+		const error = new Error(
+			"clasp failed; check authentication, enabled Apps Script API, permissions and CLI contract. Raw diagnostics withheld to protect credentials.",
+		);
+		error.exitCode = result.status || 1;
+		throw error;
+	}
+	if (!asJSON) return result.stdout;
+	return parseJSON(result.stdout);
+}
+function clasp(command, args = [], cwd = path.join(work, "project")) {
+	return run(
+		[
+			"--json",
+			"--project",
+			path.join(cwd, ".clasp.json"),
+			"--ignore",
+			path.join(work, "empty.claspignore"),
+			command,
+			...args,
+		],
+		cwd,
+	);
+}
+function clone(scriptId, destination, version) {
+	fs.mkdirSync(destination);
+	const retrieved = run(
+		[
+			"--json",
+			"--project",
+			destination,
+			"--ignore",
+			path.join(work, "empty.claspignore"),
+			"clone-script",
+			scriptId,
+			...(version === undefined ? [] : [String(version)]),
+		],
+		destination,
+	);
+	requireThat(
+		Array.isArray(retrieved.files) &&
+			retrieved.files.length > 0 &&
+			retrieved.files.every((file) => {
+				const resolved = path.resolve(destination, file);
+				return (
+					inside(destination, resolved) &&
+					fs.existsSync(resolved) &&
+					fs.statSync(resolved).isFile()
+				);
+			}),
+		"Incomplete retrieval, including skipped empty files; cannot preserve remote project.",
+	);
+	requireThat(
+		json(path.join(destination, ".clasp.json")).scriptId === scriptId,
+		"Cloned script binding mismatch.",
+	);
+	requireThat(
+		fs.existsSync(path.join(destination, "appsscript.json")),
+		"Remote manifest missing.",
+	);
+	const names = files(destination);
+	requireThat(
+		names.every(
+			(name) =>
+				name === ".clasp.json" ||
+				(!name.split(path.sep).some((part) => part.startsWith(".")) &&
+					/\.(gs|js|html)$/.test(name)) ||
+				name === "appsscript.json",
+		),
+		"Unexpected remote file type; cannot preserve complete project.",
+	);
+	return payload(destination);
+}
+function save() {
+	writeJSON(path.join(work, "deployment.json"), state);
+}
+function policy(value) {
+	requireThat(
+		value &&
+			accessValues.includes(value.access) &&
+			executeValues.includes(value.executeAs),
+		"Cannot establish selected deployment policy. Supply an explicit access/execute-as pair or retrieve its versioned manifest.",
+	);
+	return { access: value.access, executeAs: value.executeAs };
+}
+function verifyURL(id, cwd) {
+	// clasp 3.4.1 prints JSON followed by a browser instruction with piped stdout.
+	const output = run(
+		[
+			"--json",
+			"--project",
+			path.join(cwd, ".clasp.json"),
+			"--ignore",
+			path.join(work, "empty.claspignore"),
+			"open-web-app",
+			id,
+		],
+		cwd,
+		false,
+	);
+	const match = output.match(
+		/^\s*(\{[\s\S]*?\})\s*(?:Open [^\r\n]+ in your browser to continue\.\s*)?$/,
+	);
+	requireThat(match, "Unexpected open-web-app metadata response.");
+	const url = new URL(parseJSON(match[1]).url);
+	requireThat(
+		url.protocol === "https:" &&
+			!url.username &&
+			!url.password &&
+			url.hostname === "script.google.com" &&
+			(url.pathname === `/macros/s/${id}/exec` ||
+				).test(
+					url.pathname,
+				)),
 		"Metadata did not confirm a production /exec Web App entry point.",
 	);
 	return url.toString();
