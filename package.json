@@ -13,8 +13,11 @@
 		"lint:fix": "oxlint --ignore-pattern 'node_modules/**' --fix .",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
-		"test": "node --test",
-		"all": "pnpm run format && pnpm run lint:fix && pnpm run test"
+		"test": "pnpm run build && node --test tests/gas-html-artifact.test.mjs",
+		"all": "pnpm run format && pnpm run lint:fix && pnpm run typecheck && pnpm run test",
+		"build": "tsc --project tsconfig.json && biome format --write skills/gas-html-artifact/scripts/deploy.mjs tests/gas-html-artifact.test.mjs",
+		"typecheck": "tsc --noEmit",
+		"build:check": "pnpm run build && git diff --exit-code -- skills/gas-html-artifact/scripts/deploy.mjs tests/gas-html-artifact.test.mjs"
 	},
 	"repository": {
 		"type": "git",
@@ -24,6 +27,8 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.15",
 		"@google/clasp": "3.4.1",
-		"oxlint": "^1.86.0"
+		"@types/node": "20.19.43",
+		"oxlint": "^1.86.0",
+		"typescript": "5.8.3"
 	}
 }

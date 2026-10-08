@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"strict": true,
+		"noImplicitAny": false,
+		"skipLibCheck": true,
+		"types": ["node"],
+		"noEmitOnError": true,
+		"forceConsistentCasingInFileNames": true
+	},
+	"include": [
+		"skills/gas-html-artifact/scripts/deploy.mts",
+		"tests/gas-html-artifact.test.mts"
+	]
+}

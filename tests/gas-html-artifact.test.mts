@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -6,6 +6,7 @@ import * as os from "node:os";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
+
 const root = fileURLToPath(new URL("../", import.meta.url));
 const deploy = path.join(root, "skills/gas-html-artifact/scripts/deploy.mjs");
 const template = fs.readFileSync(
@@ -69,10 +70,11 @@ switch(cmd) {
  default: process.exit(11);
 }
 `;
-function parseJSON(input) {
+function parseJSON(input: string | Buffer): any {
 	return JSON.parse(input.toString());
 }
-function fixture(t, existing = false) {
+
+function fixture(t: TestContext, existing = false) {
 	const base = fs.mkdtempSync(path.join(os.tmpdir(), "gas artifact "));
 	t.after(() => fs.rmSync(base, { recursive: true, force: true }));
 	const bin = path.join(base, "bin");
@@ -114,7 +116,17 @@ function fixture(t, existing = false) {
 	const bytes = fs.readFileSync(source);
 	const sha = createHash("sha256").update(bytes).digest("hex");
 	const report = path.join(base, "report.json");
-	const assessment = {
+	const assessment: {
+		decision: string;
+		sourceSha256: string;
+		artifactSha256: string;
+		secretReview: string;
+		evidence: string[];
+		dependencies: string[];
+		transformations: string[];
+		limitations: string[];
+		unresolved: string[];
+	} = {
 		decision: "compatible",
 		sourceSha256: sha,
 		artifactSha256: sha,
@@ -175,14 +187,14 @@ function fixture(t, existing = false) {
 		get: (name) => parseJSON(fs.readFileSync(path.join(remote, name))),
 	};
 }
-function without(args, ...names) {
+function without(args: string[], ...names: string[]): string[] {
 	return args.filter(
 		(value, i) =>
 			!names.includes(value) &&
 			!(i > 0 && names.includes(args[i - 1]) && !value.startsWith("--")),
 	);
 }
-const mutations = (f) =>
+const mutations = (f: ReturnType<typeof fixture>) =>
 	f
 		.calls()
 		.filter((c) =>
@@ -194,6 +206,7 @@ const mutations = (f) =>
 				"update-deployment",
 			].includes(c.cmd),
 		);
+
 test("clasp commands use one explicit ignore file", (t) => {
 	const f = fixture(t);
 	const result = f.run();
@@ -369,7 +382,9 @@ for (const [name, modify, env] of [
 			return f.args;
 		},
 	],
-]) {
+] as Array<
+	[string, (f: ReturnType<typeof fixture>) => string[], Record<string, string>?]
+>) {
 	test(`blocks ${name} before remote mutation`, (t) => {
 		const f = fixture(t);
 		const result = f.run(modify(f), env);
@@ -403,7 +418,9 @@ for (const [name, modify, env] of [
 	["missing coordination", (f) => without(f.args, "--exclusive-coordination")],
 	["remote change", (f) => f.args, { MOCK_REMOTE_CHANGE: "yes" }],
 	["skipped empty remote file", (f) => f.args, { MOCK_EMPTY_FILE: "yes" }],
-]) {
+] as Array<
+	[string, (f: ReturnType<typeof fixture>) => string[], Record<string, string>?]
+>) {
 	test(`existing project blocks ${name} before push`, (t) => {
 		const f = fixture(t, true);
 		const result = f.run(modify(f), env);
