@@ -20,7 +20,7 @@ def wait_for_file(path: Path) -> None:
 
 
 def test_sweep_returns_before_review_finishes(tmp_path: Path) -> None:
-    """Ensure the detached worker survives its parent and stores its result."""
+    """Ensure the detached worker completes independently without saving status."""
     bash = shutil.which("bash")
     assert bash is not None
 
@@ -34,6 +34,7 @@ def test_sweep_returns_before_review_finishes(tmp_path: Path) -> None:
         'cat > "${FAKE_PROMPT:?}"\n'
         'touch "${FAKE_LAUNCHED:?}"\n'
         'while [[ ! -f "${FAKE_RELEASE:?}" ]]; do sleep 0.1; done\n'
+        'touch "${FAKE_FINISHED:?}"\n'
         'echo "RESULT: success"\n',
         encoding="utf-8",
     )
@@ -42,6 +43,7 @@ def test_sweep_returns_before_review_finishes(tmp_path: Path) -> None:
     prompt = tmp_path / "prompt.txt"
     launched = tmp_path / "launched"
     release = tmp_path / "release"
+    finished = tmp_path / "finished"
     env = {
         **os.environ,
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
@@ -49,6 +51,7 @@ def test_sweep_returns_before_review_finishes(tmp_path: Path) -> None:
         "FAKE_PROMPT": str(prompt),
         "FAKE_LAUNCHED": str(launched),
         "FAKE_RELEASE": str(release),
+        "FAKE_FINISHED": str(finished),
     }
     try:
         result = subprocess.run(  # noqa: S603 - fixed script path under test
@@ -60,16 +63,13 @@ def test_sweep_returns_before_review_finishes(tmp_path: Path) -> None:
             check=False,
         )
         assert result.returncode == 0, result.stderr
+        assert "started in background" in result.stdout
         wait_for_file(launched)
-        run_dirs = list((tmp_path / "state" / "oracle-pr-sweep").glob("run.*"))
-        assert len(run_dirs) == 1
-        run_dir = run_dirs[0]
-        assert (run_dir / "started").is_file()
-        assert not (run_dir / "exit-code").exists()
+        assert not finished.exists()
+        assert not (tmp_path / "state").exists()
         assert "at most 3 open" in prompt.read_text(encoding="utf-8")
     finally:
         release.touch()
 
-    wait_for_file(run_dir / "exit-code")
-    assert (run_dir / "exit-code").read_text(encoding="utf-8").strip() == "0"
-    assert "RESULT: success" in (run_dir / "output.log").read_text(encoding="utf-8")
+    wait_for_file(finished)
+    assert not (tmp_path / "state").exists()
