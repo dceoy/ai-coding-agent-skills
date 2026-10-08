@@ -1,6 +1,6 @@
 ---
 name: gas-html-artifact
-description: Deploy an existing HTML artifact to Google Apps Script HTML Service with Google's clasp CLI, preserving compatible bytes or applying reviewed compatibility conversions. Requires an artifact; a product request alone is insufficient.
+description: Deploy an existing HTML artifact to Google Apps Script HTML Service through clasp or a capable authenticated Google Apps Script MCP server, preserving compatible bytes or applying reviewed compatibility conversions. Requires an artifact; a product request alone is insufficient.
 ---
 
 # GAS HTML Artifact
@@ -33,6 +33,10 @@ Paths with spaces are supported. Parent directories must already exist.
   required for a new project's manifest and for changes to an existing deployed policy.
   Production consent compares against the selected version even if HEAD already
   has the requested policy; manifest force compares separately against HEAD.
+
+**Choose one deployment backend:** use clasp locally or a Google Apps Script MCP server with complete project/version/deployment capabilities, including on Claude Code on the web. A Google Drive/Workspace connection alone does not guarantee these capabilities. **Never transfer clasp OAuth credentials to MCP or assume that connecting an MCP server authenticates clasp.** The MCP backend requires no `clasp login`: follow [MCP.md](MCP.md) for its preflight, complete-payload preparation, concurrency checks, deployment readback and verification. If the connected MCP lacks required methods or response fields, stop rather than falling back automatically.
+
+### clasp CLI prerequisites
 
 Install Node.js >=20 and **`@google/clasp@3.4.1`** explicitly. Authenticate beforehand
 with interactive `clasp login`, enable the [Apps Script API](https://script.google.com/home/usersettings),
@@ -94,7 +98,7 @@ For conversion, use `decision: convertible`, report the transformations and supp
 mutation. The report is an agent assessment bound to bytes, **not** a regex proof
 of arbitrary JavaScript compatibility. Do not mark secretReview passed before inspection.
 
-## Deploy
+## Deploy with clasp
 
 Run the bundled [scripts/deploy.sh](scripts/deploy.sh) after assessment and explicit
 target/policy selection. These examples assume the report and source exist and the
@@ -176,9 +180,8 @@ flowchart TD
 
 ## Verification
 
-Run `node --test tests/gas-html-artifact.test.mjs` from the repository root.
-The pytest suite also invokes these deterministic mocked clasp tests. They require
-no Google credentials and never deploy a real project.
+Run `node --test tests/gas-html-artifact.test.mjs tests/gas-html-artifact-mcp.test.mjs` from the repository root.
+The pytest suite also invokes these deterministic mocked clasp tests. The MCP tests validate offline payload construction and metadata readback; neither suite requires Google credentials or deploys a real project.
 
 An optional **authorized** smoke test uses one trusted self-contained artifact:
 make an initial restricted deployment, open its verified URL in a browser, check the
