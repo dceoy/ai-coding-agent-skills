@@ -198,9 +198,13 @@ test("clasp commands use one explicit ignore file", (t) => {
 	const f = fixture(t);
 	const result = f.run();
 	assert.equal(result.status, 0, result.stderr);
-	const calls = f.calls().filter((call) =>
-		["create-script", "clone-script", "push", "open-web-app"].includes(call.cmd),
-	);
+	const calls = f
+		.calls()
+		.filter((call) =>
+			["create-script", "clone-script", "push", "open-web-app"].includes(
+				call.cmd,
+			),
+		);
 	assert.ok(calls.length >= 4);
 	for (const call of calls) {
 		const index = call.args.indexOf("--ignore");

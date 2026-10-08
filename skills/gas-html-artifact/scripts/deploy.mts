@@ -35,7 +35,12 @@ type DeploymentState = {
 };
 
 const templates = fileURLToPath(new URL("../templates/", import.meta.url));
-const accessValues = ["MYSELF", "DOMAIN", "ANYONE", "ANYONE_ANONYMOUS"] as const;
+const accessValues = [
+	"MYSELF",
+	"DOMAIN",
+	"ANYONE",
+	"ANYONE_ANONYMOUS",
+] as const;
 const executeValues = ["USER_ACCESSING", "USER_DEPLOYING"] as const;
 let stage = "local validation";
 let work!: string;
