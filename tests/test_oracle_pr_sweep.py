@@ -1,0 +1,86 @@
+"""Verify the Oracle PR sweep delegates non-blocking execution to Oracle."""
+
+import os
+import shutil
+import subprocess  # noqa: S404 - invokes a fixed local mock command
+from pathlib import Path
+
+import pytest
+
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts/oracle-pr-sweep.sh"
+
+
+def create_mock_oracle(tmp_path: Path) -> Path:
+    """Create an Oracle mock that records dispatched arguments and the prompt."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    oracle = bin_dir / "oracle"
+    oracle.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [[ "$1" == "--version" ]]; then\n'
+        '  echo "oracle ${FAKE_VERSION:?}"; exit 0\n'
+        "fi\n"
+        'if [[ "$1" == "bridge" && "$2" == "doctor" ]]; then exit 0; fi\n'
+        'printf "%s\\n" "$@" > "${FAKE_ARGS:?}"\n'
+        'cat > "${FAKE_PROMPT:?}"\n'
+        'exit "${FAKE_EXIT_CODE:?}"\n',
+        encoding="utf-8",
+    )
+    oracle.chmod(0o755)
+    return bin_dir
+
+
+def run_mock_sweep(
+    tmp_path: Path, version: str, exit_code: int
+) -> subprocess.CompletedProcess[str]:
+    """Run the sweep using a mocked Oracle version and dispatch result."""
+    bash = shutil.which("bash")
+    assert bash is not None
+
+    bin_dir = create_mock_oracle(tmp_path)
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_VERSION": version,
+        "FAKE_ARGS": str(tmp_path / "args.txt"),
+        "FAKE_PROMPT": str(tmp_path / "prompt.txt"),
+        "FAKE_EXIT_CODE": str(exit_code),
+    }
+    return subprocess.run(  # noqa: S603 - fixed script path under test
+        [bash, str(SCRIPT), "--max-count=3"],
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize("version", ["0.20.1", "0.21.4", "1.0.0"])
+@pytest.mark.parametrize("exit_code", [0, 17])
+def test_sweep_uses_native_no_wait(
+    tmp_path: Path, version: str, exit_code: int
+) -> None:
+    """Dispatch with a supported version and propagate dispatch failures."""
+    result = run_mock_sweep(tmp_path, version, exit_code)
+    assert result.returncode == exit_code, result.stderr
+    assert (tmp_path / "args.txt").read_text(encoding="utf-8").splitlines() == [
+        "--no-wait",
+        "--engine",
+        "browser",
+        "--model",
+        "gpt-6-pro",
+        "-p",
+        "-",
+    ]
+    assert "at most 3 open" in (tmp_path / "prompt.txt").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("version", ["0.18.0", "0.19.9", "0.20.0"])
+def test_sweep_rejects_unsupported_oracle(tmp_path: Path, version: str) -> None:
+    """Reject unsupported versions before submitting a review."""
+    result = run_mock_sweep(tmp_path, version, 0)
+    assert result.returncode != 0
+    assert "Oracle 0.20.1 or newer is required" in result.stderr
+    assert not (tmp_path / "args.txt").exists()
+    assert not (tmp_path / "prompt.txt").exists()

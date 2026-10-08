@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
 # Review the authenticated user's open pull requests with Oracle + ChatGPT.
+# Oracle --no-wait detaches a Pro browser session and returns after dispatch.
+# Requires browser access to GPT-6 Pro; exit 0 does not confirm reviews were posted.
 #
 # Usage:
 #   oracle-pr-sweep.sh [--debug] [--max-count=<int>]
@@ -26,13 +28,11 @@ fi
 readonly COMMAND_NAME="${0##*/}"
 readonly DEFAULT_MAX_COUNT=20
 readonly MAX_ALLOWED_COUNT=50
-readonly MIN_ORACLE_MINOR=18
-readonly -a RETRY_DELAYS=(1 2 4 8 16 30 30 30 30 30)
+readonly MIN_ORACLE_MINOR=20
+readonly MIN_ORACLE_PATCH=1
 
 max_count="$DEFAULT_MAX_COUNT"
 max_count_set=0
-out_file=''
-err_file=''
 
 print_usage() {
   sed -ne '1,2d; /^#/!q; s/^#$/# /; s/^# //p' "${BASH_SOURCE[0]}"
@@ -105,7 +105,7 @@ require_command() {
 }
 
 check_prerequisites() {
-  local oracle_major oracle_minor oracle_version_output
+  local oracle_major oracle_minor oracle_patch oracle_version_output
 
   require_command oracle
 
@@ -115,33 +115,25 @@ check_prerequisites() {
   fi
   [[ "$oracle_version_output" =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]] \
     || abort "could not parse Oracle version from: $oracle_version_output"
-  oracle_major="${BASH_REMATCH[1]}"
-  oracle_minor="${BASH_REMATCH[2]}"
-  if (( oracle_major == 0 && oracle_minor < MIN_ORACLE_MINOR )); then
-    abort "Oracle 0.$MIN_ORACLE_MINOR.0 or newer is required; found $oracle_version_output"
+  oracle_major=$((10#${BASH_REMATCH[1]}))
+  oracle_minor=$((10#${BASH_REMATCH[2]}))
+  oracle_patch=$((10#${BASH_REMATCH[3]}))
+  if (( oracle_major == 0 && (
+    oracle_minor < MIN_ORACLE_MINOR ||
+    (oracle_minor == MIN_ORACLE_MINOR && oracle_patch < MIN_ORACLE_PATCH)
+  ) )); then
+    abort "Oracle 0.$MIN_ORACLE_MINOR.$MIN_ORACLE_PATCH or newer is required; found $oracle_version_output"
   fi
 
   oracle bridge doctor >&2
 }
 
-create_temp_files() {
-  out_file="$(mktemp)"
-  err_file="$(mktemp)"
-}
-
-cleanup() {
-  [[ -z "$out_file" ]] || rm -f -- "$out_file"
-  [[ -z "$err_file" ]] || rm -f -- "$err_file"
-}
-
 run_sweep() {
   oracle \
-    --wait \
-    --heartbeat 15 \
+    --no-wait \
     --engine browser \
-    --model gpt-5.6-sol \
-    --browser-thinking-time high \
-    -p - >"$out_file" 2>"$err_file" <<EOF_PROMPT
+    --model gpt-6-pro \
+    -p - <<EOF_PROMPT
 # Account PR sweep
 @GitHub Determine the authenticated GitHub user from the connected GitHub app. Review at most $max_count open, non-draft pull requests in non-archived repositories owned exactly by that user, ordered by most recently updated first. Exclude organization-owned and collaborator repositories.
 
@@ -149,69 +141,15 @@ For each selected PR, inspect the current diff, relevant repository context, CI/
 
 Before posting, re-read the PR head. Skip stale PRs whose head changed. For every current PR, post exactly one COMMENT review directly to that PR through GitHub. Include the reviewed head SHA in the top-level review body. Put actionable findings in inline review comments when they can be safely anchored to changed lines; keep unanchorable findings in the top-level body. If there are no actionable findings, say so in the top-level body. Do not modify GitHub state other than posting the requested COMMENT reviews.
 
-After attempting all reviews, return a concise Markdown summary of which PRs were reviewed, posted, stale, blocked, or failed. If GitHub write access is unavailable, do not claim publication succeeded; report the affected PRs as failed and include the permission limitation. End with exactly RESULT: success if no review publication failed, otherwise RESULT: failed. Stale or blocked PRs alone do not make the result failed.
+After attempting all reviews, return a concise Markdown summary of which PRs were reviewed, posted, stale, blocked, or failed. If GitHub write access is unavailable, do not claim publication succeeded; report the affected PRs as failed and include the permission limitation. Stale or blocked PRs alone do not make the result failed.
 EOF_PROMPT
-}
-
-run_with_retries() {
-  local exit_code last_result last_stderr last_stdout_error retry_index=0
-
-  while :; do
-    : >"$out_file"
-    : >"$err_file"
-
-    if run_sweep; then
-      cat -- "$out_file"
-      [[ ! -s "$err_file" ]] || cat -- "$err_file" >&2
-      last_result="$(awk 'NF { line = $0 } END { print line }' "$out_file")"
-      case "$last_result" in
-        'RESULT: success')
-          return 0
-          ;;
-        'RESULT: failed')
-          printf '%s: one or more review publications failed\n' "$COMMAND_NAME" >&2
-          return 1
-          ;;
-        *)
-          printf '%s: missing or invalid result sentinel\n' "$COMMAND_NAME" >&2
-          return 1
-          ;;
-      esac
-    else
-      exit_code=$?
-    fi
-
-    last_stderr="$(awk 'NF { line = $0 } END { print line }' "$err_file")"
-    last_stdout_error="$(awk '/^ERROR:/ { line = $0 } END { print line }' "$out_file")"
-
-    if [[ "$last_stderr" == '✖ read ETIMEDOUT' || "$last_stdout_error" == 'ERROR: read ETIMEDOUT' ]]; then
-      cat -- "$out_file"
-      cat -- "$err_file" >&2
-      return "$exit_code"
-    fi
-
-    if [[ "$last_stderr" == '✖ busy' || "$last_stdout_error" == 'ERROR: busy' ]]; then
-      if (( retry_index < ${#RETRY_DELAYS[@]} )); then
-        sleep "${RETRY_DELAYS[$retry_index]}"
-        ((retry_index += 1))
-        continue
-      fi
-    fi
-
-    cat -- "$out_file"
-    cat -- "$err_file" >&2
-    return "$exit_code"
-  done
 }
 
 main() {
   parse_args "$@"
   validate_max_count
   check_prerequisites
-  create_temp_files
-  trap cleanup EXIT
-
-  run_with_retries
+  run_sweep
 }
 
 main "$@"
