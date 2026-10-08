@@ -20,9 +20,9 @@ fi
 
 # JavaScript
 pnpm install --frozen-lockfile
-pnpm audit --fix
 pnpm run format
 pnpm run lint:fix
+pnpm audit --fix=override
 
 # Markdown
 npx -y prettier --write '**/*.md'
