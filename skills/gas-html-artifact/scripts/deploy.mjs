@@ -143,6 +143,7 @@ function clasp(command, args = [], cwd = path.join(work, "project")) {
 	);
 }
 function clone(scriptId, destination, version) {
+	requireThat(identifier(scriptId), "Invalid script binding.");
 	fs.mkdirSync(destination);
 	const retrieved = run(
 		[
@@ -721,6 +722,7 @@ try {
 		),
 		"Deployed policy mismatch.",
 	);
+	requireThat(identifier(state.deploymentId), "Invalid deployed ID.");
 	state.url = verifyURL(state.deploymentId, project);
 	requireThat(
 		!state.previousURL || state.previousURL === state.url,
@@ -730,7 +732,9 @@ try {
 	save();
 	console.log(JSON.stringify(state, null, 2));
 } catch (error) {
-	console.error(`Failed stage: ${stage}. ${error.message}`);
+	console.error(
+		`Failed stage: ${stage}. ${error instanceof Error ? error.message : "Unknown error"}`,
+	);
 	if (pushed)
 		console.error(
 			deploymentAttempted

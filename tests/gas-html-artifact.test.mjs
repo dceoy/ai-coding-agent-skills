@@ -70,6 +70,10 @@ switch(cmd) {
  default: process.exit(11);
 }
 `;
+function parseJSON(input) {
+	return JSON.parse(input.toString());
+}
+
 function fixture(t, existing = false) {
 	const base = fs.mkdtempSync(path.join(os.tmpdir(), "gas artifact "));
 	t.after(() => fs.rmSync(base, { recursive: true, force: true }));
@@ -167,10 +171,10 @@ function fixture(t, existing = false) {
 				env: { ...env, ...extra },
 			}),
 		calls: () =>
-			JSON.parse(fs.readFileSync(path.join(remote, "calls.json"))).filter(
+			parseJSON(fs.readFileSync(path.join(remote, "calls.json"))).filter(
 				(c) => !c.args.includes("--help"),
 			),
-		get: (name) => JSON.parse(fs.readFileSync(path.join(remote, name))),
+		get: (name) => parseJSON(fs.readFileSync(path.join(remote, name))),
 	};
 }
 function without(args, ...names) {
@@ -206,7 +210,7 @@ test("initial deployment preserves source bytes and verifies metadata", (t) => {
 		"Index.html",
 		"appsscript.json",
 	]);
-	const state = JSON.parse(
+	const state = parseJSON(
 		fs.readFileSync(path.join(f.work, "deployment.json")),
 	);
 	assert.equal(state.url, "https://script.google.com/macros/s/DEPLOY_NEW/exec");
@@ -424,7 +428,7 @@ test("partial creation records returned ID before subsequent retrieval fails", (
 	const result = f.run(f.args, { MOCK_CREATE_PULL_FAIL: "yes" });
 	assert.equal(result.status, 8);
 	assert.equal(
-		JSON.parse(fs.readFileSync(path.join(f.work, "deployment.json"))).scriptId,
+		parseJSON(fs.readFileSync(path.join(f.work, "deployment.json"))).scriptId,
 		"SCRIPT_NEW",
 	);
 	assert.equal(
@@ -461,7 +465,7 @@ for (const [name, url] of [
 			const f = fixture(t, existing);
 			const result = f.run(f.args, { MOCK_URL: url });
 			assert.equal(result.status, 0, result.stderr);
-			const state = JSON.parse(
+			const state = parseJSON(
 				fs.readFileSync(path.join(f.work, "deployment.json")),
 			);
 			assert.equal(state.stage, "verified");
@@ -519,7 +523,7 @@ for (const [name, url] of [
 		assert.match(result.stderr, /Metadata did not confirm a production/);
 		assert.match(result.stderr, /deployment may have advanced/);
 		assert.equal(
-			JSON.parse(fs.readFileSync(path.join(f.work, "deployment.json")))
+			parseJSON(fs.readFileSync(path.join(f.work, "deployment.json")))
 				.deploymentId,
 			"DEPLOY_NEW",
 		);
@@ -562,7 +566,7 @@ test("update uses selected version policy rather than remote HEAD policy", (t) =
 	const result = f.run([...f.args, "--allow-manifest-update"]);
 	assert.equal(result.status, 0, result.stderr);
 	assert.deepEqual(
-		JSON.parse(f.get("files.json")["appsscript.json"]).webapp,
+		parseJSON(f.get("files.json")["appsscript.json"]).webapp,
 		manifest.webapp,
 	);
 	assert.equal(
