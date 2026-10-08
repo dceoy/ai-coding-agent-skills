@@ -42,6 +42,15 @@ jobs:
     permissions:
       contents: read
     uses: dceoy/gha-for-devops/.github/workflows/python-package-test.yml@main  # zizmor: ignore[unpinned-uses]
+  javascript-package-lint-and-test:
+    permissions:
+      contents: read
+    uses: dceoy/gha-for-devops/.github/workflows/typescript-package-script.yml@main  # zizmor: ignore[unpinned-uses]
+    with:
+      package-scripts: format:check,lint,test
+      package-path: .
+      node-version: latest
+      audit: true
   dependabot-auto-merge:
     if: >
       github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
@@ -50,6 +59,7 @@ jobs:
       - markdown-lint
       - python-lint
       - python-test
+      - javascript-package-lint-and-test
     uses: dceoy/gha-for-devops/.github/workflows/dependabot-auto-merge.yml@main  # zizmor: ignore[unpinned-uses]
     permissions:
       contents: write

@@ -1,19 +1,16 @@
 {
-  "default": "deny",
-  "allow": [
-    "navigate",
-    "snapshot",
-    "click",
-    "scroll",
-    "wait",
-    "getattribute",
-    "waitforloadstate",
-    "url",
-    "confirm",
-    "close"
-  ],
-  "confirm": [
-    "navigate",
-    "click"
-  ]
+	"default": "deny",
+	"allow": [
+		"navigate",
+		"snapshot",
+		"click",
+		"scroll",
+		"wait",
+		"getattribute",
+		"waitforloadstate",
+		"url",
+		"confirm",
+		"close"
+	],
+	"confirm": ["navigate", "click"]
 }
