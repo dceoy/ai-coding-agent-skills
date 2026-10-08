@@ -207,6 +207,20 @@ const mutations = (f: ReturnType<typeof fixture>) =>
 			].includes(c.cmd),
 		);
 
+test("clasp commands use one explicit ignore file", (t) => {
+	const f = fixture(t);
+	const result = f.run();
+	assert.equal(result.status, 0, result.stderr);
+	const calls = f.calls().filter((call) =>
+		["create-script", "clone-script", "push", "open-web-app"].includes(call.cmd),
+	);
+	assert.ok(calls.length >= 4);
+	for (const call of calls) {
+		const index = call.args.indexOf("--ignore");
+		assert.notEqual(index, -1);
+		assert.equal(call.args[index + 1], path.join(f.work, "empty.claspignore"));
+	}
+});
 test("initial deployment preserves source bytes and verifies metadata", (t) => {
 	const f = fixture(t);
 	const result = f.run();

@@ -104,6 +104,14 @@ function claspEnvironment() {
 	}
 	return env;
 }
+function projectOptions(project) {
+	return [
+		"--project",
+		project,
+		"--ignore",
+		path.join(work, "empty.claspignore"),
+	];
+}
 function run(args, cwd = work, asJSON = true) {
 	const result = spawnSync("clasp", args, {
 		cwd,
@@ -131,10 +139,7 @@ function clasp(command, args = [], cwd = path.join(work, "project")) {
 	return run(
 		[
 			"--json",
-			"--project",
-			path.join(cwd, ".clasp.json"),
-			"--ignore",
-			path.join(work, "empty.claspignore"),
+			...projectOptions(path.join(cwd, ".clasp.json")),
 			command,
 			...args,
 		],
@@ -147,10 +152,7 @@ function clone(scriptId, destination, version) {
 	const retrieved = run(
 		[
 			"--json",
-			"--project",
-			destination,
-			"--ignore",
-			path.join(work, "empty.claspignore"),
+			...projectOptions(destination),
 			"clone-script",
 			scriptId,
 			...(version === undefined ? [] : [String(version)]),
@@ -194,11 +196,17 @@ function clone(scriptId, destination, version) {
 function save() {
 	writeJSON(path.join(work, "deployment.json"), state);
 }
+function isPolicy(value) {
+	if (!value || typeof value !== "object") return false;
+	const candidate = value;
+	return (
+		accessValues.some((access) => access === candidate.access) &&
+		executeValues.some((executeAs) => executeAs === candidate.executeAs)
+	);
+}
 function policy(value) {
 	requireThat(
-		value &&
-			accessValues.includes(value.access) &&
-			executeValues.includes(value.executeAs),
+		isPolicy(value),
 		"Cannot establish selected deployment policy. Supply an explicit access/execute-as pair or retrieve its versioned manifest.",
 	);
 	return { access: value.access, executeAs: value.executeAs };
@@ -208,10 +216,7 @@ function verifyURL(id, cwd) {
 	const output = run(
 		[
 			"--json",
-			"--project",
-			path.join(cwd, ".clasp.json"),
-			"--ignore",
-			path.join(work, "empty.claspignore"),
+			...projectOptions(path.join(cwd, ".clasp.json")),
 			"open-web-app",
 			id,
 		],
@@ -460,11 +465,9 @@ try {
 			const deployedPolicy = json(
 				path.join(versioned, "appsscript.json"),
 			).webapp;
-			const policyKnown =
-				deployedPolicy &&
-				accessValues.includes(deployedPolicy.access) &&
-				executeValues.includes(deployedPolicy.executeAs);
-			const previousPolicy = policyKnown ? policy(deployedPolicy) : undefined;
+			const previousPolicy = isPolicy(deployedPolicy)
+				? policy(deployedPolicy)
+				: undefined;
 			requireThat(
 				previousPolicy || (requestedPolicy && v["allow-manifest-update"]),
 				"Cannot establish deployed policy; supply explicit policy and --allow-manifest-update before changing production.",
@@ -484,7 +487,8 @@ try {
 		);
 		// Only a byte-identical minimal wrapper establishes doGet ownership.
 		const wrapper = fs.readFileSync(path.join(templates, "Code.gs"));
-		const codeNames = files(project).filter((name) => /\.(gs|js)$/.test(name));
+		const projectFiles = files(project);
+		const codeNames = projectFiles.filter((name) => /\.(gs|js)$/.test(name));
 		const own = codeNames.filter(
 			(name) =>
 				[
@@ -503,7 +507,7 @@ try {
 			),
 			"Conflicting doGet ownership; reconcile manually before deployment.",
 		);
-		const indexNames = files(project).filter(
+		const indexNames = projectFiles.filter(
 			(name) => path.basename(name).toLowerCase() === "index.html",
 		);
 		requireThat(
@@ -566,7 +570,8 @@ try {
 	}
 	state.policy = chosenPolicy;
 	state.files = files(project).filter((name) => name !== ".clasp.json");
-	state.payloadSha256 = payload(project);
+	const expectedPayload = payload(project);
+	state.payloadSha256 = expectedPayload;
 	console.log(`Push payload: ${state.files.join(", ")}`);
 	console.log(
 		`Web App policy: ${JSON.stringify(chosenPolicy)}; manifest update: ${manifestChanged}`,
@@ -584,10 +589,7 @@ try {
 			const child = spawn(
 				"clasp",
 				[
-					"--project",
-					bootstrap,
-					"--ignore",
-					path.join(work, "empty.claspignore"),
+					...projectOptions(bootstrap),
 					"create-script",
 					"--type",
 					"standalone",
@@ -647,7 +649,6 @@ try {
 	state.stage = "push attempted";
 	save();
 	pushAttempted = true;
-	const expectedPayload = payload(project);
 	// Force only the caller-authorized policy change, with all unrelated fields preserved.
 	clasp("push", manifestChanged ? ["--force"] : []);
 	pushed = true;
