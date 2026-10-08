@@ -19,7 +19,7 @@ def create_mock_oracle(tmp_path: Path) -> Path:
         "#!/usr/bin/env bash\n"
         'if [[ "$1" == "--version" ]]; then\n'
         '  echo "oracle ${FAKE_VERSION:?}"; exit 0\n'
-        'fi\n'
+        "fi\n"
         'if [[ "$1" == "bridge" && "$2" == "doctor" ]]; then exit 0; fi\n'
         'printf "%s\\n" "$@" > "${FAKE_ARGS:?}"\n'
         'cat > "${FAKE_PROMPT:?}"\n'
