@@ -68,10 +68,16 @@ def test_sweep_invokes_foreground_gpt_6(
         "--engine",
         "browser",
         "--model",
-        "gpt-6",
-        "-p",
+        "gpt-6-sol",
+        "--browser-thinking-time",
+        "high",
+        "--prompt",
         "-",
     ]
+    assert (
+        "Executing: oracle --engine browser --model gpt-6-sol "
+        "--browser-thinking-time high --prompt -"
+    ) in result.stderr
     prompt = (tmp_path / "prompt.txt").read_text(encoding="utf-8")
     assert "at most 3 open" in prompt
     assert "top-level body of every published COMMENT review" in prompt

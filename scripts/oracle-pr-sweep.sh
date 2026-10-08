@@ -129,10 +129,21 @@ check_prerequisites() {
 }
 
 run_sweep() {
-  oracle \
-    --engine browser \
-    --model gpt-6 \
-    -p - <<EOF_PROMPT
+  local -a oracle_cmd=(
+    oracle
+    --engine=browser
+    --model=gpt-6
+    --browser-thinking-time=high
+    --prompt -
+  )
+
+  {
+    printf 'Executing:'
+    printf ' %q' "${oracle_cmd[@]}"
+    printf '\n'
+  } >&2
+
+  "${oracle_cmd[@]}" <<EOF_PROMPT
 # Account PR sweep
 @GitHub Determine the authenticated GitHub user from the connected GitHub app. Review at most $max_count open, non-draft pull requests in non-archived repositories owned exactly by that user, ordered by most recently updated first. Exclude organization-owned and collaborator repositories.
 
