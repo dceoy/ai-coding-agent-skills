@@ -37,7 +37,6 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 - `parameterized-tests` - Prefer native parameterized or table-driven tests for repeated unit-test cases that share the same test logic
 - `simplify-codebase` - Reduce maintenance surface under KISS/DRY/YAGNI, explicitly or proactively when worthwhile
-- `standalone-pr-loop` - Self-contained issue-to-PR and iterative PR review/fix loop using adaptive native subagents
 
 ### AI Tools
 
@@ -60,6 +59,10 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 - `claude-agent-converter` - Convert Claude Code agents to portable skills
 - `claude-command-converter` - Convert Claude Code commands to portable skills
+
+## Related projects
+
+For issue-to-PR implementation, pull request review, and feedback resolution, see [dceoy/pr-loop](https://github.com/dceoy/pr-loop). It is maintained separately and provides the `issue-to-pr`, `pr-review`, `pr-feedback-triage`, and composite `pr-loop` agent skills.
 
 ## Codex Custom Subagents
 
