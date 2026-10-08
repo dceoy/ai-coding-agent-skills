@@ -75,7 +75,9 @@ function parseJSON(input: string | Buffer): any {
 }
 
 function fixture(t: TestContext, existing = false) {
-	const base = fs.mkdtempSync(path.join(os.tmpdir(), "gas artifact "));
+	const base = fs.realpathSync(
+		fs.mkdtempSync(path.join(os.tmpdir(), "gas artifact ")),
+	);
 	t.after(() => fs.rmSync(base, { recursive: true, force: true }));
 	const bin = path.join(base, "bin");
 	fs.mkdirSync(bin);
