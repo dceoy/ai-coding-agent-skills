@@ -28,7 +28,8 @@ fi
 readonly COMMAND_NAME="${0##*/}"
 readonly DEFAULT_MAX_COUNT=20
 readonly MAX_ALLOWED_COUNT=50
-readonly MIN_ORACLE_MINOR=18
+readonly MIN_ORACLE_MINOR=20
+readonly MIN_ORACLE_PATCH=1
 
 max_count="$DEFAULT_MAX_COUNT"
 max_count_set=0
@@ -104,7 +105,7 @@ require_command() {
 }
 
 check_prerequisites() {
-  local oracle_major oracle_minor oracle_version_output
+  local oracle_major oracle_minor oracle_patch oracle_version_output
 
   require_command oracle
 
@@ -114,10 +115,14 @@ check_prerequisites() {
   fi
   [[ "$oracle_version_output" =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]] \
     || abort "could not parse Oracle version from: $oracle_version_output"
-  oracle_major="${BASH_REMATCH[1]}"
-  oracle_minor="${BASH_REMATCH[2]}"
-  if (( oracle_major == 0 && oracle_minor < MIN_ORACLE_MINOR )); then
-    abort "Oracle 0.$MIN_ORACLE_MINOR.0 or newer is required; found $oracle_version_output"
+  oracle_major=$((10#${BASH_REMATCH[1]}))
+  oracle_minor=$((10#${BASH_REMATCH[2]}))
+  oracle_patch=$((10#${BASH_REMATCH[3]}))
+  if (( oracle_major == 0 && (
+    oracle_minor < MIN_ORACLE_MINOR ||
+    (oracle_minor == MIN_ORACLE_MINOR && oracle_patch < MIN_ORACLE_PATCH)
+  ) )); then
+    abort "Oracle 0.$MIN_ORACLE_MINOR.$MIN_ORACLE_PATCH or newer is required; found $oracle_version_output"
   fi
 
   oracle bridge doctor >&2
