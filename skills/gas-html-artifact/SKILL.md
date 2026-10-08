@@ -102,19 +102,19 @@ of arbitrary JavaScript compatibility. Do not mark secretReview passed before in
 
 ## Deploy
 
-Run the bundled [scripts/deploy.sh](scripts/deploy.sh) after assessment and explicit
+Run the bundled [scripts/deploy.mjs](scripts/deploy.mjs) with Node.js after assessment and explicit
 target/policy selection. These examples assume the report and source exist and the
 caller authorized the chosen policy:
 
 ```bash
 # Initial standalone deployment, restricted to the deploying user.
-./scripts/deploy.sh --source '/artifacts/my page.html' \
+node ./scripts/deploy.mjs --source '/artifacts/my page.html' \
   --report '/artifacts/assessment.json' --workdir '/deployments/first run' \
   --new-project 'My HTML artifact' --initial \
   --access MYSELF --execute-as USER_DEPLOYING --allow-manifest-update
 
 # Update the recorded deployment, keeping its production URL and policy.
-./scripts/deploy.sh --source '/artifacts/my page.html' \
+node ./scripts/deploy.mjs --source '/artifacts/my page.html' \
   --report '/artifacts/assessment.json' --workdir '/deployments/update run' \
   --script-id SCRIPT_ID --deployment-id DEPLOYMENT_ID --exclusive-coordination
 ```
