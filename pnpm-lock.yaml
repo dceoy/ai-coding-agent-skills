@@ -14,9 +14,15 @@ importers:
       '@google/clasp':
         specifier: 3.4.1
         version: 3.4.1(@types/node@20.19.43)(supports-color@7.2.0)
+      '@types/node':
+        specifier: 20.19.43
+        version: 20.19.43
       oxlint:
         specifier: ^1.86.0
         version: 1.86.0
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
 
 packages:
 
@@ -1293,6 +1299,11 @@ packages:
   type-is@2.1.0:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
     engines: {node: '>= 18'}
+
+  typescript@5.8.3:
+    resolution: {integrity: sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
@@ -2610,6 +2621,8 @@ snapshots:
       content-type: 2.1.0
       media-typer: 1.1.1
       mime-types: 3.0.2
+
+  typescript@5.8.3: {}
 
   undici-types@6.21.0: {}
 

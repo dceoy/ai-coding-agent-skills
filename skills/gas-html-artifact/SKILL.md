@@ -185,6 +185,12 @@ flowchart TD
 
 ## Verification
 
+The Node.js implementation and its native tests are maintained as TypeScript `.mts`
+source files. The committed `.mjs` files are compiled output so the deployment
+wrapper still works with Node.js >=20 without installing build dependencies.
+After editing TypeScript, run `pnpm run typecheck && pnpm run test` to regenerate
+both `.mjs` files and run the mocked tests. Commit the generated output.
+
 Run `node --test tests/gas-html-artifact.test.mjs` from the repository root.
 The pytest suite also invokes these deterministic mocked clasp tests. They require
 no Google credentials and never deploy a real project.

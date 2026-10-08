@@ -13,8 +13,10 @@
 		"lint:fix": "oxlint --ignore-pattern 'node_modules/**' --fix .",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
-		"test": "node --test",
-		"all": "pnpm run format && pnpm run lint:fix && pnpm run test"
+		"test": "pnpm run build && node --test",
+		"all": "pnpm run format && pnpm run lint:fix && pnpm run typecheck && pnpm run test",
+		"build": "tsc --project tsconfig.json",
+		"typecheck": "tsc --noEmit"
 	},
 	"repository": {
 		"type": "git",
@@ -24,6 +26,8 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.15",
 		"@google/clasp": "3.4.1",
-		"oxlint": "^1.86.0"
+		"@types/node": "20.19.43",
+		"oxlint": "^1.86.0",
+		"typescript": "5.8.3"
 	}
 }
