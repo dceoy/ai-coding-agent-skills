@@ -28,7 +28,9 @@ def create_mock_oracle(tmp_path: Path) -> Path:
     return bin_dir
 
 
-def run_mock_sweep(tmp_path: Path, version: str, exit_code: int) -> subprocess.CompletedProcess[str]:
+def run_mock_sweep(
+    tmp_path: Path, version: str, exit_code: int
+) -> subprocess.CompletedProcess[str]:
     """Run the sweep using a mocked Oracle version and dispatch result."""
     bash = shutil.which("bash")
     assert bash is not None
