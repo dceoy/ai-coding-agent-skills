@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { parseArgs } from "node:util";
-
 const templates = fileURLToPath(new URL("../templates/", import.meta.url));
 const accessValues = ["MYSELF", "DOMAIN", "ANYONE", "ANYONE_ANONYMOUS"];
 const executeValues = ["USER_ACCESSING", "USER_DEPLOYING"];
@@ -237,7 +236,6 @@ function verifyURL(id, cwd) {
 	);
 	return url.toString();
 }
-
 try {
 	requireThat(
 		Number(process.versions.node.split(".")[0]) >= 20,

@@ -6,7 +6,6 @@ import * as os from "node:os";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
-
 const root = fileURLToPath(new URL("../", import.meta.url));
 const deploy = path.join(root, "skills/gas-html-artifact/scripts/deploy.mjs");
 const template = fs.readFileSync(
@@ -73,7 +72,6 @@ switch(cmd) {
 function parseJSON(input) {
 	return JSON.parse(input.toString());
 }
-
 function fixture(t, existing = false) {
 	const base = fs.mkdtempSync(path.join(os.tmpdir(), "gas artifact "));
 	t.after(() => fs.rmSync(base, { recursive: true, force: true }));
@@ -196,7 +194,6 @@ const mutations = (f) =>
 				"update-deployment",
 			].includes(c.cmd),
 		);
-
 test("initial deployment preserves source bytes and verifies metadata", (t) => {
 	const f = fixture(t);
 	const result = f.run();
