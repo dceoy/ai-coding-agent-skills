@@ -56,7 +56,7 @@ switch(cmd) {
  case 'list-deployments': config(); out(list); break;
  case 'open-web-app': {
   config(); const id=a[a.indexOf(cmd)+1];
-  const url='https://script.google.com/macros/s/'+id+(process.env.MOCK_BAD_URL?'/dev':'/exec');
+  const url=(process.env.MOCK_URL || 'https://script.google.com/macros/s/{id}/exec').replace('{id}',id);
   out({url}); console.log('Open '+url+' in your browser to continue.'); break;
  }
  case 'push': {
@@ -441,17 +441,66 @@ test("skipped push fails readback before version/deployment", (t) => {
 		false,
 	);
 });
-test("non-production URL fails verification and retains deployed ID", (t) => {
-	const f = fixture(t);
-	const result = f.run(f.args, { MOCK_BAD_URL: "yes" });
-	assert.notEqual(result.status, 0);
-	assert.match(result.stderr, /deployment may have advanced/);
-	assert.equal(
-		JSON.parse(fs.readFileSync(path.join(f.work, "deployment.json")))
-			.deploymentId,
-		"DEPLOY_NEW",
-	);
-});
+for (const [name, url] of [
+	["consumer", "https://script.google.com/macros/s/{id}/exec"],
+	[
+		"Workspace domain",
+		"https://script.google.com/a/macros/example.com/s/{id}/exec",
+	],
+]) {
+	for (const existing of [false, true]) {
+		test(`${name} URL is verified for ${existing ? "update" : "initial deployment"}`, (t) => {
+			const f = fixture(t, existing);
+			const result = f.run(f.args, { MOCK_URL: url });
+			assert.equal(result.status, 0, result.stderr);
+			const state = JSON.parse(
+				fs.readFileSync(path.join(f.work, "deployment.json")),
+			);
+			assert.equal(state.stage, "verified");
+			assert.equal(state.url, url.replace("{id}", state.deploymentId));
+			if (existing) assert.equal(state.previousURL, state.url);
+		});
+	}
+}
+for (const [name, url] of [
+	["consumer dev", "https://script.google.com/macros/s/{id}/dev"],
+	[
+		"Workspace dev",
+		"https://script.google.com/a/macros/example.com/s/{id}/dev",
+	],
+	[
+		"wrong deployment",
+		"https://script.google.com/a/macros/example.com/s/OTHER/exec",
+	],
+	["empty domain", "https://script.google.com/a/macros//s/{id}/exec"],
+	[
+		"extra domain segment",
+		"https://script.google.com/a/macros/example.com/extra/s/{id}/exec",
+	],
+	[
+		"extra path segment",
+		"https://script.google.com/a/macros/example.com/s/{id}/exec/extra",
+	],
+	["wrong host", "https://example.com/a/macros/example.com/s/{id}/exec"],
+	["HTTP", "http://script.google.com/a/macros/example.com/s/{id}/exec"],
+	[
+		"credentials",
+		"https://user:password@script.google.com/a/macros/example.com/s/{id}/exec",
+	],
+]) {
+	test(`${name} URL fails verification and retains deployed ID`, (t) => {
+		const f = fixture(t);
+		const result = f.run(f.args, { MOCK_URL: url });
+		assert.notEqual(result.status, 0);
+		assert.match(result.stderr, /Metadata did not confirm a production/);
+		assert.match(result.stderr, /deployment may have advanced/);
+		assert.equal(
+			JSON.parse(fs.readFileSync(path.join(f.work, "deployment.json")))
+				.deploymentId,
+			"DEPLOY_NEW",
+		);
+	});
+}
 for (const mode of ["initial", "additional"]) {
 	test(`existing project ${mode} preserves unrelated Code and manifest fields`, (t) => {
 		const f = fixture(t, true);

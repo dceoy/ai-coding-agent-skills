@@ -41,6 +41,12 @@ initiates login, adds scopes, or relaxes account/domain restrictions. It pins th
 reviewed command/JSON contract and checks installed command capabilities before mutation.
 Older command aliases are not used. See [official clasp](https://github.com/google/clasp).
 
+After enabling the API, allow a few minutes for enablement to propagate before
+starting a deployment. A run during this window can fail even after project,
+push, or version creation succeeds. The wrapper does not automatically retry
+creation calls: inspect recorded IDs and remote deployment metadata before
+resuming with explicit existing IDs in a fresh workdir.
+
 ## Assess compatibility as data
 
 Read the artifact and its supplied dependencies without executing JavaScript,
@@ -150,6 +156,8 @@ Readback checks project binding, deployment ID, version, deployed manifest polic
 and the Web App entry point. `open-web-app ID --json` retrieves the official
 entry point with piped stdout, so it does not launch a browser. Return only the
 verified `/exec` URL and recorded identifiers; never guess a URL or substitute `/dev`.
+Both consumer `/macros/s/<deploymentId>/exec` and Workspace domain
+`/a/macros/<domain>/s/<deploymentId>/exec` entry points are supported.
 Runtime smoke testing is separately reported as **not performed**.
 
 ```mermaid

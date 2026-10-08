@@ -228,7 +228,8 @@ function verifyURL(id, cwd) {
 			!url.username &&
 			!url.password &&
 			url.hostname === "script.google.com" &&
-			url.pathname === `/macros/s/${id}/exec`,
+			(url.pathname === `/macros/s/${id}/exec` ||
+				new RegExp(`^/a/macros/[^/]+/s/${id}/exec$`).test(url.pathname)),
 		"Metadata did not confirm a production /exec Web App entry point.",
 	);
 	return url.toString();
