@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Review the authenticated user's open pull requests with Oracle + ChatGPT.
-# Oracle --no-wait detaches a Pro browser session and returns after dispatch.
-# Requires browser access to GPT-6 Pro; exit 0 does not confirm reviews were posted.
+# Oracle runs in the foreground until the browser session completes.
+# Requires browser access to GPT-6; exit 0 does not confirm reviews were posted.
 #
 # Usage:
 #   oracle-pr-sweep.sh [--debug] [--max-count=<int>]
@@ -130,9 +130,8 @@ check_prerequisites() {
 
 run_sweep() {
   oracle \
-    --no-wait \
     --engine browser \
-    --model gpt-6-pro \
+    --model gpt-6 \
     -p - <<EOF_PROMPT
 # Account PR sweep
 @GitHub Determine the authenticated GitHub user from the connected GitHub app. Review at most $max_count open, non-draft pull requests in non-archived repositories owned exactly by that user, ordered by most recently updated first. Exclude organization-owned and collaborator repositories.
