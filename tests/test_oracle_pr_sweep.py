@@ -65,18 +65,15 @@ def test_sweep_invokes_foreground_gpt_6(
     result = run_mock_sweep(tmp_path, version, exit_code)
     assert result.returncode == exit_code, result.stderr
     assert (tmp_path / "args.txt").read_text(encoding="utf-8").splitlines() == [
-        "--engine",
-        "browser",
-        "--model",
-        "gpt-6-sol",
-        "--browser-thinking-time",
-        "high",
+        "--engine=browser",
+        "--model=GPT-6",
+        "--browser-thinking-time=high",
         "--prompt",
         "-",
     ]
     assert (
-        "Executing: oracle --engine browser --model gpt-6-sol "
-        "--browser-thinking-time high --prompt -"
+        "Executing: oracle --engine=browser --model=GPT-6 "
+        "--browser-thinking-time=high --prompt -"
     ) in result.stderr
     prompt = (tmp_path / "prompt.txt").read_text(encoding="utf-8")
     assert "at most 3 open" in prompt

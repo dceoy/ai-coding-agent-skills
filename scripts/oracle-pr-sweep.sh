@@ -132,7 +132,7 @@ run_sweep() {
   local -a oracle_cmd=(
     oracle
     --engine=browser
-    --model=gpt-6
+    --model=GPT-6
     --browser-thinking-time=high
     --prompt -
   )

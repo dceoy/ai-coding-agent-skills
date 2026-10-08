@@ -73,7 +73,9 @@ function parseJSON(input) {
 	return JSON.parse(input.toString());
 }
 function fixture(t, existing = false) {
-	const base = fs.mkdtempSync(path.join(os.tmpdir(), "gas artifact "));
+	const base = fs.realpathSync(
+		fs.mkdtempSync(path.join(os.tmpdir(), "gas artifact ")),
+	);
 	t.after(() => fs.rmSync(base, { recursive: true, force: true }));
 	const bin = path.join(base, "bin");
 	fs.mkdirSync(bin);
