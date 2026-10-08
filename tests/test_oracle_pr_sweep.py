@@ -1,26 +1,18 @@
-"""Verify that the Oracle PR sweep detaches without waiting for the review."""
+"""Verify the Oracle PR sweep delegates non-blocking execution to Oracle."""
 
 import os
 import shutil
 import subprocess  # noqa: S404 - invokes a fixed local mock command
-import time
 from pathlib import Path
+
+import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/oracle-pr-sweep.sh"
 
 
-def wait_for_file(path: Path) -> None:
-    """Wait for a background worker to write a file."""
-    for _ in range(100):
-        if path.is_file():
-            return
-        time.sleep(0.1)
-    msg = f"Timed out waiting for {path}"
-    raise AssertionError(msg)
-
-
-def test_sweep_returns_before_review_finishes(tmp_path: Path) -> None:
-    """Ensure the detached worker completes independently without saving status."""
+@pytest.mark.parametrize("exit_code", [0, 17])
+def test_sweep_uses_native_no_wait(tmp_path: Path, exit_code: int) -> None:
+    """Pass --no-wait to a Pro browser model and propagate dispatch failures."""
     bash = shutil.which("bash")
     assert bash is not None
 
@@ -31,45 +23,38 @@ def test_sweep_returns_before_review_finishes(tmp_path: Path) -> None:
         "#!/usr/bin/env bash\n"
         'if [[ "$1" == "--version" ]]; then echo "oracle 0.20.0"; exit 0; fi\n'
         'if [[ "$1" == "bridge" && "$2" == "doctor" ]]; then exit 0; fi\n'
+        'printf "%s\\n" "$@" > "${FAKE_ARGS:?}"\n'
         'cat > "${FAKE_PROMPT:?}"\n'
-        'touch "${FAKE_LAUNCHED:?}"\n'
-        'while [[ ! -f "${FAKE_RELEASE:?}" ]]; do sleep 0.1; done\n'
-        'touch "${FAKE_FINISHED:?}"\n'
-        'echo "RESULT: success"\n',
+        'exit "${FAKE_EXIT_CODE:?}"\n',
         encoding="utf-8",
     )
     oracle.chmod(0o755)
 
-    prompt = tmp_path / "prompt.txt"
-    launched = tmp_path / "launched"
-    release = tmp_path / "release"
-    finished = tmp_path / "finished"
+    args_path = tmp_path / "args.txt"
+    prompt_path = tmp_path / "prompt.txt"
     env = {
         **os.environ,
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-        "XDG_STATE_HOME": str(tmp_path / "state"),
-        "FAKE_PROMPT": str(prompt),
-        "FAKE_LAUNCHED": str(launched),
-        "FAKE_RELEASE": str(release),
-        "FAKE_FINISHED": str(finished),
+        "FAKE_ARGS": str(args_path),
+        "FAKE_PROMPT": str(prompt_path),
+        "FAKE_EXIT_CODE": str(exit_code),
     }
-    try:
-        result = subprocess.run(  # noqa: S603 - fixed script path under test
-            [bash, str(SCRIPT), "--max-count=3"],
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=10,
-            check=False,
-        )
-        assert result.returncode == 0, result.stderr
-        assert "started in background" in result.stdout
-        wait_for_file(launched)
-        assert not finished.exists()
-        assert not (tmp_path / "state").exists()
-        assert "at most 3 open" in prompt.read_text(encoding="utf-8")
-    finally:
-        release.touch()
-
-    wait_for_file(finished)
-    assert not (tmp_path / "state").exists()
+    result = subprocess.run(  # noqa: S603 - fixed script path under test
+        [bash, str(SCRIPT), "--max-count=3"],
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == exit_code
+    assert args_path.read_text(encoding="utf-8").splitlines() == [
+        "--no-wait",
+        "--engine",
+        "browser",
+        "--model",
+        "gpt-6-pro",
+        "-p",
+        "-",
+    ]
+    assert "at most 3 open" in prompt_path.read_text(encoding="utf-8")
