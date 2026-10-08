@@ -34,13 +34,12 @@ type DeploymentState = {
 	failedStage?: string;
 };
 
-
 const templates = fileURLToPath(new URL("../templates/", import.meta.url));
 const accessValues = ["MYSELF", "DOMAIN", "ANYONE", "ANYONE_ANONYMOUS"];
 const executeValues = ["USER_ACCESSING", "USER_DEPLOYING"];
 let stage = "local validation";
-let work: string;
-let state: DeploymentState;
+let work!: string;
+let state!: DeploymentState;
 let pushed = false;
 let deploymentAttempted = false;
 let pushAttempted = false;
@@ -141,7 +140,7 @@ function run(args: string[], cwd = work, asJSON = true): any {
 		encoding: "utf8",
 		maxBuffer: 16 * 1024 * 1024,
 	});
-	if (result.error?.code === "ENOENT") {
+	if ((result.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
 		throw new Error(
 			"Missing clasp: install official @google/clasp@3.4.1 explicitly, authenticate and enable the Apps Script API.",
 		);
@@ -156,7 +155,11 @@ function run(args: string[], cwd = work, asJSON = true): any {
 	if (!asJSON) return result.stdout;
 	return parseJSON(result.stdout);
 }
-function clasp(command: string, args: string[] = [], cwd = path.join(work, "project")): any {
+function clasp(
+	command: string,
+	args: string[] = [],
+	cwd = path.join(work, "project"),
+): any {
 	return run(
 		[
 			"--json",
@@ -170,7 +173,12 @@ function clasp(command: string, args: string[] = [], cwd = path.join(work, "proj
 		cwd,
 	);
 }
-function clone(scriptId: string, destination: string, version?: number): Record<string, string> {
+function clone(
+	scriptId: string | undefined,
+	destination: string,
+	version?: number,
+): Record<string, string> {
+	requireThat(identifier(scriptId), "Invalid script binding.");
 	fs.mkdirSync(destination);
 	const retrieved = run(
 		[
@@ -441,7 +449,7 @@ try {
 		["create-deployment", ["--versionNumber"]],
 		["update-deployment", ["--versionNumber"]],
 		["create-script", ["--type", "--title"]],
-	]) {
+	] as Array<[string, string[]]>) {
 		const commandHelp = run([command, "--help"], parent, false);
 		requireThat(
 			flags.every((flag) => commandHelp.includes(flag)),
@@ -467,7 +475,7 @@ try {
 	save();
 	const project = path.join(work, "project");
 	let baseline;
-	let deployments = [];
+	let deployments: Array<{ deploymentId: string; versionNumber: number }> = [];
 	let selected;
 	let chosenPolicy = requestedPolicy;
 	if (!v["new-project"]) {
@@ -621,12 +629,12 @@ try {
 					"--type",
 					"standalone",
 					"--title",
-					v["new-project"],
+					v["new-project"]!,
 				],
 				{
 					cwd: bootstrap,
 					env: claspEnvironment(),
-					stdio: ["ignore", "pipe", "pipe"],
+					stdio: ["ignore", "pipe", "pipe"] as const,
 				},
 			);
 			let output = "";
@@ -749,6 +757,7 @@ try {
 		),
 		"Deployed policy mismatch.",
 	);
+	requireThat(identifier(state.deploymentId), "Invalid deployed ID.");
 	state.url = verifyURL(state.deploymentId, project);
 	requireThat(
 		!state.previousURL || state.previousURL === state.url,
@@ -758,7 +767,7 @@ try {
 	save();
 	console.log(JSON.stringify(state, null, 2));
 } catch (error) {
-	console.error(`Failed stage: ${stage}. ${error.message}`);
+	console.error(`Failed stage: ${stage}. ${error instanceof Error ? error.message : "Unknown error"}`);
 	if (pushed)
 		console.error(
 			deploymentAttempted

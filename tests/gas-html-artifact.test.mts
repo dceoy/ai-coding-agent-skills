@@ -70,6 +70,10 @@ switch(cmd) {
  default: process.exit(11);
 }
 `;
+function parseJSON(input: string | Buffer): any {
+	return JSON.parse(input.toString());
+}
+
 function fixture(t: TestContext, existing = false) {
 	const base = fs.mkdtempSync(path.join(os.tmpdir(), "gas artifact "));
 	t.after(() => fs.rmSync(base, { recursive: true, force: true }));
@@ -112,7 +116,17 @@ function fixture(t: TestContext, existing = false) {
 	const bytes = fs.readFileSync(source);
 	const sha = createHash("sha256").update(bytes).digest("hex");
 	const report = path.join(base, "report.json");
-	const assessment = {
+	const assessment: {
+		decision: string;
+		sourceSha256: string;
+		artifactSha256: string;
+		secretReview: string;
+		evidence: string[];
+		dependencies: string[];
+		transformations: string[];
+		limitations: string[];
+		unresolved: string[];
+	} = {
 		decision: "compatible",
 		sourceSha256: sha,
 		artifactSha256: sha,
@@ -167,10 +181,10 @@ function fixture(t: TestContext, existing = false) {
 				env: { ...env, ...extra },
 			}),
 		calls: () =>
-			JSON.parse(fs.readFileSync(path.join(remote, "calls.json"))).filter(
+			parseJSON(fs.readFileSync(path.join(remote, "calls.json"))).filter(
 				(c) => !c.args.includes("--help"),
 			),
-		get: (name) => JSON.parse(fs.readFileSync(path.join(remote, name))),
+		get: (name) => parseJSON(fs.readFileSync(path.join(remote, name))),
 	};
 }
 function without(args: string[], ...names: string[]): string[] {
@@ -206,7 +220,7 @@ test("initial deployment preserves source bytes and verifies metadata", (t) => {
 		"Index.html",
 		"appsscript.json",
 	]);
-	const state = JSON.parse(
+	const state = parseJSON(
 		fs.readFileSync(path.join(f.work, "deployment.json")),
 	);
 	assert.equal(state.url, "https://script.google.com/macros/s/DEPLOY_NEW/exec");
@@ -350,8 +364,8 @@ for (const [name, modify, env] of [
 			return f.args;
 		},
 	],
-]) {
-	test(`blocks ${name} before remote mutation`, (t) => {
+] as Array<[string, (f: ReturnType<typeof fixture>) => string[], Record<string, string>?]>) {
+	test(`blocks ${name} before remote mutation, (t) => {
 		const f = fixture(t);
 		const result = f.run(modify(f), env);
 		assert.notEqual(result.status, 0);
@@ -384,8 +398,8 @@ for (const [name, modify, env] of [
 	["missing coordination", (f) => without(f.args, "--exclusive-coordination")],
 	["remote change", (f) => f.args, { MOCK_REMOTE_CHANGE: "yes" }],
 	["skipped empty remote file", (f) => f.args, { MOCK_EMPTY_FILE: "yes" }],
-]) {
-	test(`existing project blocks ${name} before push`, (t) => {
+] as Array<[string, (f: ReturnType<typeof fixture>) => string[], Record<string, string>?]>) {
+	test(`existing project blocks ${name} before push, (t) => {
 		const f = fixture(t, true);
 		const result = f.run(modify(f), env);
 		assert.notEqual(result.status, 0);
@@ -424,7 +438,7 @@ test("partial creation records returned ID before subsequent retrieval fails", (
 	const result = f.run(f.args, { MOCK_CREATE_PULL_FAIL: "yes" });
 	assert.equal(result.status, 8);
 	assert.equal(
-		JSON.parse(fs.readFileSync(path.join(f.work, "deployment.json"))).scriptId,
+		parseJSON(fs.readFileSync(path.join(f.work, "deployment.json"))).scriptId,
 		"SCRIPT_NEW",
 	);
 	assert.equal(
@@ -461,7 +475,7 @@ for (const [name, url] of [
 			const f = fixture(t, existing);
 			const result = f.run(f.args, { MOCK_URL: url });
 			assert.equal(result.status, 0, result.stderr);
-			const state = JSON.parse(
+			const state = parseJSON(
 				fs.readFileSync(path.join(f.work, "deployment.json")),
 			);
 			assert.equal(state.stage, "verified");
@@ -519,7 +533,7 @@ for (const [name, url] of [
 		assert.match(result.stderr, /Metadata did not confirm a production/);
 		assert.match(result.stderr, /deployment may have advanced/);
 		assert.equal(
-			JSON.parse(fs.readFileSync(path.join(f.work, "deployment.json")))
+			parseJSON(fs.readFileSync(path.join(f.work, "deployment.json")))
 				.deploymentId,
 			"DEPLOY_NEW",
 		);
@@ -562,7 +576,7 @@ test("update uses selected version policy rather than remote HEAD policy", (t) =
 	const result = f.run([...f.args, "--allow-manifest-update"]);
 	assert.equal(result.status, 0, result.stderr);
 	assert.deepEqual(
-		JSON.parse(f.get("files.json")["appsscript.json"]).webapp,
+		parseJSON(f.get("files.json")["appsscript.json"]).webapp,
 		manifest.webapp,
 	);
 	assert.equal(

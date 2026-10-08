@@ -6,9 +6,7 @@
 		"strict": true,
 		"noImplicitAny": false,
 		"skipLibCheck": true,
-		"types": [
-			"node"
-		],
+		"types": ["node"],
 		"noEmitOnError": true,
 		"forceConsistentCasingInFileNames": true
 	},
