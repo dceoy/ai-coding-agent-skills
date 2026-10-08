@@ -9,8 +9,8 @@
 		"node": ">=20"
 	},
 	"scripts": {
-		"lint": "oxlint .",
-		"lint:fix": "oxlint --fix .",
+		"lint": "oxlint --ignore-pattern 'node_modules/**' .",
+		"lint:fix": "oxlint --ignore-pattern 'node_modules/**' --fix .",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
 		"test": "node --test",
