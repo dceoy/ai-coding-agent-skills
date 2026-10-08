@@ -17,7 +17,9 @@ def create_mock_oracle(tmp_path: Path) -> Path:
     oracle = bin_dir / "oracle"
     oracle.write_text(
         "#!/usr/bin/env bash\n"
-        'if [[ "$1" == "--version" ]]; then echo "oracle ${FAKE_VERSION:?}"; exit 0; fi\n'
+        'if [[ "$1" == "--version" ]]; then\n'
+        '  echo "oracle ${FAKE_VERSION:?}"; exit 0\n'
+        'fi\n'
         'if [[ "$1" == "bridge" && "$2" == "doctor" ]]; then exit 0; fi\n'
         'printf "%s\\n" "$@" > "${FAKE_ARGS:?}"\n'
         'cat > "${FAKE_PROMPT:?}"\n'
@@ -56,7 +58,9 @@ def run_mock_sweep(
 
 @pytest.mark.parametrize("version", ["0.20.1", "0.21.4", "1.0.0"])
 @pytest.mark.parametrize("exit_code", [0, 17])
-def test_sweep_uses_native_no_wait(tmp_path: Path, version: str, exit_code: int) -> None:
+def test_sweep_uses_native_no_wait(
+    tmp_path: Path, version: str, exit_code: int
+) -> None:
     """Dispatch with a supported version and propagate dispatch failures."""
     result = run_mock_sweep(tmp_path, version, exit_code)
     assert result.returncode == exit_code, result.stderr
