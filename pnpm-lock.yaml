@@ -254,8 +254,8 @@ packages:
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
 
-  '@modelcontextprotocol/sdk@1.32.1':
-    resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
+  '@modelcontextprotocol/sdk@1.31.0':
+    resolution: {integrity: sha512-UvTMgnNlnIBO/22ob2RcVGDlcvOslQs8T59+FTGdA0L27a39fdGF/EDETNtDVK4DZGpwomlsYpRdA8UXcVL/pw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -648,8 +648,8 @@ packages:
     resolution: {integrity: sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA==}
     engines: {node: '>=18.0.0'}
 
-  express-rate-limit@8.7.1:
-    resolution: {integrity: sha512-2FXbqkygil3mZiXzEtM0IjE/UBmBNot0J1GEVrJT4JbrvwOSoEtqtO+wHbiMQELWe1eNvHoYRg2dkjOid+6JkA==}
+  express-rate-limit@8.7.0:
+    resolution: {integrity: sha512-hOwV7WOxXfjRpAM1DSJWZDXx3GhplwD8IfwuwvogD8i1Qnkgosw/H45s4ZnFAUHDAhPjlY9hLBvJhKmGMyY26g==}
     engines: {node: '>= 16'}
     peerDependencies:
       express: '>= 4.11'
@@ -796,8 +796,8 @@ packages:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
 
-  hono@4.13.13:
-    resolution: {integrity: sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA==}
+  hono@4.13.12:
+    resolution: {integrity: sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@7.0.2:
@@ -843,8 +843,8 @@ packages:
   intl-messageformat@11.2.15:
     resolution: {integrity: sha512-W4VNytsXyWgW5lvVchmsb9xgA5rSKqoflu3/IQ9UCtB0z4R+Bx9MoEkwFT/+30RCl/KzUoH0QGGe9lppF5SuvQ==}
 
-  ip-address@10.7.3:
-    resolution: {integrity: sha512-A1kdq/tSb5QjvKvAMgIoEvDBIgL7qaqVP/jkvSwYYRZ9iEzvPpopxp2wQfu3SuZRHtpHNxMn8Fs0bS+gf5Xmwg==}
+  ip-address@10.7.2:
+    resolution: {integrity: sha512-7H/2gFSIitxc0hG3nOI1glS8QLo/EHBFFLk8vEUjXY/xu0AdL8jZ9U1IzO2PUm0d2D/ofQcAifb0g6OBkt8U7w==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -1421,7 +1421,7 @@ snapshots:
   '@google/clasp@3.4.1(@types/node@20.19.43)(supports-color@7.2.0)':
     dependencies:
       '@formatjs/intl': 4.2.1
-      '@modelcontextprotocol/sdk': 1.32.1(supports-color@7.2.0)(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.31.0(supports-color@7.2.0)(zod@3.25.76)
       chalk: 5.6.2
       chokidar: 4.0.3
       cli-truncate: 4.0.0
@@ -1454,9 +1454,9 @@ snapshots:
       - '@types/node'
       - supports-color
 
-  '@hono/node-server@2.1.3(hono@4.13.13)':
+  '@hono/node-server@2.1.3(hono@4.13.12)':
     dependencies:
-      hono: 4.13.13
+      hono: 4.13.12
 
   '@inquirer/ansi@1.0.2': {}
 
@@ -1612,9 +1612,9 @@ snapshots:
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
 
-  '@modelcontextprotocol/sdk@1.32.1(supports-color@7.2.0)(zod@3.25.76)':
+  '@modelcontextprotocol/sdk@1.31.0(supports-color@7.2.0)(zod@3.25.76)':
     dependencies:
-      '@hono/node-server': 2.1.3(hono@4.13.13)
+      '@hono/node-server': 2.1.3(hono@4.13.12)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -1623,8 +1623,8 @@ snapshots:
       eventsource: 3.0.7
       eventsource-parser: 3.1.1
       express: 5.2.1(supports-color@7.2.0)
-      express-rate-limit: 8.7.1(express@5.2.1(supports-color@7.2.0))(supports-color@7.2.0)
-      hono: 4.13.13
+      express-rate-limit: 8.7.0(express@5.2.1(supports-color@7.2.0))(supports-color@7.2.0)
+      hono: 4.13.12
       jose: 6.2.12
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -1908,11 +1908,11 @@ snapshots:
     dependencies:
       eventsource-parser: 3.1.1
 
-  express-rate-limit@8.7.1(express@5.2.1(supports-color@7.2.0))(supports-color@7.2.0):
+  express-rate-limit@8.7.0(express@5.2.1(supports-color@7.2.0))(supports-color@7.2.0):
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
       express: 5.2.1(supports-color@7.2.0)
-      ip-address: 10.7.3
+      ip-address: 10.7.2
     transitivePeerDependencies:
       - supports-color
 
@@ -2118,7 +2118,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.13.13: {}
+  hono@4.13.12: {}
 
   hosted-git-info@7.0.2:
     dependencies:
@@ -2173,7 +2173,7 @@ snapshots:
       '@formatjs/fast-memoize': 3.1.7
       '@formatjs/icu-messageformat-parser': 3.5.18
 
-  ip-address@10.7.3: {}
+  ip-address@10.7.2: {}
 
   ipaddr.js@1.9.1: {}
 
