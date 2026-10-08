@@ -18,6 +18,11 @@ if [[ -n "$(git ls-files --cached --others --exclude-standard -- '*.py')" ]]; th
   fi
 fi
 
+# JavaScript
+pnpm install --frozen-lockfile
+pnpm run format
+pnpm run lint:fix
+
 # Markdown
 npx -y prettier --write '**/*.md'
 if [[ -f .markdownlint-cli2.jsonc ]]; then
