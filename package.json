@@ -23,6 +23,6 @@
 	"license": "AGPL-3.0-only",
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",
-		"oxlint": "^1.83.0"
+		"oxlint": "^1.86.0"
 	}
 }
