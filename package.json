@@ -13,7 +13,7 @@
 		"lint:fix": "oxlint --ignore-pattern 'node_modules/**' --fix .",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
-		"test": "pnpm run build && node --test",
+		"test": "pnpm run build && node --test tests/gas-html-artifact.test.mjs",
 		"all": "pnpm run format && pnpm run lint:fix && pnpm run typecheck && pnpm run test",
 		"build": "tsc --project tsconfig.json",
 		"typecheck": "tsc --noEmit"

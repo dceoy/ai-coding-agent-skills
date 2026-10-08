@@ -767,7 +767,9 @@ try {
 	save();
 	console.log(JSON.stringify(state, null, 2));
 } catch (error) {
-	console.error(`Failed stage: ${stage}. ${error instanceof Error ? error.message : "Unknown error"}`);
+	console.error(
+		`Failed stage: ${stage}. ${error instanceof Error ? error.message : "Unknown error"}`,
+	);
 	if (pushed)
 		console.error(
 			deploymentAttempted
