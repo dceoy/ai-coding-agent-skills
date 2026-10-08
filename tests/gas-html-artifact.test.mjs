@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const deploy = path.join(root, "skills/gas-html-artifact/scripts/deploy.sh");
+const deploy = path.join(root, "skills/gas-html-artifact/scripts/deploy.mjs");
 const template = fs.readFileSync(
 	path.join(root, "skills/gas-html-artifact/templates/Code.gs"),
 	"utf8",
@@ -162,7 +162,7 @@ function fixture(t, existing = false) {
 		args,
 		put,
 		run: (argv = args, extra = {}) =>
-			spawnSync("/bin/bash", [deploy, ...argv], {
+			spawnSync(process.execPath, [deploy, ...argv], {
 				encoding: "utf8",
 				env: { ...env, ...extra },
 			}),
