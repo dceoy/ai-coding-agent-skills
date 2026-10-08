@@ -180,8 +180,8 @@ flowchart TD
 
 ## Verification
 
-Run `node --test tests/gas-html-artifact.test.mjs tests/gas-html-artifact-mcp.test.mjs` from the repository root.
-The pytest suite also invokes these deterministic mocked clasp tests. The MCP tests validate offline payload construction and metadata readback; neither suite requires Google credentials or deploys a real project.
+Run `node --test tests/gas-html-artifact.test.mjs` from the repository root.
+The pytest suite also invokes deterministic mocked clasp tests, which require no Google credentials and never deploy a real project. The MCP procedure is agent-driven; verify its live integration only with an explicitly authorized Apps Script MCP and an expendable test project.
 
 An optional **authorized** smoke test uses one trusted self-contained artifact:
 make an initial restricted deployment, open its verified URL in a browser, check the
