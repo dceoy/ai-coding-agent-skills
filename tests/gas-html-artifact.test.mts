@@ -365,7 +365,7 @@ for (const [name, modify, env] of [
 		},
 	],
 ] as Array<[string, (f: ReturnType<typeof fixture>) => string[], Record<string, string>?]>) {
-	test(`blocks ${name} before remote mutation, (t) => {
+	test(`blocks ${name} before remote mutation`, (t) => {
 		const f = fixture(t);
 		const result = f.run(modify(f), env);
 		assert.notEqual(result.status, 0);
@@ -399,7 +399,7 @@ for (const [name, modify, env] of [
 	["remote change", (f) => f.args, { MOCK_REMOTE_CHANGE: "yes" }],
 	["skipped empty remote file", (f) => f.args, { MOCK_EMPTY_FILE: "yes" }],
 ] as Array<[string, (f: ReturnType<typeof fixture>) => string[], Record<string, string>?]>) {
-	test(`existing project blocks ${name} before push, (t) => {
+	test(`existing project blocks ${name} before push`, (t) => {
 		const f = fixture(t, true);
 		const result = f.run(modify(f), env);
 		assert.notEqual(result.status, 0);
