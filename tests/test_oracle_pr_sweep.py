@@ -1,4 +1,4 @@
-"""Verify the Oracle PR sweep delegates non-blocking execution to Oracle."""
+"""Verify the Oracle PR sweep invokes Oracle in the foreground."""
 
 import os
 import shutil
@@ -58,18 +58,17 @@ def run_mock_sweep(
 
 @pytest.mark.parametrize("version", ["0.20.1", "0.21.4", "1.0.0"])
 @pytest.mark.parametrize("exit_code", [0, 17])
-def test_sweep_uses_native_no_wait(
+def test_sweep_invokes_foreground_gpt_6(
     tmp_path: Path, version: str, exit_code: int
 ) -> None:
-    """Dispatch with a supported version and propagate dispatch failures."""
+    """Run with a supported Oracle version and propagate exit status."""
     result = run_mock_sweep(tmp_path, version, exit_code)
     assert result.returncode == exit_code, result.stderr
     assert (tmp_path / "args.txt").read_text(encoding="utf-8").splitlines() == [
-        "--no-wait",
         "--engine",
         "browser",
         "--model",
-        "gpt-6-pro",
+        "gpt-6",
         "-p",
         "-",
     ]
