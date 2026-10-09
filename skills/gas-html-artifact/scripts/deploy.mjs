@@ -15,6 +15,12 @@ let state;
 let pushed = false;
 let deploymentAttempted = false;
 let pushAttempted = false;
+const claspLaunchers = [
+	{ executable: "pnpm", prefix: ["exec", "clasp"] },
+	{ executable: "npx", prefix: ["--no-install", "clasp"] },
+	{ executable: "clasp", prefix: [] },
+];
+let selectedClaspLauncher;
 function requireThat(condition, message) {
 	if (!condition) throw new Error(message);
 }
@@ -102,6 +108,10 @@ function claspEnvironment() {
 		if (/^(clasp_config_|DEBUG$|NODE_OPTIONS$|NODE_PATH$)/.test(key))
 			delete env[key];
 	}
+	// Expose a repo-local clasp binary even though deployment uses isolated workdirs.
+	const localBin = fileURLToPath(new URL("../../../node_modules/.bin/", import.meta.url));
+	if (fs.existsSync(localBin))
+		env.PATH = [env.PATH, localBin].filter(Boolean).join(path.delimiter);
 	return env;
 }
 function projectOptions(project) {
@@ -113,23 +123,35 @@ function projectOptions(project) {
 	];
 }
 function run(args, cwd = work, asJSON = true) {
-	const result = spawnSync("clasp", args, {
-		cwd,
-		env: claspEnvironment(),
-		input: "",
-		encoding: "utf8",
-		maxBuffer: 16 * 1024 * 1024,
-	});
-	if (result.error?.code === "ENOENT") {
+	const invoke = (launcher) =>
+		spawnSync(launcher.executable, [...launcher.prefix, ...args], {
+			cwd,
+			env: claspEnvironment(),
+			input: "",
+			encoding: "utf8",
+			maxBuffer: 16 * 1024 * 1024,
+		});
+	let launcher = selectedClaspLauncher || claspLaunchers[0];
+	let result = invoke(launcher);
+	if (!selectedClaspLauncher) {
+		for (const candidate of claspLaunchers.slice(1)) {
+			if ((result.error)?.code !== "ENOENT")
+				break;
+			launcher = candidate;
+			result = invoke(candidate);
+		}
+	}
+	if ((result.error)?.code === "ENOENT") {
 		throw new Error(
-			"Missing clasp: install the official CLI, authenticate and enable the Apps Script API.",
+			"Missing clasp runner: install pnpm, npx, or the official clasp CLI; make clasp available to the selected runner.",
 		);
 	}
+	selectedClaspLauncher = launcher;
 	if (result.error || result.status !== 0) {
 		const error = new Error(
 			"clasp failed; check authentication, enabled Apps Script API, permissions and CLI contract. Raw diagnostics withheld to protect credentials.",
 		);
-		error.exitCode = result.status || 1;
+		(error).exitCode = result.status || 1;
 		throw error;
 	}
 	if (!asJSON) return result.stdout;
@@ -582,9 +604,11 @@ try {
 		fs.mkdirSync(bootstrap);
 		// Stream the official creation message: JSON emits the ID too late if pull fails.
 		await new Promise((resolve, reject) => {
+			requireThat(selectedClaspLauncher, "clasp runner was not initialized.");
 			const child = spawn(
-				"clasp",
+				selectedClaspLauncher.executable,
 				[
+					...selectedClaspLauncher.prefix,
 					...projectOptions(bootstrap),
 					"create-script",
 					"--type",
