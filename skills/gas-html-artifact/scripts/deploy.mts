@@ -155,7 +155,7 @@ function run(args: string[], cwd = work, asJSON = true): any {
 	});
 	if ((result.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
 		throw new Error(
-			"Missing clasp: install official @google/clasp@3.4.1 explicitly, authenticate and enable the Apps Script API.",
+			"Missing clasp: install the official CLI, authenticate and enable the Apps Script API.",
 		);
 	}
 	if (result.error || result.status !== 0) {
@@ -253,7 +253,7 @@ function policy(value: unknown): Policy {
 	return { access: value.access, executeAs: value.executeAs };
 }
 function verifyURL(id: string, cwd: string): string {
-	// clasp 3.4.1 prints JSON followed by a browser instruction with piped stdout.
+	// The clasp JSON response may be followed by a browser instruction on stdout.
 	const output = run(
 		[
 			"--json",
@@ -431,10 +431,6 @@ try {
 		"Source/report/output aliases are forbidden.",
 	);
 	stage = "prerequisite check";
-	requireThat(
-		run(["--version"], parent, false).trim() === "3.4.1",
-		"Supported contract: @google/clasp 3.4.1. Install explicitly; wrapper does not install/login.",
-	);
 	const help = run(["--help"], parent, false);
 	const commands = [
 		"create-script",

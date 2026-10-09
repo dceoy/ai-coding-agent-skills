@@ -34,7 +34,7 @@ Paths with spaces are supported. Parent directories must already exist.
   Production consent compares against the selected version even if HEAD already
   has the requested policy; manifest force compares separately against HEAD.
 
-Install Node.js >=20 and **`@google/clasp@3.4.1`** explicitly. Authenticate beforehand
+Install Node.js >=20 and Google's `clasp` CLI. Authenticate beforehand
 with interactive `clasp login`, enable the [Apps Script API](https://script.google.com/home/usersettings),
 and obtain project/deployment permissions. The wrapper never installs tools,
 initiates login, adds scopes, or relaxes account/domain restrictions. It pins the
@@ -184,16 +184,6 @@ flowchart TD
 ```
 
 ## Verification
-
-The Node.js implementation and its native tests are maintained as TypeScript `.mts`
-source files. The committed `.mjs` files are compiled output so the deployment
-wrapper still works with Node.js >=20 without installing build dependencies.
-After editing TypeScript, run `pnpm run typecheck && pnpm run test` to regenerate
-both `.mjs` files and run the mocked tests. Commit the generated output.
-
-Run `node --test tests/gas-html-artifact.test.mjs` from the repository root.
-The pytest suite also invokes these deterministic mocked clasp tests. They require
-no Google credentials and never deploy a real project.
 
 An optional **authorized** smoke test uses one trusted self-contained artifact:
 make an initial restricted deployment, open its verified URL in a browser, check the

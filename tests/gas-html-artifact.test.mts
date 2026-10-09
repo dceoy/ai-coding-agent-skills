@@ -28,7 +28,7 @@ const cmd = a.find(x => commands.includes(x) && !x.startsWith('--'));
 const log = path.join(dir, 'calls.json'); const calls = JSON.parse(fs.readFileSync(log));
 calls.push({cmd: cmd || a[0],args:a,cwd:process.cwd()}); fs.writeFileSync(log,JSON.stringify(calls));
 if(a.includes('--version')) {console.log(process.env.MOCK_VERSION || '3.4.1'); process.exit(0);}
-if(a.includes('--help')) {console.log(${JSON.stringify(commands)}); process.exit(0);}
+if(a.includes('--help')) {console.log(${JSON.stringify(commands)}.replace(process.env.MOCK_MISSING_CAPABILITY || '', '')); process.exit(0);}
 if(a.includes('--project') && !fs.existsSync(a[a.indexOf('--project')+1])) {console.error('Invalid --project path: file or directory does not exist.');process.exit(12);}
 if(process.env.MOCK_FAIL === cmd) {console.error('credential-token-must-not-leak'); process.exit(7);}
 const load = file => JSON.parse(fs.readFileSync(path.join(dir,file)));
@@ -227,6 +227,11 @@ test("clasp commands use one explicit ignore file", (t) => {
 		assert.equal(call.args[index + 1], path.join(f.work, "empty.claspignore"));
 	}
 });
+test("clasp version is not restricted when required capabilities exist", (t) => {
+	const f = fixture(t);
+	const result = f.run(f.args, { MOCK_VERSION: "4.0.0" });
+	assert.equal(result.status, 0, result.stderr);
+});
 test("initial deployment preserves source bytes and verifies metadata", (t) => {
 	const f = fixture(t);
 	const result = f.run();
@@ -336,7 +341,11 @@ for (const [name, modify, env] of [
 		"manifest consent absent",
 		(f) => without(f.args, "--allow-manifest-update"),
 	],
-	["old clasp", (f) => f.args, { MOCK_VERSION: "2.4.2" }],
+	[
+		"unsupported clasp CLI",
+		(f) => f.args,
+		{ MOCK_MISSING_CAPABILITY: "open-web-app" },
+	],
 	["unauthenticated", (f) => f.args, { MOCK_AUTH: "false" }],
 	[
 		"unsupported report",
