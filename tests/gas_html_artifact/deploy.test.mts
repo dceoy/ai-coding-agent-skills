@@ -70,6 +70,26 @@ switch(cmd) {
  default: process.exit(11);
 }
 `;
+const mockRunner = `#!/usr/bin/env node
+const fs = require('fs'); const path = require('path');
+const { spawn } = require('child_process');
+const runner = path.basename(process.argv[1]);
+const argv = process.argv.slice(2);
+fs.appendFileSync(path.join(process.env.MOCK_REMOTE, 'launchers.log'), runner + '\\n');
+if(process.env.MOCK_RUNNER_FAIL === runner && !argv.includes('--version')) {console.error('secret-from-runner'); process.exit(23);}
+if(process.env.MOCK_RUNNER_UNAVAILABLE === runner) process.exit(35);
+let commandArgs;
+if(runner === 'pnpm' && argv[0] === 'exec' && argv[1] === 'clasp') commandArgs = argv.slice(2);
+else if(runner === 'npx' && argv[0] === '--no-install' && argv[1] === '--package=@google/clasp' && argv[2] === 'clasp') {
+ if(process.env.MOCK_NPX_PACKAGE_MISSING) process.exit(36);
+ commandArgs = argv.slice(3);
+} else process.exit(34);
+// npx resolves a package binary, not arbitrary executables from PATH.
+const executable = runner === 'npx' ? path.join(path.dirname(process.argv[1]), 'clasp') : 'clasp';
+const child = spawn(executable, commandArgs, {stdio:'inherit'});
+child.on('error', () => process.exit(127));
+child.on('close', code => process.exit(code ?? 1));
+`;
 function parseJSON(input: string | Buffer): any {
 	return JSON.parse(input.toString());
 }
@@ -82,6 +102,9 @@ function fixture(t: TestContext, existing = false) {
 	const bin = path.join(base, "bin");
 	fs.mkdirSync(bin);
 	fs.writeFileSync(path.join(bin, "clasp"), mock, { mode: 0o755 });
+	fs.symlinkSync(process.execPath, path.join(bin, "node"));
+	for (const runner of ["pnpm", "npx"])
+		fs.writeFileSync(path.join(bin, runner), mockRunner, { mode: 0o755 });
 	const remote = path.join(base, "remote");
 	fs.mkdirSync(remote);
 	const put = (name, v) =>
@@ -105,6 +128,7 @@ function fixture(t: TestContext, existing = false) {
 		: {};
 	put("files.json", remoteFiles);
 	put("calls.json", []);
+	fs.writeFileSync(path.join(remote, "launchers.log"), "");
 	put(
 		"deployments.json",
 		existing ? [{ deploymentId: "DEPLOY_EXISTING", versionNumber: 1 }] : [],
@@ -167,9 +191,10 @@ function fixture(t: TestContext, existing = false) {
 					"--allow-manifest-update",
 				]),
 	];
-	const env = { PATH: `${bin}:${process.env.PATH}`, MOCK_REMOTE: remote };
+	const env = { PATH: bin, MOCK_REMOTE: remote };
 	return {
 		base,
+		bin,
 		remote,
 		source,
 		report,
@@ -182,6 +207,12 @@ function fixture(t: TestContext, existing = false) {
 				encoding: "utf8",
 				env: { ...env, ...extra },
 			}),
+		launchers: () =>
+			fs
+				.readFileSync(path.join(remote, "launchers.log"), "utf8")
+				.trim()
+				.split("\n")
+				.filter(Boolean),
 		calls: () =>
 			parseJSON(fs.readFileSync(path.join(remote, "calls.json"))).filter(
 				(c) => !c.args.includes("--help"),
@@ -208,6 +239,96 @@ const mutations = (f: ReturnType<typeof fixture>) =>
 				"update-deployment",
 			].includes(c.cmd),
 		);
+
+for (const [name, unavailable] of [
+	["pnpm", []],
+	["npx", ["pnpm"]],
+	["clasp", ["pnpm", "npx"]],
+] as Array<[string, string[]]>) {
+	test(`uses ${name} for all clasp commands`, (t) => {
+		const f = fixture(t);
+		for (const runner of unavailable) fs.unlinkSync(path.join(f.bin, runner));
+		const result = f.run();
+		assert.equal(result.status, 0, result.stderr);
+		assert.ok(f.calls().some((call) => call.cmd === "create-script"));
+		const launched = f.launchers();
+		if (name === "clasp") assert.deepEqual(launched, []);
+		else {
+			assert.ok(launched.length > 0);
+			assert.ok(launched.every((runner) => runner === name));
+		}
+	});
+}
+
+test("does not fallback when pnpm exists but clasp execution fails", (t) => {
+	const f = fixture(t);
+	const result = f.run(f.args, { MOCK_RUNNER_FAIL: "pnpm" });
+	assert.equal(result.status, 23);
+	assert.ok(!result.stderr.includes("secret-from-runner"));
+	assert.deepEqual(f.launchers(), ["pnpm", "pnpm"]);
+	assert.deepEqual(
+		f.calls().map((call) => call.cmd),
+		["--version"],
+	);
+});
+
+test("falls back to direct clasp when npx cannot resolve the official package", (t) => {
+	const f = fixture(t);
+	fs.unlinkSync(path.join(f.bin, "pnpm"));
+	const result = f.run(f.args, { MOCK_NPX_PACKAGE_MISSING: "true" });
+	assert.equal(result.status, 0, result.stderr);
+	assert.deepEqual(f.launchers(), ["npx"]);
+	assert.ok(f.calls().some((call) => call.cmd === "create-script"));
+});
+
+test("falls back when pnpm exists but cannot resolve clasp", (t) => {
+	const f = fixture(t);
+	const result = f.run(f.args, { MOCK_RUNNER_UNAVAILABLE: "pnpm" });
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(f.launchers()[0], "pnpm");
+	assert.ok(
+		f
+			.launchers()
+			.slice(1)
+			.every((runner) => runner === "npx"),
+	);
+});
+
+test("does not retry direct clasp after an actual npx command failure", (t) => {
+	const f = fixture(t);
+	fs.unlinkSync(path.join(f.bin, "pnpm"));
+	const result = f.run(f.args, { MOCK_RUNNER_FAIL: "npx" });
+	assert.equal(result.status, 23);
+	assert.deepEqual(f.launchers(), ["npx", "npx"]);
+	assert.deepEqual(
+		f.calls().map((call) => call.cmd),
+		["--version"],
+	);
+	assert.ok(!result.stderr.includes("secret-from-runner"));
+});
+
+test("real npx with an empty offline package cache falls back to PATH clasp", (t) => {
+	const npx = (process.env.PATH || "")
+		.split(path.delimiter)
+		.map((directory) => path.join(directory, "npx"))
+		.find((candidate) => fs.existsSync(candidate));
+	if (!npx) {
+		t.skip("npx is not installed in the test environment");
+		return;
+	}
+	const f = fixture(t);
+	fs.unlinkSync(path.join(f.bin, "pnpm"));
+	fs.unlinkSync(path.join(f.bin, "npx"));
+	fs.symlinkSync(npx, path.join(f.bin, "npx"));
+	const result = f.run(f.args, {
+		npm_config_cache: path.join(f.base, "empty-npm-cache"),
+		npm_config_offline: "true",
+		HOME: f.base,
+	});
+	assert.equal(result.status, 0, result.stderr);
+	assert.ok(f.calls().some((call) => call.cmd === "create-script"));
+	assert.ok(!fs.existsSync(path.join(f.work, "node_modules")));
+});
 
 test("clasp commands use one explicit ignore file", (t) => {
 	const f = fixture(t);
