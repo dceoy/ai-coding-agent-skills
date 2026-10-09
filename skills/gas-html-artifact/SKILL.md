@@ -34,8 +34,24 @@ Paths with spaces are supported. Parent directories must already exist.
   Production consent compares against the selected version even if HEAD already
   has the requested policy; manifest force compares separately against HEAD.
 
-Install Node.js >=20 and **`@google/clasp@3.4.1`** explicitly. Authenticate beforehand
-with interactive `clasp login`, enable the [Apps Script API](https://script.google.com/home/usersettings),
+For source checkouts, **build before using this skill**. The TypeScript `.mts`
+sources are committed, but the generated `.mjs` files are not. From the **repository
+root**, use Node.js >=22 and pnpm 11:
+
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run build
+```
+
+This creates `skills/gas-html-artifact/scripts/deploy.mjs` and the native test
+runner locally. Rebuild after a fresh checkout or TypeScript changes. Packaged
+skill ZIPs are prebuilt in CI and contain `deploy.mjs`.
+
+Execution requires Node.js >=20 and **`@google/clasp@3.4.1`**. With a source
+checkout, use `pnpm exec node` below to make the locally installed `clasp`
+available on `PATH`. Authenticate with interactive `pnpm exec clasp login`, enable
+the [Apps Script API](https://script.google.com/home/usersettings),
 and obtain project/deployment permissions. The wrapper never installs tools,
 initiates login, adds scopes, or relaxes account/domain restrictions. It pins the
 reviewed command/JSON contract and checks installed command capabilities before mutation.
@@ -102,19 +118,20 @@ of arbitrary JavaScript compatibility. Do not mark secretReview passed before in
 
 ## Deploy
 
-Run the bundled [scripts/deploy.mjs](scripts/deploy.mjs) with Node.js after assessment and explicit
-target/policy selection. These examples assume the report and source exist and the
-caller authorized the chosen policy:
+Run the generated `scripts/deploy.mjs` (compiled from
+[scripts/deploy.mts](scripts/deploy.mts)) after assessment and explicit target/policy
+selection. The examples run from the **repository root** after building. They assume
+the report and source exist and the caller authorized the chosen policy:
 
 ```bash
 # Initial standalone deployment, restricted to the deploying user.
-node ./scripts/deploy.mjs --source '/artifacts/my page.html' \
+pnpm exec node ./skills/gas-html-artifact/scripts/deploy.mjs --source '/artifacts/my page.html' \
   --report '/artifacts/assessment.json' --workdir '/deployments/first run' \
   --new-project 'My HTML artifact' --initial \
   --access MYSELF --execute-as USER_DEPLOYING --allow-manifest-update
 
 # Update the recorded deployment, keeping its production URL and policy.
-node ./scripts/deploy.mjs --source '/artifacts/my page.html' \
+pnpm exec node ./skills/gas-html-artifact/scripts/deploy.mjs --source '/artifacts/my page.html' \
   --report '/artifacts/assessment.json' --workdir '/deployments/update run' \
   --script-id SCRIPT_ID --deployment-id DEPLOYMENT_ID --exclusive-coordination
 ```
@@ -185,15 +202,12 @@ flowchart TD
 
 ## Verification
 
-The Node.js implementation and its native tests are maintained as TypeScript `.mts`
-source files. The committed `.mjs` files are compiled output so the deployment
-wrapper still works with Node.js >=20 without installing build dependencies.
-After editing TypeScript, run `pnpm run typecheck && pnpm run test` to regenerate
-both `.mjs` files and run the mocked tests. Commit the generated output.
-
-Run `node --test tests/gas-html-artifact.test.mjs` from the repository root.
-The pytest suite also invokes these deterministic mocked clasp tests. They require
-no Google credentials and never deploy a real project.
+The implementation and native tests are maintained as TypeScript `.mts` files.
+The generated `.mjs` files are Git-ignored. From the repository root, run
+`pnpm run typecheck && pnpm test` to compile and execute the mocked tests.
+Alternatively, after `pnpm run build`, run
+`node --test tests/gas-html-artifact.test.mjs`. Tests require no Google
+credentials and never deploy a real project.
 
 An optional **authorized** smoke test uses one trusted self-contained artifact:
 make an initial restricted deployment, open its verified URL in a browser, check the

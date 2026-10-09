@@ -6,7 +6,7 @@
 	"type": "module",
 	"packageManager": "pnpm@11.22.0",
 	"engines": {
-		"node": ">=20"
+		"node": ">=22"
 	},
 	"scripts": {
 		"lint": "oxlint --ignore-pattern 'node_modules/**' .",
@@ -16,8 +16,7 @@
 		"test": "pnpm run build && node --test tests/gas-html-artifact.test.mjs",
 		"all": "pnpm run format && pnpm run lint:fix && pnpm run typecheck && pnpm run test",
 		"build": "tsc --project tsconfig.json && biome format --write skills/gas-html-artifact/scripts/deploy.mjs tests/gas-html-artifact.test.mjs",
-		"typecheck": "tsc --noEmit",
-		"build:check": "pnpm run build && git diff --exit-code -- skills/gas-html-artifact/scripts/deploy.mjs tests/gas-html-artifact.test.mjs"
+		"typecheck": "tsc --noEmit"
 	},
 	"repository": {
 		"type": "git",

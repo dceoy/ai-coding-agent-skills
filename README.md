@@ -23,6 +23,8 @@ Each skill directory contains a `SKILL.md` that documents prerequisites and invo
 
 3. Open a skill directory or `.codex/agents/README.md` to learn how to invoke it.
 
+Using `gas-html-artifact` from a source checkout requires [building the TypeScript tools](#prerequisites) first.
+
 ## Skills
 
 All skills are located in `skills/` and surfaced through shared discovery or runtime-specific symlinks.
@@ -100,9 +102,20 @@ See [.codex/AGENTS.md](./.codex/AGENTS.md) for the authoritative routing policy 
 
 Install and authenticate the required CLI tools before running skills:
 
-- **Node.js >=20 and official `@google/clasp@3.4.1`** - For `gas-html-artifact`
-  - Authenticate interactively with `clasp login` and enable the Apps Script API before deployment
-  - Mocked deployment tests require Node.js but no Google credentials
+- **Node.js >=22 and pnpm 11** - To build the `gas-html-artifact` TypeScript scripts from source. From the repository root, build **before first use** and after updating the TypeScript sources:
+
+  ```bash
+  corepack enable
+  pnpm install --frozen-lockfile
+  pnpm run build
+  ```
+
+  The locally generated `skills/gas-html-artifact/scripts/deploy.mjs` and `tests/gas-html-artifact.test.mjs` are Git-ignored. Run `pnpm test` for mocked deployment tests.
+  CI builds the executable into packaged skill ZIPs, so ZIP users need not build from source.
+- **Node.js >=20 and official `@google/clasp@3.4.1`** - To execute the built `gas-html-artifact` script.
+  - From a source checkout, use `pnpm exec node` to expose locally installed `clasp` on `PATH`.
+  - Authenticate with `pnpm exec clasp login` (or `clasp login` when installed globally); enable the Apps Script API before deployment.
+  - Mocked tests need no Google credentials.
 
 - **Claude Code** - For `.claude/` agents and skills
   - Install: <https://docs.anthropic.com/en/docs/claude-code>

@@ -47,7 +47,7 @@ jobs:
       contents: read
     uses: dceoy/gha-for-devops/.github/workflows/typescript-package-script.yml@main  # zizmor: ignore[unpinned-uses]
     with:
-      package-scripts: format:check,lint,typecheck,build:check,test
+      package-scripts: format:check,lint,typecheck,test
       package-path: .
       node-version: latest
       audit: true
