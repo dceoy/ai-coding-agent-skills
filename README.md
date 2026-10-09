@@ -101,7 +101,8 @@ See [.codex/AGENTS.md](./.codex/AGENTS.md) for the authoritative routing policy 
 Install and authenticate the required CLI tools before running skills:
 
 - **Node.js >=20 and Google's `clasp` CLI** - For `gas-html-artifact`
-  - Authenticate interactively with `clasp login` and enable the Apps Script API before deployment
+  - Use `pnpm exec clasp` (preferred), `npx --no-install clasp`, or direct `clasp` depending on available executables
+  - Authenticate with the chosen launcher and enable the Apps Script API before deployment
   - Mocked deployment tests require Node.js but no Google credentials
 
 - **Claude Code** - For `.claude/` agents and skills
