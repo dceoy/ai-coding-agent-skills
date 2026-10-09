@@ -35,8 +35,8 @@ Paths with spaces are supported. Parent directories must already exist.
   has the requested policy; manifest force compares separately against HEAD.
 
 Requires Node.js >=20, the bundled `scripts/deploy.mjs` executable, and
-**`@google/clasp@3.4.1`** on `PATH`. If the executable is absent, build it before
-use according to the source distribution's instructions. Authenticate with
+Google's `clasp` CLI on `PATH`. The wrapper checks required CLI capabilities
+before deployment. Authenticate with
 interactive `clasp login`, enable the
 [Apps Script API](https://script.google.com/home/usersettings), and obtain
 project/deployment permissions. The wrapper never installs tools,

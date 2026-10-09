@@ -16,7 +16,8 @@
 		"test": "pnpm run build && node --test tests/gas-html-artifact.test.mjs",
 		"all": "pnpm run format && pnpm run lint:fix && pnpm run typecheck && pnpm run test",
 		"build": "tsc --project tsconfig.json && biome format --write skills/gas-html-artifact/scripts/deploy.mjs tests/gas-html-artifact.test.mjs",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"build:check": "pnpm run build && git diff --exit-code -- skills/gas-html-artifact/scripts/deploy.mjs"
 	},
 	"repository": {
 		"type": "git",

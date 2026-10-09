@@ -6,65 +6,32 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { parseArgs } from "node:util";
-
-/** Validated Web App deployment permissions. */
-type Policy = {
-	access: (typeof accessValues)[number];
-	executeAs: (typeof executeValues)[number];
-};
-
-type Artifact = { path: string; bytes: Buffer; sha256: string };
-
-/** Persisted recovery information, including partial deployment stages. */
-type DeploymentState = {
-	stage: string;
-	scriptId?: string;
-	deploymentId?: string;
-	version?: number;
-	source: { path: string; sha256: string };
-	artifact: { path: string; sha256: string };
-	report: string;
-	runtimeSmokeTest: string;
-	previousURL?: string;
-	previousPolicy?: Policy | null;
-	policy?: Policy;
-	files?: string[];
-	payloadSha256?: Record<string, string>;
-	url?: string;
-	failedStage?: string;
-};
-
 const templates = fileURLToPath(new URL("../templates/", import.meta.url));
-const accessValues = [
-	"MYSELF",
-	"DOMAIN",
-	"ANYONE",
-	"ANYONE_ANONYMOUS",
-] as const;
-const executeValues = ["USER_ACCESSING", "USER_DEPLOYING"] as const;
+const accessValues = ["MYSELF", "DOMAIN", "ANYONE", "ANYONE_ANONYMOUS"];
+const executeValues = ["USER_ACCESSING", "USER_DEPLOYING"];
 let stage = "local validation";
-let work!: string;
-let state!: DeploymentState;
+let work;
+let state;
 let pushed = false;
 let deploymentAttempted = false;
 let pushAttempted = false;
-function requireThat(condition: unknown, message: string): asserts condition {
+function requireThat(condition, message) {
 	if (!condition) throw new Error(message);
 }
-function parseJSON(text: string): any {
+function parseJSON(text) {
 	try {
 		return JSON.parse(text);
 	} catch {
 		throw new Error("Invalid JSON; contents withheld.");
 	}
 }
-function json(file: string): any {
+function json(file) {
 	return parseJSON(fs.readFileSync(file, "utf8"));
 }
-function digest(bytes: Buffer | string): string {
+function digest(bytes) {
 	return createHash("sha256").update(bytes).digest("hex");
 }
-function writeJSON(file: string, value: unknown): void {
+function writeJSON(file, value) {
 	const temporary = `${file}.tmp`;
 	fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, {
 		mode: 0o600,
@@ -72,10 +39,10 @@ function writeJSON(file: string, value: unknown): void {
 	});
 	fs.renameSync(temporary, file);
 }
-function identifier(value: unknown): value is string {
+function identifier(value) {
 	return typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
 }
-function readArtifact(file: string): Artifact {
+function readArtifact(file) {
 	const resolved = fs.realpathSync(file);
 	requireThat(
 		fs.statSync(resolved).isFile(),
@@ -89,10 +56,10 @@ function readArtifact(file: string): Artifact {
 	);
 	return { path: resolved, bytes, sha256: digest(bytes) };
 }
-function inside(parent: string, child: string): boolean {
+function inside(parent, child) {
 	return child === parent || child.startsWith(`${parent}${path.sep}`);
 }
-function files(root: string, prefix = ""): string[] {
+function files(root, prefix = "") {
 	return fs
 		.readdirSync(path.join(root, prefix), { withFileTypes: true })
 		.flatMap((entry) => {
@@ -107,7 +74,7 @@ function files(root: string, prefix = ""): string[] {
 		})
 		.sort();
 }
-function payload(root: string): Record<string, string> {
+function payload(root) {
 	const entries = files(root)
 		.filter(
 			(name) =>
@@ -125,10 +92,10 @@ function payload(root: string): Record<string, string> {
 	);
 	return Object.fromEntries(entries);
 }
-function same(a: unknown, b: unknown): boolean {
+function same(a, b) {
 	return JSON.stringify(a) === JSON.stringify(b);
 }
-function claspEnvironment(): NodeJS.ProcessEnv {
+function claspEnvironment() {
 	// Never inherit target overrides or verbose OAuth diagnostics from the caller.
 	const env = { ...process.env };
 	for (const key of Object.keys(env)) {
@@ -137,7 +104,7 @@ function claspEnvironment(): NodeJS.ProcessEnv {
 	}
 	return env;
 }
-function projectOptions(project: string): string[] {
+function projectOptions(project) {
 	return [
 		"--project",
 		project,
@@ -145,7 +112,7 @@ function projectOptions(project: string): string[] {
 		path.join(work, "empty.claspignore"),
 	];
 }
-function run(args: string[], cwd = work, asJSON = true): any {
+function run(args, cwd = work, asJSON = true) {
 	const result = spawnSync("clasp", args, {
 		cwd,
 		env: claspEnvironment(),
@@ -153,7 +120,7 @@ function run(args: string[], cwd = work, asJSON = true): any {
 		encoding: "utf8",
 		maxBuffer: 16 * 1024 * 1024,
 	});
-	if ((result.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+	if (result.error?.code === "ENOENT") {
 		throw new Error(
 			"Missing clasp: install the official CLI, authenticate and enable the Apps Script API.",
 		);
@@ -162,17 +129,13 @@ function run(args: string[], cwd = work, asJSON = true): any {
 		const error = new Error(
 			"clasp failed; check authentication, enabled Apps Script API, permissions and CLI contract. Raw diagnostics withheld to protect credentials.",
 		);
-		(error as Error & { exitCode?: number }).exitCode = result.status || 1;
+		error.exitCode = result.status || 1;
 		throw error;
 	}
 	if (!asJSON) return result.stdout;
 	return parseJSON(result.stdout);
 }
-function clasp(
-	command: string,
-	args: string[] = [],
-	cwd = path.join(work, "project"),
-): any {
+function clasp(command, args = [], cwd = path.join(work, "project")) {
 	return run(
 		[
 			"--json",
@@ -183,11 +146,7 @@ function clasp(
 		cwd,
 	);
 }
-function clone(
-	scriptId: string | undefined,
-	destination: string,
-	version?: number,
-): Record<string, string> {
+function clone(scriptId, destination, version) {
 	requireThat(identifier(scriptId), "Invalid script binding.");
 	fs.mkdirSync(destination);
 	const retrieved = run(
@@ -234,25 +193,25 @@ function clone(
 	);
 	return payload(destination);
 }
-function save(): void {
+function save() {
 	writeJSON(path.join(work, "deployment.json"), state);
 }
-function isPolicy(value: unknown): value is Policy {
+function isPolicy(value) {
 	if (!value || typeof value !== "object") return false;
-	const candidate = value as Record<string, unknown>;
+	const candidate = value;
 	return (
 		accessValues.some((access) => access === candidate.access) &&
 		executeValues.some((executeAs) => executeAs === candidate.executeAs)
 	);
 }
-function policy(value: unknown): Policy {
+function policy(value) {
 	requireThat(
 		isPolicy(value),
 		"Cannot establish selected deployment policy. Supply an explicit access/execute-as pair or retrieve its versioned manifest.",
 	);
 	return { access: value.access, executeAs: value.executeAs };
 }
-function verifyURL(id: string, cwd: string): string {
+function verifyURL(id, cwd) {
 	// The clasp JSON response may be followed by a browser instruction on stdout.
 	const output = run(
 		[
@@ -282,7 +241,6 @@ function verifyURL(id: string, cwd: string): string {
 	);
 	return url.toString();
 }
-
 try {
 	requireThat(
 		Number(process.versions.node.split(".")[0]) >= 20,
@@ -455,7 +413,7 @@ try {
 		["create-deployment", ["--versionNumber"]],
 		["update-deployment", ["--versionNumber"]],
 		["create-script", ["--type", "--title"]],
-	] as Array<[string, string[]]>) {
+	]) {
 		const commandHelp = run([command, "--help"], parent, false);
 		requireThat(
 			flags.every((flag) => commandHelp.includes(flag)),
@@ -481,7 +439,7 @@ try {
 	save();
 	const project = path.join(work, "project");
 	let baseline;
-	let deployments: Array<{ deploymentId: string; versionNumber: number }> = [];
+	let deployments = [];
 	let selected;
 	let chosenPolicy = requestedPolicy;
 	if (!v["new-project"]) {
@@ -623,7 +581,7 @@ try {
 		const bootstrap = path.join(work, "bootstrap");
 		fs.mkdirSync(bootstrap);
 		// Stream the official creation message: JSON emits the ID too late if pull fails.
-		await new Promise<void>((resolve, reject) => {
+		await new Promise((resolve, reject) => {
 			const child = spawn(
 				"clasp",
 				[
@@ -632,12 +590,12 @@ try {
 					"--type",
 					"standalone",
 					"--title",
-					v["new-project"]!,
+					v["new-project"],
 				],
 				{
 					cwd: bootstrap,
 					env: claspEnvironment(),
-					stdio: ["ignore", "pipe", "pipe"] as const,
+					stdio: ["ignore", "pipe", "pipe"],
 				},
 			);
 			let output = "";
@@ -660,7 +618,7 @@ try {
 					const error = new Error(
 						"Project creation/pull failed; inspect recorded ID or bootstrap binding. Do not repeat creation.",
 					);
-					(error as Error & { exitCode?: number }).exitCode = code || 1;
+					error.exitCode = code || 1;
 					reject(error);
 				} else resolve();
 			});
@@ -794,5 +752,5 @@ try {
 		console.error(
 			`Inspect ${path.join(work, "deployment.json")} and staging files; never repeat creation blindly.`,
 		);
-	process.exitCode = (error as Error & { exitCode?: number }).exitCode || 1;
+	process.exitCode = error.exitCode || 1;
 }

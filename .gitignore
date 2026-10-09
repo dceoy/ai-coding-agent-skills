@@ -268,8 +268,7 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
-# Generated JS is built locally, not committed
-/skills/gas-html-artifact/scripts/deploy.mjs
+# Generated native tests are built locally, not committed
 /tests/gas-html-artifact.test.mjs
 
 # Optional npm cache directory
