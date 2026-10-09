@@ -109,7 +109,9 @@ function claspEnvironment() {
 			delete env[key];
 	}
 	// Expose a repo-local clasp binary even though deployment uses isolated workdirs.
-	const localBin = fileURLToPath(new URL("../../../node_modules/.bin/", import.meta.url));
+	const localBin = fileURLToPath(
+		new URL("../../../node_modules/.bin/", import.meta.url),
+	);
 	if (fs.existsSync(localBin))
 		env.PATH = [env.PATH, localBin].filter(Boolean).join(path.delimiter);
 	return env;
@@ -135,8 +137,7 @@ function run(args, cwd = work, asJSON = true) {
 	let result = invoke(launcher);
 	if (!selectedClaspLauncher) {
 		for (const candidate of claspLaunchers.slice(1)) {
-			if (result.error?.code !== "ENOENT")
-				break;
+			if (result.error?.code !== "ENOENT") break;
 			launcher = candidate;
 			result = invoke(candidate);
 		}
