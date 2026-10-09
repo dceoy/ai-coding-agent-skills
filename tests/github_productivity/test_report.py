@@ -16,7 +16,7 @@ import report
 import workdir
 from matplotlib.figure import Figure
 
-from tests.conftest import (
+from tests.github_productivity.conftest import (
     FakeGh,
     draft_row,
     make_pr,

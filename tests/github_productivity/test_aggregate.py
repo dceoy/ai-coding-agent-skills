@@ -11,7 +11,7 @@ import normalize
 import pytest
 import workdir
 
-from tests.conftest import (
+from tests.github_productivity.conftest import (
     commit_rows,
     dismissal_timeline_row,
     draft_row,

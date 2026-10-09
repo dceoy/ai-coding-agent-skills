@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import workdir
 
-from tests.conftest import (
+from tests.github_productivity.conftest import (
     draft_row,
     pr_row,
     repo_row,

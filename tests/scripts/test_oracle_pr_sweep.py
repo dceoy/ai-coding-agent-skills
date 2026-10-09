@@ -2,12 +2,12 @@
 
 import os
 import shutil
-import subprocess  # noqa: S404 - invokes a fixed local mock command
+import subprocess
 from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts/oracle-pr-sweep.sh"
+SCRIPT = Path(__file__).resolve().parents[2] / "scripts/oracle-pr-sweep.sh"
 
 
 def create_mock_oracle(tmp_path: Path) -> Path:
