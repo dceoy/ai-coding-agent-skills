@@ -135,13 +135,13 @@ function run(args, cwd = work, asJSON = true) {
 	let result = invoke(launcher);
 	if (!selectedClaspLauncher) {
 		for (const candidate of claspLaunchers.slice(1)) {
-			if ((result.error)?.code !== "ENOENT")
+			if (result.error?.code !== "ENOENT")
 				break;
 			launcher = candidate;
 			result = invoke(candidate);
 		}
 	}
-	if ((result.error)?.code === "ENOENT") {
+	if (result.error?.code === "ENOENT") {
 		throw new Error(
 			"Missing clasp runner: install pnpm, npx, or the official clasp CLI; make clasp available to the selected runner.",
 		);
@@ -151,7 +151,7 @@ function run(args, cwd = work, asJSON = true) {
 		const error = new Error(
 			"clasp failed; check authentication, enabled Apps Script API, permissions and CLI contract. Raw diagnostics withheld to protect credentials.",
 		);
-		(error).exitCode = result.status || 1;
+		error.exitCode = result.status || 1;
 		throw error;
 	}
 	if (!asJSON) return result.stdout;
