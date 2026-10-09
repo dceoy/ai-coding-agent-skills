@@ -56,36 +56,18 @@ Paths with spaces work; parent directories must exist.
   changes, compare the selected deployed version even if remote HEAD already
   matches; manifest force is evaluated against HEAD separately.
 
-### clasp executable
+### clasp CLI
 
-Install Node.js >=20 and make Google's [clasp](https://github.com/google/clasp)
-available. The wrapper selects a runner once and uses it for all operations:
+Requires Node.js >=20, Google's official [clasp](https://github.com/google/clasp)
+CLI, authentication, and the enabled
+[Apps Script API](https://script.google.com/home/usersettings).
+Prepare clasp as appropriate for the environment and confirm project/deployment
+permissions. `scripts/deploy.mjs` selects an available runner automatically
+and uses it consistently. It does not install packages, log in, change OAuth
+scopes, or bypass account/domain restrictions.
 
-```mermaid
-flowchart TD
-    A{pnpm clasp probe succeeds?} -- Yes --> B["pnpm exec clasp"]
-    A -- No --> C{npx clasp probe succeeds?}
-    C -- Yes --> D["npx --no-install --package=@google/clasp clasp"]
-    C -- No --> E["clasp"]
-    B --> F{Command succeeds?}
-    D --> F
-    E --> F
-    F -- Yes --> G[Continue]
-    F -- No --> H[Stop and report error]
-```
-
-Selection probes each runner with `--version` and falls through if the executable
-or official clasp package is unavailable. Once selected, failed commands stop
-without retrying another runner. Nothing is installed automatically. Authenticate
-with the selected runner (e.g. `pnpm exec clasp login`), enable the
-[Apps Script API](https://script.google.com/home/usersettings), and confirm
-project/deployment permissions. The wrapper does not log in, alter scopes or
-relax account/domain restrictions; it validates required clasp commands and JSON
-options before mutation.
-
-API enablement may take a few minutes to propagate. Failed creation calls can
-still have succeeded remotely: inspect recorded IDs and deployment metadata
-before retrying in a fresh workdir. Never blindly repeat a creation request.
+If project creation fails, inspect recorded IDs and remote deployment metadata
+before retrying: the remote operation may already have succeeded.
 
 ## Assess compatibility as data
 
