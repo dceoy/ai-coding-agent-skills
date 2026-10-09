@@ -27,7 +27,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.15",
 		"@google/clasp": "3.4.1",
-		"@types/node": "20.19.43",
+		"@types/node": "26.6.4",
 		"oxlint": "^1.86.0",
 		"typescript": "5.8.3"
 	}
