@@ -136,6 +136,11 @@ pnpm exec node ./skills/gas-html-artifact/scripts/deploy.mjs --source '/artifact
   --script-id SCRIPT_ID --deployment-id DEPLOYMENT_ID --exclusive-coordination
 ```
 
+When using the packaged skill ZIP, the compiled `scripts/deploy.mjs` is already
+included. Install and authenticate the official clasp CLI separately, then run
+`node ./scripts/deploy.mjs` from the extracted `gas-html-artifact` directory
+with the same deployment arguments. No TypeScript build is needed for ZIP users.
+
 The fresh workdir contains `project/Code.gs` (clasp may name an existing wrapper
 `Code.js`), `project/Index.html`, and `project/appsscript.json`. The minimal wrapper
 returns `HtmlService.createHtmlOutputFromFile('Index')`. There is no default Index
