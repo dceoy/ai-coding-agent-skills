@@ -200,7 +200,11 @@ function fixture(t: TestContext, existing = false) {
 				env: { ...env, ...extra },
 			}),
 		launchers: () =>
-			fs.readFileSync(path.join(remote, "launchers.log"), "utf8").trim().split("\n").filter(Boolean),
+			fs
+				.readFileSync(path.join(remote, "launchers.log"), "utf8")
+				.trim()
+				.split("\n")
+				.filter(Boolean),
 		calls: () =>
 			parseJSON(fs.readFileSync(path.join(remote, "calls.json"))).filter(
 				(c) => !c.args.includes("--help"),
