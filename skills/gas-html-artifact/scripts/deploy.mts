@@ -50,7 +50,10 @@ let deploymentAttempted = false;
 let pushAttempted = false;
 const claspLaunchers = [
 	{ executable: "pnpm", prefix: ["exec", "clasp"] },
-	{ executable: "npx", prefix: ["--no-install", "clasp"] },
+	{
+		executable: "npx",
+		prefix: ["--no-install", "--package=@google/clasp", "clasp"],
+	},
 	{ executable: "clasp", prefix: [] },
 ];
 let selectedClaspLauncher: (typeof claspLaunchers)[number] | undefined;
@@ -166,24 +169,29 @@ function run(args: string[], cwd = work, asJSON = true): any {
 			encoding: "utf8",
 			maxBuffer: 16 * 1024 * 1024,
 		});
-	let launcher = selectedClaspLauncher || claspLaunchers[0];
-	let result = invoke(launcher);
 	if (!selectedClaspLauncher) {
-		for (const candidate of claspLaunchers.slice(1)) {
-			if (
-				(result.error as NodeJS.ErrnoException | undefined)?.code !== "ENOENT"
-			)
-				break;
-			launcher = candidate;
-			result = invoke(candidate);
-		}
+		// Resolve the runner without executing any deployment or authentication command.
+		selectedClaspLauncher = claspLaunchers.find((launcher) => {
+			const probe = spawnSync(
+				launcher.executable,
+				[...launcher.prefix, "--version"],
+				{
+					cwd,
+					env: claspEnvironment(),
+					input: "",
+					encoding: "utf8",
+					maxBuffer: 16 * 1024 * 1024,
+				},
+			);
+			return !probe.error && probe.status === 0;
+		});
 	}
-	if ((result.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
-		throw new Error(
-			"Missing clasp runner: install pnpm, npx, or the official clasp CLI; make clasp available to the selected runner.",
-		);
-	}
-	selectedClaspLauncher = launcher;
+	requireThat(
+		selectedClaspLauncher,
+		"No usable clasp runner: make the official @google/clasp CLI available to pnpm, npx, or PATH.",
+	);
+	// Once selected, never retry a real clasp command through another runner.
+	const result = invoke(selectedClaspLauncher);
 	if (result.error || result.status !== 0) {
 		const error = new Error(
 			"clasp failed; check authentication, enabled Apps Script API, permissions and CLI contract. Raw diagnostics withheld to protect credentials.",

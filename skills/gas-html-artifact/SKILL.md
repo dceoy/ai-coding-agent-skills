@@ -63,9 +63,9 @@ available. The wrapper selects a runner once and uses it for all operations:
 
 ```mermaid
 flowchart TD
-    A{pnpm available?} -- Yes --> B["pnpm exec clasp"]
-    A -- No --> C{npx available?}
-    C -- Yes --> D["npx --no-install clasp"]
+    A{pnpm clasp probe succeeds?} -- Yes --> B["pnpm exec clasp"]
+    A -- No --> C{npx clasp probe succeeds?}
+    C -- Yes --> D["npx --no-install --package=@google/clasp clasp"]
     C -- No --> E["clasp"]
     B --> F{Command succeeds?}
     D --> F
@@ -74,9 +74,10 @@ flowchart TD
     F -- No --> H[Stop and report error]
 ```
 
-The fallback only handles a **missing executable**, not failed commands or
-missing dependencies. Nothing is installed automatically. Authenticate with
-the selected runner (e.g. `pnpm exec clasp login`), enable the
+Selection probes each runner with `--version` and falls through if the executable
+or official clasp package is unavailable. Once selected, failed commands stop
+without retrying another runner. Nothing is installed automatically. Authenticate
+with the selected runner (e.g. `pnpm exec clasp login`), enable the
 [Apps Script API](https://script.google.com/home/usersettings), and confirm
 project/deployment permissions. The wrapper does not log in, alter scopes or
 relax account/domain restrictions; it validates required clasp commands and JSON

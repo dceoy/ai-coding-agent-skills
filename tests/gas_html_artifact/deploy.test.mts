@@ -76,9 +76,17 @@ const { spawn } = require('child_process');
 const runner = path.basename(process.argv[1]);
 const argv = process.argv.slice(2);
 fs.appendFileSync(path.join(process.env.MOCK_REMOTE, 'launchers.log'), runner + '\\n');
-if(process.env.MOCK_RUNNER_FAIL === runner) {console.error('secret-from-runner'); process.exit(23);}
-if(argv[1] !== 'clasp' || (runner === 'pnpm' && argv[0] !== 'exec') || (runner === 'npx' && argv[0] !== '--no-install')) process.exit(34);
-const child = spawn('clasp', argv.slice(2), {stdio:'inherit'});
+if(process.env.MOCK_RUNNER_FAIL === runner && !argv.includes('--version')) {console.error('secret-from-runner'); process.exit(23);}
+if(process.env.MOCK_RUNNER_UNAVAILABLE === runner) process.exit(35);
+let commandArgs;
+if(runner === 'pnpm' && argv[0] === 'exec' && argv[1] === 'clasp') commandArgs = argv.slice(2);
+else if(runner === 'npx' && argv[0] === '--no-install' && argv[1] === '--package=@google/clasp' && argv[2] === 'clasp') {
+ if(process.env.MOCK_NPX_PACKAGE_MISSING) process.exit(36);
+ commandArgs = argv.slice(3);
+} else process.exit(34);
+// npx resolves a package binary, not arbitrary executables from PATH.
+const executable = runner === 'npx' ? path.join(path.dirname(process.argv[1]), 'clasp') : 'clasp';
+const child = spawn(executable, commandArgs, {stdio:'inherit'});
 child.on('error', () => process.exit(127));
 child.on('close', code => process.exit(code ?? 1));
 `;
@@ -257,8 +265,69 @@ test("does not fallback when pnpm exists but clasp execution fails", (t) => {
 	const result = f.run(f.args, { MOCK_RUNNER_FAIL: "pnpm" });
 	assert.equal(result.status, 23);
 	assert.ok(!result.stderr.includes("secret-from-runner"));
-	assert.deepEqual(f.launchers(), ["pnpm"]);
-	assert.equal(f.calls().length, 0);
+	assert.deepEqual(f.launchers(), ["pnpm", "pnpm"]);
+	assert.deepEqual(
+		f.calls().map((call) => call.cmd),
+		["--version"],
+	);
+});
+
+test("falls back to direct clasp when npx cannot resolve the official package", (t) => {
+	const f = fixture(t);
+	fs.unlinkSync(path.join(f.bin, "pnpm"));
+	const result = f.run(f.args, { MOCK_NPX_PACKAGE_MISSING: "true" });
+	assert.equal(result.status, 0, result.stderr);
+	assert.deepEqual(f.launchers(), ["npx"]);
+	assert.ok(f.calls().some((call) => call.cmd === "create-script"));
+});
+
+test("falls back when pnpm exists but cannot resolve clasp", (t) => {
+	const f = fixture(t);
+	const result = f.run(f.args, { MOCK_RUNNER_UNAVAILABLE: "pnpm" });
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(f.launchers()[0], "pnpm");
+	assert.ok(
+		f
+			.launchers()
+			.slice(1)
+			.every((runner) => runner === "npx"),
+	);
+});
+
+test("does not retry direct clasp after an actual npx command failure", (t) => {
+	const f = fixture(t);
+	fs.unlinkSync(path.join(f.bin, "pnpm"));
+	const result = f.run(f.args, { MOCK_RUNNER_FAIL: "npx" });
+	assert.equal(result.status, 23);
+	assert.deepEqual(f.launchers(), ["npx", "npx"]);
+	assert.deepEqual(
+		f.calls().map((call) => call.cmd),
+		["--version"],
+	);
+	assert.ok(!result.stderr.includes("secret-from-runner"));
+});
+
+test("real npx with an empty offline package cache falls back to PATH clasp", (t) => {
+	const npx = (process.env.PATH || "")
+		.split(path.delimiter)
+		.map((directory) => path.join(directory, "npx"))
+		.find((candidate) => fs.existsSync(candidate));
+	if (!npx) {
+		t.skip("npx is not installed in the test environment");
+		return;
+	}
+	const f = fixture(t);
+	fs.unlinkSync(path.join(f.bin, "pnpm"));
+	fs.unlinkSync(path.join(f.bin, "npx"));
+	fs.symlinkSync(npx, path.join(f.bin, "npx"));
+	const result = f.run(f.args, {
+		npm_config_cache: path.join(f.base, "empty-npm-cache"),
+		npm_config_offline: "true",
+		HOME: f.base,
+	});
+	assert.equal(result.status, 0, result.stderr);
+	assert.ok(f.calls().some((call) => call.cmd === "create-script"));
+	assert.ok(!fs.existsSync(path.join(f.work, "node_modules")));
 });
 
 test("clasp commands use one explicit ignore file", (t) => {
