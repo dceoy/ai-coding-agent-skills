@@ -34,8 +34,11 @@ Paths with spaces are supported. Parent directories must already exist.
   Production consent compares against the selected version even if HEAD already
   has the requested policy; manifest force compares separately against HEAD.
 
-Install Node.js >=20 and Google's `clasp` CLI. Authenticate beforehand
-with interactive `clasp login`, enable the [Apps Script API](https://script.google.com/home/usersettings),
+Install Node.js >=20 and make Google's `clasp` CLI available. The wrapper uses
+`pnpm exec clasp` when pnpm is available, otherwise `npx --no-install clasp`,
+then direct `clasp` if neither package manager is available. No launcher
+installs dependencies automatically. Authenticate beforehand using the selected
+launcher (for example, `pnpm exec clasp login`), enable the [Apps Script API](https://script.google.com/home/usersettings),
 and obtain project/deployment permissions. The wrapper never installs tools,
 initiates login, adds scopes, or relaxes account/domain restrictions. It pins the
 reviewed command/JSON contract and checks installed command capabilities before mutation.
