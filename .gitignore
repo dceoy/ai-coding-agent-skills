@@ -268,8 +268,11 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
-# Generated native tests are built locally, not committed
-/tests/gas-html-artifact.test.mjs
+# Ignore JavaScript files in tests/ (including nested directories)
+/tests/**/*.js
+/tests/**/*.mjs
+/tests/**/*.cjs
+/tests/**/*.jsx
 
 # Optional npm cache directory
 .npm

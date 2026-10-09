@@ -34,12 +34,9 @@ Paths with spaces are supported. Parent directories must already exist.
   Production consent compares against the selected version even if HEAD already
   has the requested policy; manifest force compares separately against HEAD.
 
-Requires Node.js >=20, the bundled `scripts/deploy.mjs` executable, and
-Google's `clasp` CLI on `PATH`. The wrapper checks required CLI capabilities
-before deployment. Authenticate with
-interactive `clasp login`, enable the
-[Apps Script API](https://script.google.com/home/usersettings), and obtain
-project/deployment permissions. The wrapper never installs tools,
+Install Node.js >=20 and Google's `clasp` CLI. Authenticate beforehand
+with interactive `clasp login`, enable the [Apps Script API](https://script.google.com/home/usersettings),
+and obtain project/deployment permissions. The wrapper never installs tools,
 initiates login, adds scopes, or relaxes account/domain restrictions. It pins the
 reviewed command/JSON contract and checks installed command capabilities before mutation.
 Older command aliases are not used. See [official clasp](https://github.com/google/clasp).
@@ -105,9 +102,9 @@ of arbitrary JavaScript compatibility. Do not mark secretReview passed before in
 
 ## Deploy
 
-Run `scripts/deploy.mjs` from this skill's directory after assessment and
-explicit target/policy selection. These examples assume the report and source
-exist and the caller authorized the chosen policy:
+Run the bundled [scripts/deploy.mjs](scripts/deploy.mjs) with Node.js after assessment and explicit
+target/policy selection. These examples assume the report and source exist and the
+caller authorized the chosen policy:
 
 ```bash
 # Initial standalone deployment, restricted to the deploying user.
@@ -187,10 +184,6 @@ flowchart TD
 ```
 
 ## Verification
-
-The deployment script can be checked against a trusted HTML artifact using a
-mocked clasp environment without Google credentials. Run a live deployment only
-with the caller's authorization.
 
 An optional **authorized** smoke test uses one trusted self-contained artifact:
 make an initial restricted deployment, open its verified URL in a browser, check the
