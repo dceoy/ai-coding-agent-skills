@@ -341,7 +341,11 @@ for (const [name, modify, env] of [
 		"manifest consent absent",
 		(f) => without(f.args, "--allow-manifest-update"),
 	],
-	["unsupported clasp CLI", (f) => f.args, { MOCK_MISSING_CAPABILITY: "open-web-app" }],
+	[
+		"unsupported clasp CLI",
+		(f) => f.args,
+		{ MOCK_MISSING_CAPABILITY: "open-web-app" },
+	],
 	["unauthenticated", (f) => f.args, { MOCK_AUTH: "false" }],
 	[
 		"unsupported report",
