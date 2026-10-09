@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const root = fileURLToPath(new URL("../", import.meta.url));
+const root = fileURLToPath(new URL("../../", import.meta.url));
 const deploy = path.join(root, "skills/gas-html-artifact/scripts/deploy.mjs");
 const template = fs.readFileSync(
 	path.join(root, "skills/gas-html-artifact/templates/Code.gs"),

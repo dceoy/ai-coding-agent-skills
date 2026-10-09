@@ -12,6 +12,6 @@
 	},
 	"include": [
 		"skills/gas-html-artifact/scripts/deploy.mts",
-		"tests/gas-html-artifact.test.mts"
+		"tests/gas_html_artifact/deploy.test.mts"
 	]
 }

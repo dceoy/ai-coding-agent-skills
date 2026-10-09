@@ -12,7 +12,7 @@ import ghapi
 import pytest
 import workdir
 
-from tests.conftest import FakeGh, make_pr, make_repo
+from tests.github_productivity.conftest import FakeGh, make_pr, make_repo
 
 if TYPE_CHECKING:
     from pathlib import Path
