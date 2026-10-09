@@ -102,21 +102,25 @@ See [.codex/AGENTS.md](./.codex/AGENTS.md) for the authoritative routing policy 
 
 Install and authenticate the required CLI tools before running skills:
 
-- **Node.js >=22 and pnpm 11** - To build the `gas-html-artifact` TypeScript scripts from source. From the repository root, build **before first use** and after updating the TypeScript sources:
+Build `gas-html-artifact` **before using it from a source checkout**, and rebuild
+after TypeScript changes. The build requires Node.js >=22 and pnpm 11.
+From the repository root:
 
-  ```bash
-  corepack enable
-  pnpm install --frozen-lockfile
-  pnpm run build
-  ```
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run build
+```
 
-  The locally generated `skills/gas-html-artifact/scripts/deploy.mjs` and `tests/gas-html-artifact.test.mjs` are Git-ignored. Run `pnpm test` for mocked deployment tests.
-  CI builds the executable into packaged skill ZIPs, so ZIP users need not build from source.
-- **Node.js >=20 and official `@google/clasp@3.4.1`** - To execute the built `gas-html-artifact` script.
-  - From a source checkout, use `pnpm exec node` to expose locally installed `clasp` on `PATH`.
-  - Authenticate with `pnpm exec clasp login` (or `clasp login` when installed globally); enable the Apps Script API before deployment.
-  - Mocked tests need no Google credentials.
+This generates `skills/gas-html-artifact/scripts/deploy.mjs` and
+`tests/gas-html-artifact.test.mjs` locally; neither is committed. Use
+`pnpm test` for mocked deployment tests. CI includes the compiled executable
+in packaged skill ZIPs, so ZIP users do not need the source build tooling.
 
+- **Node.js >=20 and official `@google/clasp@3.4.1`** - To run `gas-html-artifact`
+  - Authenticate with `clasp login` and enable the Apps Script API before deployment
+  - From a source checkout, run `pnpm exec node` to expose the locally installed `clasp` on `PATH`
+  - Mocked tests require no Google credentials
 - **Claude Code** - For `.claude/` agents and skills
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
