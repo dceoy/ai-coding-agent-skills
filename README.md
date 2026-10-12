@@ -66,16 +66,16 @@ For issue-to-PR implementation, pull request review, and feedback resolution, se
 
 ## Codex Custom Subagents
 
-Project-scoped definitions under `.codex/agents/` provide four native read-only roles:
+Four optional native, read-only roles are defined under `.codex/agents/`:
+`planner`, `advisor`, `reviewer`, and `feedback-analyst`.
+Each TOML specifies its default model and reasoning effort; the top-level
+agent owns implementation. The routing policy is `.codex/AGENTS.md`, which
+must be installed as `$CODEX_HOME/AGENTS.md` to apply globally (it is not
+read automatically from the repository root).
 
-- `planner` - Produce a decision-complete implementation plan
-- `advisor` - Provide on-demand technical advice or implementation review
-- `reviewer` - Review one caller-defined lens against an exact revision
-- `feedback-analyst` - Analyze review feedback into source-preserving dispositions and fix guidance
-
-Models and reasoning effort are intentionally unpinned in the TOML files and selected at dispatch time. Codex subagents use GPT-6-family models: planner=GPT-6.1 Sol, advisor=GPT-6.1 Sol, lightweight docs/tests review=GPT-6 Luna, substantive correctness/security/performance review=GPT-6.1 Sol, and feedback-analyst=GPT-6 Luna, with GPT-6 Astra reserved for the hardest escalation cases defined in `.codex/AGENTS.md`. Effort remains task-sensitive: Luna=`max`; Sol uses `xhigh` for routine planning, ordinary correctness/code-reasoning review, and ambiguous/code-heavy feedback triage, `high` for advisor and architecture/security/high-risk bands, and `max` only for the hardest quality-first work; Astra=`medium|high|xhigh|max`. Implementation remains in the top-level main agent.
-
-See [.codex/AGENTS.md](./.codex/AGENTS.md) for the authoritative routing policy and [.codex/agents/README.md](./.codex/agents/README.md) for installation.
+See [Codex agent setup](./.codex/agents/README.md) for installation and
+capability checks. Unsupported named-role dispatch falls back to work in
+the main agent, not a simulated child agent.
 
 ## Structure
 
