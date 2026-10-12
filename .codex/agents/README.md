@@ -2,12 +2,8 @@
 
 Four optional, native, read-only Codex roles live here:
 
-| Role | Default model | Purpose |
-| --- | --- | --- |
-| `planner` | `gpt-6.1-sol` (high) | Implementation planning |
-| `advisor` | `gpt-6.1-sol` (high) | Independent technical advice |
-| `reviewer` | `gpt-6.1-sol` (high) | Scoped PR review |
-| `feedback-analyst` | `gpt-6-luna` (medium) | Review feedback triage |
+- `planner`, `advisor`, `reviewer`: `gpt-6.1-sol` (`high`).
+- `feedback-analyst`: `gpt-6-luna` (`medium`).
 
 Their TOML files own model, effort, sandbox preference, and output contracts.
 `../AGENTS.md` owns routing. The main agent performs all implementation.
