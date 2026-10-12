@@ -3,16 +3,23 @@
 Install this template as `$CODEX_HOME/AGENTS.md`; a file under the repository's
 `.codex/` directory is not automatically loaded from the repository root.
 
-Delegate only when independent analysis adds value. Use native Codex named-agent
-dispatch, not nested `codex exec`, shell wrappers, copied prompts, or generic
-agents pretending to be named roles:
+## Delegation
 
-- `planner`: decision-complete plans for non-trivial changes. Supply the user
-  request, settled decisions, repository context, constraints, and open questions.
-- `advisor`: independent advice on consequential design or implementation risks.
-- `reviewer`: one bounded PR-review discovery or validation task against an exact
-  revision. Supply task kind, scope, evidence, and candidate IDs where applicable.
-- `feedback-analyst`: item-level review-feedback disposition with source IDs.
+Use native Codex named-agent dispatch when a role adds material value:
+
+- For non-trivial implementation where planning reduces rework or risk, invoke
+  `planner` before editing. Supply the request, prior decisions, repository
+  context, constraints, and open questions.
+- For consequential architecture, security, or cross-system decisions, invoke
+  `advisor` for an independent assessment.
+- For substantive PR reviews, invoke `reviewer` for bounded discovery or
+  validation against an exact revision. Supply task kind, scope, and evidence.
+- For multi-item or ambiguous review feedback, invoke `feedback-analyst` with
+  the feedback snapshot and source IDs.
+
+Use the main agent for simple questions and deterministic edits; do not add
+delegation merely as a process gate. Never use nested `codex exec`, shell
+wrappers, copied prompts, or generic agents posing as named roles.
 
 Keep implementation and verification in the top-level main agent. All named
 agents are read-only terminal leaves: no writes, publishing, or further delegation.
