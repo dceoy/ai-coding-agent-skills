@@ -1,58 +1,42 @@
 # Codex custom subagents
 
-These optional project-scoped TOML files define four reusable native read-only Codex roles. `.codex/AGENTS.md` is the authoritative routing policy; portable skills remain usable without these definitions.
+Four optional, native, read-only Codex roles live here:
 
-- `planner`: decision-complete implementation planning.
-- `advisor`: on-demand technical advice or implementation review.
-- `reviewer`: one caller-defined PR-review discovery or validation task against an exact revision.
-- `feedback-analyst`: source-preserving feedback disposition and fix guidance.
+- `planner`, `advisor`, `reviewer`: `gpt-6.1-sol` (`high`).
+- `feedback-analyst`: `gpt-6-luna` (`medium`).
 
-Implementation remains owned by the top-level main agent. Named agents are fresh-context terminal leaves and must not modify files or dispatch another subagent.
+Their TOML files own model, effort, sandbox preference, and output contracts.
+`../AGENTS.md` owns routing. The main agent performs all implementation.
 
-## Model routing
+## Install globally
 
-The TOML files intentionally omit `model` and `model_reasoning_effort`; both are selected per native dispatch.
-
-- `planner`: GPT-6.1 Sol by default → GPT-6 Astra only for the hardest plans when several architecture, public-interface, schema, migration, security-boundary, broad cross-cutting, or unusually regression-prone concerns interact, uncertainty remains, or design-error cost is unusually high.
-- `advisor`: GPT-6.1 Sol by default → GPT-6 Astra for consequential architecture, security, cross-system, or similarly high-impact judgment.
-- `reviewer`: GPT-6 Luna for lightweight docs/comments/narrow coverage; GPT-6.1 Sol for substantive correctness/errors/types/compatibility/simplification/performance reasoning and high-risk security, migration, concurrency, state, invariant, exhaustion, or scalability analysis; GPT-6 Astra only for the highest-risk or most cross-cutting reviews.
-- `feedback-analyst`: GPT-6 Luna → GPT-6.1 Sol for ambiguous or code-reasoning-heavy triage; escalate consequential architecture-level judgment to `advisor`.
-
-Astra is capability-gated: use it only when the native Codex model catalog or dispatch surface confirms `gpt-6-astra` support in the current environment. Otherwise remain on Sol with an appropriate Sol effort.
-
-Effort is selected for the chosen model: Luna=`max`; Sol uses `xhigh` for routine planning, ordinary correctness/code-reasoning review, and ambiguous/code-heavy feedback triage, while `high` remains the default for advisor work and architecture/security/high-risk review bands; `max` is reserved for the hardest quality-first Sol work. Astra=`medium` by default with `high`, `xhigh`, or `max` available when stronger reasoning is justified. See `.codex/AGENTS.md` for the full criteria.
-
-Invoke named roles only through Codex native multi-agent tools. With MultiAgentV2 use `fork_turns: "none"`; with MultiAgentV1 use `fork_context: false` or omit it. Pass task-specific context explicitly and apply the mutation guard defined in `.codex/AGENTS.md`.
-
-## User-wide installation
-
-Codex uses `$CODEX_HOME` when set and otherwise defaults to `$HOME/.codex`.
+Codex uses `$CODEX_HOME`, defaulting to `$HOME/.codex`.
+From the repository root:
 
 ```bash
 codex_home="${CODEX_HOME:-$HOME/.codex}"
 mkdir -p "$codex_home/agents"
-
 for file in .codex/agents/*.toml; do
-  destination="$codex_home/agents/$(basename "$file")"
-  if [ -e "$destination" ] || [ -L "$destination" ]; then
-    printf 'Preserve and merge or remove %s before installation.\n' "$destination" >&2
+  dest="$codex_home/agents/$(basename "$file")"
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    echo "Merge existing agent manually: $dest" >&2
     exit 1
   fi
 done
-
-for file in .codex/agents/*.toml; do
-  cp "$file" "$codex_home/agents/$(basename "$file")"
-done
-
-if [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
-  printf 'Merge .codex/AGENTS.md into the active AGENTS.override.md manually.\n'
-elif [ -e "$codex_home/AGENTS.md" ] || [ -L "$codex_home/AGENTS.md" ]; then
-  printf 'Merge .codex/AGENTS.md into the existing AGENTS.md manually.\n'
+cp .codex/agents/*.toml "$codex_home/agents/"
+if [ -e "$codex_home/AGENTS.md" ] || [ -L "$codex_home/AGENTS.md" ] ||
+   [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
+  echo "Merge .codex/AGENTS.md into your active instructions manually."
 else
   cp .codex/AGENTS.md "$codex_home/AGENTS.md"
 fi
 ```
 
-Use regular-file copies; agent-definition symlinks may not be discovered.
+Restart Codex after installation. Confirm the runtime exposes each named role
+and uses its configured model/effort. MultiAgentV2 may hide role selection or
+per-call model overrides; if the named role cannot be selected, do not
+substitute an unnamed agent. Read-only TOML settings must not be treated as
+proof of effective sandbox permissions.
 
-Start a fresh Codex session after installation and verify that `planner`, `advisor`, `reviewer`, and `feedback-analyst` resolve from the expected definitions.
+Project-local `.codex/agents/` definitions can be discovered independently
+of the global installation; `.codex/AGENTS.md` is not a root instruction file.
