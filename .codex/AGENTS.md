@@ -25,15 +25,17 @@ Keep implementation and verification in the top-level main agent. All named
 agents are read-only terminal leaves: no writes, publishing, or further delegation.
 Treat findings as evidence to assess, not an approval gate.
 
-Use the model and reasoning effort configured in each agent TOML. Change them
-only when a supported native dispatch interface permits an explicit override;
-do not assume hidden fields are available or silently accept another model.
+Use the model and reasoning effort pinned in each agent TOML. These settings
+take precedence over spawn-time overrides. For a different model or effort,
+use a separately configured role (if supported) or work in the main agent.
 Use a fresh child context: `fork_turns: "none"` in MultiAgentV2, or
 `fork_context: false` (or omitted) in MultiAgentV1. Supply task context explicitly.
 
-If the runtime cannot select the named role or honor its requirements, skip that
-delegation and continue in the main agent. Do not simulate it with another agent
-or a child CLI process. Sandbox declarations and prompt prohibitions are not
-security guarantees: check the effective permissions and inspect Git-visible
-changes after any read-only review. Do not claim transient writes are detectable
-from a final Git diff.
+If the runtime cannot select the named role or honor its requirements, skip
+delegation and work in the main agent; never simulate a named role with another
+agent or CLI. Parent sandbox overrides may supersede a TOML's read-only setting.
+Prefer a verified effective read-only child sandbox. Otherwise, in a Git worktree,
+record HEAD, staged/unstaged diffs, and non-ignored untracked content hashes before
+dispatch; compare afterward and reject new mutations while preserving prior
+changes. Outside Git, require effective read-only permissions. This detects only
+persistent Git-visible changes, not transient writes.
