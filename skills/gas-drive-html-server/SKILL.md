@@ -13,11 +13,11 @@ This skill never creates or edits the HTML artifacts in Drive.
 
 ## Routing
 
-| URL | Behavior |
-| --- | --- |
-| `/exec` | Index configured root folder |
-| `/exec?dir=FOLDER_ID` | List a descendant folder |
-| `/exec?file=FILE_ID` | Display a descendant HTML file |
+| URL                   | Behavior                       |
+| --------------------- | ------------------------------ |
+| `/exec`               | Index configured root folder   |
+| `/exec?dir=FOLDER_ID` | List a descendant folder       |
+| `/exec?file=FILE_ID`  | Display a descendant HTML file |
 
 Links use an absolute Web App URL, Drive IDs (avoids duplicate names) and
 `<base target="_top">` for iframe navigation. The index displays names, last
