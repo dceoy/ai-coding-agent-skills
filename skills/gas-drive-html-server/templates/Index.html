@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><?= title ?></title>
+  <style>
+    body { font: 15px/1.5 system-ui, sans-serif; max-width: 960px; padding: 1.5rem; margin: auto; color: #222; }
+    h1 { font-size: 1.5rem; overflow-wrap: anywhere; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; border-bottom: 1px solid #ddd; padding: .55rem; }
+    td:first-child { overflow-wrap: anywhere; }
+    th:last-child, td:last-child { text-align: right; }
+    a { color: #164ea6; }
+    .hint { color: #666; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <h1><?= title ?></h1>
+  <p><a href="<?= homeUrl ?>">Root directory</a></p>
+  <table>
+    <thead><tr><th>Name</th><th>Modified (UTC)</th><th>Bytes</th></tr></thead>
+    <tbody>
+    <? for (const entry of entries) { ?>
+      <tr>
+        <td><a href="<?= entry.url ?>"><?= entry.directory ? entry.name + '/' : entry.name ?></a></td>
+        <td><?= entry.updated ?></td><td><?= entry.size ?></td>
+      </tr>
+    <? } ?>
+    </tbody>
+  </table>
+  <? if (entries.length === 0) { ?><p>No HTML files or subfolders.</p><? } ?>
+  <p class="hint">Directory index generated from Google Drive on request.</p>
+</body>
+</html>
