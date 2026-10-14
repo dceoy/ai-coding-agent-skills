@@ -12,250 +12,414 @@ const templateDir = fileURLToPath(new URL("../templates/", import.meta.url));
 const fileNames = ["Code.gs", "Index.html", "appsscript.json"];
 const accessLevels = ["MYSELF", "DOMAIN", "ANYONE", "ANYONE_ANONYMOUS"];
 const executeLevels = ["USER_DEPLOYING", "USER_ACCESSING"];
-const validId = (value) => typeof value === "string" && /^[A-Za-z0-9_-]{10,}$/.test(value);
-const validDeploy = (value) => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
-const check = (ok, message) => { if (!ok) throw Error(message); };
+const validId = (value) =>
+	typeof value === "string" && /^[A-Za-z0-9_-]{10,}$/.test(value);
+const validDeploy = (value) =>
+	typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
+const check = (ok, message) => {
+	if (!ok) throw Error(message);
+};
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const filesHash = (dir) => Object.fromEntries(fileNames.map((name) =>
-  [name, hash(fs.readFileSync(path.join(dir, name)))]));
-const writeJson = (file, value) => fs.writeFileSync(
-  file, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
+const filesHash = (dir) =>
+	Object.fromEntries(
+		fileNames.map((name) => [
+			name,
+			hash(fs.readFileSync(path.join(dir, name))),
+		]),
+	);
+const writeJson = (file, value) =>
+	fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", {
+		mode: 0o600,
+	});
 
 let work;
 let workCreated = false;
 let stage = "validate";
 let state = {};
 let runner;
-const save = () => { if (workCreated) writeJson(path.join(work, "deployment.json"), { ...state, stage }); };
+const save = () => {
+	if (workCreated)
+		writeJson(path.join(work, "deployment.json"), { ...state, stage });
+};
 
 function run(args, cwd, asJson = true) {
-  if (!runner) {
-    runner = [
-      ["pnpm", "exec", "clasp"],
-      ["npx", "--no-install", "--package=@google/clasp", "clasp"],
-      ["clasp"],
-    ].find(([exe, ...prefix]) => {
-      const r = spawnSync(exe, [...prefix, "--version"], { encoding: "utf8" });
-      return !r.error && r.status === 0;
-    });
-  }
-  check(runner, "Official @google/clasp CLI was not found.");
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/.test(key)) delete env[key];
-  }
-  const [exe, ...prefix] = runner;
-  const r = spawnSync(exe, [...prefix, ...(asJson ? ["--json"] : []), ...args], {
-    cwd, env, encoding: "utf8", input: "", maxBuffer: 16 * 1024 * 1024,
-  });
-  check(!r.error && r.status === 0,
-    "clasp failed at " + stage + ". Raw diagnostics withheld; check authentication, Apps Script API and permissions.");
-  if (!asJson) return r.stdout;
-  try { return JSON.parse(r.stdout); }
-  catch { throw Error("Unexpected clasp JSON at " + stage); }
+	if (!runner) {
+		runner = [
+			["pnpm", "exec", "clasp"],
+			["npx", "--no-install", "--package=@google/clasp", "clasp"],
+			["clasp"],
+		].find(([exe, ...prefix]) => {
+			const r = spawnSync(exe, [...prefix, "--version"], { encoding: "utf8" });
+			return !r.error && r.status === 0;
+		});
+	}
+	check(runner, "Official @google/clasp CLI was not found.");
+	const env = { ...process.env };
+	for (const key of Object.keys(env)) {
+		if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/.test(key))
+			delete env[key];
+	}
+	const [exe, ...prefix] = runner;
+	const r = spawnSync(
+		exe,
+		[...prefix, ...(asJson ? ["--json"] : []), ...args],
+		{
+			cwd,
+			env,
+			encoding: "utf8",
+			input: "",
+			maxBuffer: 16 * 1024 * 1024,
+		},
+	);
+	check(
+		!r.error && r.status === 0,
+		"clasp failed at " +
+			stage +
+			". Raw diagnostics withheld; check authentication, Apps Script API and permissions.",
+	);
+	if (!asJson) return r.stdout;
+	try {
+		return JSON.parse(r.stdout);
+	} catch {
+		throw Error("Unexpected clasp JSON at " + stage);
+	}
 }
 
 function clasp(dir, command, args = [], asJson = true) {
-  return run(["--project", path.join(dir, ".clasp.json"), "--ignore",
-    path.join(work, ".claspignore"), command, ...args], dir, asJson);
+	return run(
+		[
+			"--project",
+			path.join(dir, ".clasp.json"),
+			"--ignore",
+			path.join(work, ".claspignore"),
+			command,
+			...args,
+		],
+		dir,
+		asJson,
+	);
 }
 
 function clone(scriptId, dir, version) {
-  fs.mkdirSync(dir);
-  const result = clasp(dir, "clone-script", [scriptId, ...(version ? [String(version)] : [])]);
-  check(Array.isArray(result.files) && result.files.length >= 3,
-    "Incomplete remote project clone.");
-  check(same(fs.readdirSync(dir).filter((x) => x !== ".clasp.json").sort(),
-    [...fileNames].sort()), "Refusing unmanaged GAS project or unexpected remote files.");
-  check(readJson(path.join(dir, ".clasp.json")).scriptId === scriptId,
-    "Cloned project ID differs.");
-  check(fs.readFileSync(path.join(dir, "Code.gs"), "utf8")
-    .startsWith("// Managed by gas-drive-html-server."),
-    "Missing skill ownership marker.");
-  return filesHash(dir);
+	fs.mkdirSync(dir);
+	const result = clasp(dir, "clone-script", [
+		scriptId,
+		...(version ? [String(version)] : []),
+	]);
+	check(
+		Array.isArray(result.files) && result.files.length >= 3,
+		"Incomplete remote project clone.",
+	);
+	check(
+		same(
+			fs
+				.readdirSync(dir)
+				.filter((x) => x !== ".clasp.json")
+				.sort(),
+			[...fileNames].sort(),
+		),
+		"Refusing unmanaged GAS project or unexpected remote files.",
+	);
+	check(
+		readJson(path.join(dir, ".clasp.json")).scriptId === scriptId,
+		"Cloned project ID differs.",
+	);
+	check(
+		fs
+			.readFileSync(path.join(dir, "Code.gs"), "utf8")
+			.startsWith("// Managed by gas-drive-html-server."),
+		"Missing skill ownership marker.",
+	);
+	return filesHash(dir);
 }
 
 function policy(manifest) {
-  const result = manifest.webapp;
-  check(result && accessLevels.includes(result.access) &&
-    executeLevels.includes(result.executeAs), "Missing or invalid Web App policy.");
-  return { access: result.access, executeAs: result.executeAs };
+	const result = manifest.webapp;
+	check(
+		result &&
+			accessLevels.includes(result.access) &&
+			executeLevels.includes(result.executeAs),
+		"Missing or invalid Web App policy.",
+	);
+	return { access: result.access, executeAs: result.executeAs };
 }
 
 function verifiedUrl(dir, id) {
-  const stdout = clasp(dir, "open-web-app", [id], false);
-  const match = stdout.match(/^\s*(\{[^\r\n]+\})/);
-  check(match, "Unable to inspect Web App metadata.");
-  const url = new URL(JSON.parse(match[1]).url);
-  check(url.protocol === "https:" && url.hostname === "script.google.com" &&
-    url.pathname.endsWith("/s/" + id + "/exec") &&
-    !url.search && !url.hash, "Invalid production /exec URL.");
-  return url.href;
+	const stdout = clasp(dir, "open-web-app", [id], false);
+	const match = stdout.match(/^\s*(\{[^\r\n]+\})/);
+	check(match, "Unable to inspect Web App metadata.");
+	const url = new URL(JSON.parse(match[1]).url);
+	check(
+		url.protocol === "https:" &&
+			url.hostname === "script.google.com" &&
+			url.pathname.endsWith("/s/" + id + "/exec") &&
+			!url.search &&
+			!url.hash,
+		"Invalid production /exec URL.",
+	);
+	return url.href;
 }
 
 try {
-  const argv = process.argv.slice(2);
-  const flags = argv.filter((arg) => arg.startsWith("--")).map((arg) => arg.split("=")[0]);
-  check(new Set(flags).size === flags.length, "Duplicate CLI flag.");
-  const { values: v } = parseArgs({
-    options: {
-      "folder-id": { type: "string" },
-      workdir: { type: "string" },
-      "new-project": { type: "string" },
-      "script-id": { type: "string" },
-      "deployment-id": { type: "string" },
-      access: { type: "string" },
-      "execute-as": { type: "string" },
-      "acknowledge-exposure": { type: "boolean" },
-      "allow-policy-change": { type: "boolean" },
-      "allow-folder-change": { type: "boolean" },
-      "exclusive-coordination": { type: "boolean" },
-    },
-  });
-  const fresh = v["new-project"] !== undefined;
-  check(validId(v["folder-id"]), "Valid --folder-id required.");
-  check(typeof v.workdir === "string" && v.workdir !== "", "--workdir required.");
-  check(fresh !== (v["script-id"] !== undefined), "Specify one project target.");
-  check(fresh ? !v["deployment-id"] && v["new-project"].trim() !== "" :
-    validDeploy(v["script-id"]) && validDeploy(v["deployment-id"]) &&
-    v["exclusive-coordination"], "Updates require script/deployment IDs and exclusive coordination.");
-  check(Boolean(v.access) === Boolean(v["execute-as"]),
-    "Provide --access and --execute-as together.");
-  const requested = v.access ? { access: v.access, executeAs: v["execute-as"] } : null;
-  check(!requested || (accessLevels.includes(requested.access) &&
-    executeLevels.includes(requested.executeAs)), "Invalid policy.");
-  check(!requested || requested.access === "MYSELF" || v["acknowledge-exposure"],
-    "Non-private access requires --acknowledge-exposure.");
-  check(!fresh || (!v["allow-folder-change"] && !v["allow-policy-change"]),
-    "Change-approval flags are update-only.");
+	const argv = process.argv.slice(2);
+	const flags = argv
+		.filter((arg) => arg.startsWith("--"))
+		.map((arg) => arg.split("=")[0]);
+	check(new Set(flags).size === flags.length, "Duplicate CLI flag.");
+	const { values: v } = parseArgs({
+		options: {
+			"folder-id": { type: "string" },
+			workdir: { type: "string" },
+			"new-project": { type: "string" },
+			"script-id": { type: "string" },
+			"deployment-id": { type: "string" },
+			access: { type: "string" },
+			"execute-as": { type: "string" },
+			"acknowledge-exposure": { type: "boolean" },
+			"allow-policy-change": { type: "boolean" },
+			"allow-folder-change": { type: "boolean" },
+			"exclusive-coordination": { type: "boolean" },
+		},
+	});
+	const fresh = v["new-project"] !== undefined;
+	check(validId(v["folder-id"]), "Valid --folder-id required.");
+	check(
+		typeof v.workdir === "string" && v.workdir !== "",
+		"--workdir required.",
+	);
+	check(
+		fresh !== (v["script-id"] !== undefined),
+		"Specify one project target.",
+	);
+	check(
+		fresh
+			? !v["deployment-id"] && v["new-project"].trim() !== ""
+			: validDeploy(v["script-id"]) &&
+					validDeploy(v["deployment-id"]) &&
+					v["exclusive-coordination"],
+		"Updates require script/deployment IDs and exclusive coordination.",
+	);
+	check(
+		Boolean(v.access) === Boolean(v["execute-as"]),
+		"Provide --access and --execute-as together.",
+	);
+	const requested = v.access
+		? { access: v.access, executeAs: v["execute-as"] }
+		: null;
+	check(
+		!requested ||
+			(accessLevels.includes(requested.access) &&
+				executeLevels.includes(requested.executeAs)),
+		"Invalid policy.",
+	);
+	check(
+		!requested || requested.access === "MYSELF" || v["acknowledge-exposure"],
+		"Non-private access requires --acknowledge-exposure.",
+	);
+	check(
+		!fresh || (!v["allow-folder-change"] && !v["allow-policy-change"]),
+		"Change-approval flags are update-only.",
+	);
 
-  work = path.resolve(v.workdir);
-  check(!fs.existsSync(work) && fs.existsSync(path.dirname(work)),
-    "Workdir must be fresh with an existing parent.");
-  fs.mkdirSync(work, { mode: 0o700 });
-  workCreated = true;
-  fs.writeFileSync(path.join(work, ".claspignore"), "");
-  state = { folderId: v["folder-id"], scriptId: v["script-id"],
-    deploymentId: v["deployment-id"], runtimeSmokeTest: "not performed" };
-  save();
-  const project = path.join(work, "project");
-  fs.mkdirSync(project);
-  let chosen;
-  let before;
-  let oldUrl;
+	work = path.resolve(v.workdir);
+	check(
+		!fs.existsSync(work) && fs.existsSync(path.dirname(work)),
+		"Workdir must be fresh with an existing parent.",
+	);
+	fs.mkdirSync(work, { mode: 0o700 });
+	workCreated = true;
+	fs.writeFileSync(path.join(work, ".claspignore"), "");
+	state = {
+		folderId: v["folder-id"],
+		scriptId: v["script-id"],
+		deploymentId: v["deployment-id"],
+		runtimeSmokeTest: "not performed",
+	};
+	save();
+	const project = path.join(work, "project");
+	fs.mkdirSync(project);
+	let chosen;
+	let before;
+	let oldUrl;
 
-  if (fresh) {
-    chosen = requested || { access: "MYSELF", executeAs: "USER_DEPLOYING" };
-  } else {
-    stage = "clone existing project";
-    const snapshot = path.join(work, "snapshot");
-    before = clone(state.scriptId, snapshot);
-    const selected = clasp(snapshot, "list-deployments")
-      .find((d) => d.deploymentId === state.deploymentId);
-    check(selected && Number.isInteger(selected.versionNumber) &&
-      selected.versionNumber > 0, "Deployment not found.");
-    const production = path.join(work, "production");
-    clone(state.scriptId, production, selected.versionNumber);
-    const livePolicy = policy(readJson(path.join(production, "appsscript.json")));
-    const headPolicy = policy(readJson(path.join(snapshot, "appsscript.json")));
-    check(same(livePolicy, headPolicy), "Remote HEAD policy differs from production.");
-    chosen = requested || livePolicy;
-    check(same(chosen, livePolicy) || v["allow-policy-change"],
-      "Policy change requires --allow-policy-change.");
-    check(chosen.access === "MYSELF" || v["acknowledge-exposure"],
-      "Non-private deployment requires --acknowledge-exposure.");
-    const config = fs.readFileSync(path.join(snapshot, "Code.gs"), "utf8");
-    const match = config.match(/^const ROOT_FOLDER_ID = '([A-Za-z0-9_-]+)';$/m);
-    check(match && (match[1] === v["folder-id"] || v["allow-folder-change"]),
-      "Changing the Drive root requires --allow-folder-change.");
-    oldUrl = verifiedUrl(snapshot, state.deploymentId);
-    fs.copyFileSync(path.join(snapshot, ".clasp.json"),
-      path.join(project, ".clasp.json"));
-  }
+	if (fresh) {
+		chosen = requested || { access: "MYSELF", executeAs: "USER_DEPLOYING" };
+	} else {
+		stage = "clone existing project";
+		const snapshot = path.join(work, "snapshot");
+		before = clone(state.scriptId, snapshot);
+		const selected = clasp(snapshot, "list-deployments").find(
+			(d) => d.deploymentId === state.deploymentId,
+		);
+		check(
+			selected &&
+				Number.isInteger(selected.versionNumber) &&
+				selected.versionNumber > 0,
+			"Deployment not found.",
+		);
+		const production = path.join(work, "production");
+		clone(state.scriptId, production, selected.versionNumber);
+		const livePolicy = policy(
+			readJson(path.join(production, "appsscript.json")),
+		);
+		const headPolicy = policy(readJson(path.join(snapshot, "appsscript.json")));
+		check(
+			same(livePolicy, headPolicy),
+			"Remote HEAD policy differs from production.",
+		);
+		chosen = requested || livePolicy;
+		check(
+			same(chosen, livePolicy) || v["allow-policy-change"],
+			"Policy change requires --allow-policy-change.",
+		);
+		check(
+			chosen.access === "MYSELF" || v["acknowledge-exposure"],
+			"Non-private deployment requires --acknowledge-exposure.",
+		);
+		const config = fs.readFileSync(path.join(snapshot, "Code.gs"), "utf8");
+		const match = config.match(/^const ROOT_FOLDER_ID = '([A-Za-z0-9_-]+)';$/m);
+		check(
+			match && (match[1] === v["folder-id"] || v["allow-folder-change"]),
+			"Changing the Drive root requires --allow-folder-change.",
+		);
+		oldUrl = verifiedUrl(snapshot, state.deploymentId);
+		fs.copyFileSync(
+			path.join(snapshot, ".clasp.json"),
+			path.join(project, ".clasp.json"),
+		);
+	}
 
-  for (const name of fileNames) {
-    let content = fs.readFileSync(path.join(templateDir, name), "utf8");
-    if (name === "Code.gs") {
-      check(content.includes("__ROOT_FOLDER_ID__"), "Missing template placeholder.");
-      content = content.replace("__ROOT_FOLDER_ID__", v["folder-id"]);
-    }
-    if (name === "appsscript.json") {
-      const manifest = JSON.parse(content);
-      manifest.webapp = chosen;
-      content = JSON.stringify(manifest, null, 2) + "\n";
-    }
-    fs.writeFileSync(path.join(project, name), content);
-  }
-  state.policy = chosen;
-  state.payloadSha256 = filesHash(project);
-  save();
+	for (const name of fileNames) {
+		let content = fs.readFileSync(path.join(templateDir, name), "utf8");
+		if (name === "Code.gs") {
+			check(
+				content.includes("__ROOT_FOLDER_ID__"),
+				"Missing template placeholder.",
+			);
+			content = content.replace("__ROOT_FOLDER_ID__", v["folder-id"]);
+		}
+		if (name === "appsscript.json") {
+			const manifest = JSON.parse(content);
+			manifest.webapp = chosen;
+			content = JSON.stringify(manifest, null, 2) + "\n";
+		}
+		fs.writeFileSync(path.join(project, name), content);
+	}
+	state.policy = chosen;
+	state.payloadSha256 = filesHash(project);
+	save();
 
-  if (fresh) {
-    stage = "create project";
-    const bootstrap = path.join(work, "bootstrap");
-    fs.mkdirSync(bootstrap);
-    state.creationAttempted = true;
-    save();
-    // A failed create may still create a remote script; never retry blindly.
-    const output = clasp(bootstrap, "create-script",
-      ["--type", "standalone", "--title", v["new-project"]], false);
-    const match = output.match(/Created new script: https:\/\/script\.google\.com\/d\/([A-Za-z0-9_-]+)\/edit/);
-    const binding = path.join(bootstrap, ".clasp.json");
-    const id = fs.existsSync(binding) ? readJson(binding).scriptId : match?.[1];
-    check(validDeploy(id), "Creation may have succeeded; inspect bootstrap before retrying.");
-    state.scriptId = id;
-    save();
-    writeJson(path.join(project, ".clasp.json"), { scriptId: id, rootDir: "." });
-  } else {
-    stage = "check remote consistency";
-    check(same(before, clone(state.scriptId, path.join(work, "recheck"))),
-      "Concurrent project modification; refusing push.");
-  }
+	if (fresh) {
+		stage = "create project";
+		const bootstrap = path.join(work, "bootstrap");
+		fs.mkdirSync(bootstrap);
+		state.creationAttempted = true;
+		save();
+		// A failed create may still create a remote script; never retry blindly.
+		const output = clasp(
+			bootstrap,
+			"create-script",
+			["--type", "standalone", "--title", v["new-project"]],
+			false,
+		);
+		const match = output.match(
+			/Created new script: https:\/\/script\.google\.com\/d\/([A-Za-z0-9_-]+)\/edit/,
+		);
+		const binding = path.join(bootstrap, ".clasp.json");
+		const id = fs.existsSync(binding) ? readJson(binding).scriptId : match?.[1];
+		check(
+			validDeploy(id),
+			"Creation may have succeeded; inspect bootstrap before retrying.",
+		);
+		state.scriptId = id;
+		save();
+		writeJson(path.join(project, ".clasp.json"), {
+			scriptId: id,
+			rootDir: ".",
+		});
+	} else {
+		stage = "check remote consistency";
+		check(
+			same(before, clone(state.scriptId, path.join(work, "recheck"))),
+			"Concurrent project modification; refusing push.",
+		);
+	}
 
-  stage = "push";
-  state.pushAttempted = true;
-  save();
-  const changedPolicy = !fresh && !same(chosen,
-    policy(readJson(path.join(work, "snapshot", "appsscript.json"))));
-  clasp(project, "push", fresh || changedPolicy ? ["--force"] : []);
-  stage = "verify pushed files";
-  check(same(state.payloadSha256, clone(state.scriptId, path.join(work, "readback"))),
-    "Pushed payload mismatch.");
-  stage = "create version";
-  const vInfo = clasp(project, "create-version", ["gas-drive-html-server"]);
-  check(Number.isInteger(vInfo.versionNumber) && vInfo.versionNumber > 0,
-    "Version number missing.");
-  state.version = vInfo.versionNumber;
-  save();
-  check(same(state.payloadSha256,
-    clone(state.scriptId, path.join(work, "version"), state.version)),
-  "Immutable version payload mismatch.");
-  stage = "deploy version";
-  state.deploymentAttempted = true;
-  save();
-  const deployment = fresh
-    ? clasp(project, "create-deployment", ["--versionNumber", String(state.version),
-      "--description", "gas-drive-html-server"])
-    : clasp(project, "update-deployment", [state.deploymentId,
-      "--versionNumber", String(state.version)]);
-  check(validDeploy(deployment.deploymentId) &&
-    (!state.deploymentId || state.deploymentId === deployment.deploymentId),
-    "Deployment ID missing or changed.");
-  state.deploymentId = deployment.deploymentId;
-  save();
-  const live = clasp(project, "list-deployments")
-    .find((d) => d.deploymentId === state.deploymentId);
-  check(live && live.versionNumber === state.version, "Deployment readback mismatch.");
-  state.url = verifiedUrl(project, state.deploymentId);
-  check(!oldUrl || oldUrl === state.url, "Deployment URL unexpectedly changed.");
-  stage = "verified";
-  save();
-  console.log(JSON.stringify({ ...state, stage }, null, 2));
+	stage = "push";
+	state.pushAttempted = true;
+	save();
+	const changedPolicy =
+		!fresh &&
+		!same(
+			chosen,
+			policy(readJson(path.join(work, "snapshot", "appsscript.json"))),
+		);
+	clasp(project, "push", fresh || changedPolicy ? ["--force"] : []);
+	stage = "verify pushed files";
+	check(
+		same(
+			state.payloadSha256,
+			clone(state.scriptId, path.join(work, "readback")),
+		),
+		"Pushed payload mismatch.",
+	);
+	stage = "create version";
+	const vInfo = clasp(project, "create-version", ["gas-drive-html-server"]);
+	check(
+		Number.isInteger(vInfo.versionNumber) && vInfo.versionNumber > 0,
+		"Version number missing.",
+	);
+	state.version = vInfo.versionNumber;
+	save();
+	check(
+		same(
+			state.payloadSha256,
+			clone(state.scriptId, path.join(work, "version"), state.version),
+		),
+		"Immutable version payload mismatch.",
+	);
+	stage = "deploy version";
+	state.deploymentAttempted = true;
+	save();
+	const deployment = fresh
+		? clasp(project, "create-deployment", [
+				"--versionNumber",
+				String(state.version),
+				"--description",
+				"gas-drive-html-server",
+			])
+		: clasp(project, "update-deployment", [
+				state.deploymentId,
+				"--versionNumber",
+				String(state.version),
+			]);
+	check(
+		validDeploy(deployment.deploymentId) &&
+			(!state.deploymentId || state.deploymentId === deployment.deploymentId),
+		"Deployment ID missing or changed.",
+	);
+	state.deploymentId = deployment.deploymentId;
+	save();
+	const live = clasp(project, "list-deployments").find(
+		(d) => d.deploymentId === state.deploymentId,
+	);
+	check(
+		live && live.versionNumber === state.version,
+		"Deployment readback mismatch.",
+	);
+	state.url = verifiedUrl(project, state.deploymentId);
+	check(
+		!oldUrl || oldUrl === state.url,
+		"Deployment URL unexpectedly changed.",
+	);
+	stage = "verified";
+	save();
+	console.log(JSON.stringify({ ...state, stage }, null, 2));
 } catch (error) {
-  state.failure = error.message;
-  save();
-  console.error(stage + ": " + error.message);
-  process.exitCode = 1;
+	state.failure = error.message;
+	save();
+	console.error(stage + ": " + error.message);
+	process.exitCode = 1;
 }
