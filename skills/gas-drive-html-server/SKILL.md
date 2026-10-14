@@ -33,7 +33,7 @@ No cache or background synchronization is required.
    can read the folder and intended descendants. Do not guess a replacement.
 2. Review the folder's HTML, editors and dependencies for secrets, hostile
    scripts, unsupported HTML Service features and unintended disclosure.
-   Files added/modified later become visible *without* code deployment.
+   Files added/modified later become visible _without_ code deployment.
 3. Choose deployment access/identity deliberately. New deployments default to
    `MYSELF`/`USER_DEPLOYING`. Broader access requires an explicit flag.
    `USER_DEPLOYING` reads private Drive data as the deployer even for visitors
