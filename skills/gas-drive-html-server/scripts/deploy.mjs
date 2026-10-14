@@ -23,10 +23,11 @@ const writeJson = (file, value) => fs.writeFileSync(
   file, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
 
 let work;
+let workCreated = false;
 let stage = "validate";
 let state = {};
 let runner;
-const save = () => { if (work) writeJson(path.join(work, "deployment.json"), { ...state, stage }); };
+const save = () => { if (workCreated) writeJson(path.join(work, "deployment.json"), { ...state, stage }); };
 
 function run(args, cwd, asJson = true) {
   if (!runner) {
@@ -133,6 +134,7 @@ try {
   check(!fs.existsSync(work) && fs.existsSync(path.dirname(work)),
     "Workdir must be fresh with an existing parent.");
   fs.mkdirSync(work, { mode: 0o700 });
+  workCreated = true;
   fs.writeFileSync(path.join(work, ".claspignore"), "");
   state = { folderId: v["folder-id"], scriptId: v["script-id"],
     deploymentId: v["deployment-id"], runtimeSmokeTest: "not performed" };
