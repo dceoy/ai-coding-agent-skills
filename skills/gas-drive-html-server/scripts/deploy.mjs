@@ -39,28 +39,43 @@ let workCreated = false;
 let stage = "validate";
 let state = {};
 let runner;
+const localBin = fileURLToPath(
+	new URL("../../../node_modules/.bin/", import.meta.url),
+);
 const save = () => {
 	if (workCreated)
 		writeJson(path.join(work, "deployment.json"), { ...state, stage });
 };
 
-function run(args, cwd, asJson = true) {
+function claspEnvironment() {
+	const env = { ...process.env };
+	for (const key of Object.keys(env)) {
+		if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/.test(key))
+			delete env[key];
+	}
+	if (fs.existsSync(localBin))
+		env.PATH = [env.PATH, localBin].filter(Boolean).join(path.delimiter);
+	return env;
+}
+
+function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
+	const env = claspEnvironment();
 	if (!runner) {
 		runner = [
 			["pnpm", "exec", "clasp"],
 			["npx", "--no-install", "--package=@google/clasp", "clasp"],
 			["clasp"],
 		].find(([exe, ...prefix]) => {
-			const r = spawnSync(exe, [...prefix, "--version"], { encoding: "utf8" });
+			const r = spawnSync(exe, [...prefix, "--version"], {
+				cwd,
+				env,
+				encoding: "utf8",
+				input: "",
+			});
 			return !r.error && r.status === 0;
 		});
 	}
 	check(runner, "Official @google/clasp CLI was not found.");
-	const env = { ...process.env };
-	for (const key of Object.keys(env)) {
-		if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/.test(key))
-			delete env[key];
-	}
 	const [exe, ...prefix] = runner;
 	const r = spawnSync(
 		exe,
@@ -79,7 +94,7 @@ function run(args, cwd, asJson = true) {
 			stage +
 			". Raw diagnostics withheld; check authentication, Apps Script API and permissions.",
 	);
-	if (!asJson) return r.stdout;
+	if (!parseJsonOutput) return r.stdout;
 	try {
 		return JSON.parse(r.stdout);
 	} catch {
@@ -87,11 +102,17 @@ function run(args, cwd, asJson = true) {
 	}
 }
 
-function clasp(dir, command, args = [], asJson = true) {
+function clasp(
+	dir,
+	command,
+	args = [],
+	asJson = true,
+	parseJsonOutput = asJson,
+) {
 	return run(
 		[
 			"--project",
-			path.join(dir, ".clasp.json"),
+			dir,
 			"--ignore",
 			path.join(work, ".claspignore"),
 			command,
@@ -99,6 +120,7 @@ function clasp(dir, command, args = [], asJson = true) {
 		],
 		dir,
 		asJson,
+		parseJsonOutput,
 	);
 }
 
@@ -112,6 +134,15 @@ function clone(scriptId, dir, version) {
 		Array.isArray(result.files) && result.files.length >= 3,
 		"Incomplete remote project clone.",
 	);
+	const codeJs = path.join(dir, "Code.js");
+	const codeGs = path.join(dir, "Code.gs");
+	if (fs.existsSync(codeJs)) {
+		check(
+			!fs.existsSync(codeGs),
+			"Refusing ambiguous Code.js and Code.gs files.",
+		);
+		fs.renameSync(codeJs, codeGs);
+	}
 	check(
 		same(
 			fs
@@ -146,11 +177,52 @@ function policy(manifest) {
 	return { access: result.access, executeAs: result.executeAs };
 }
 
+function rootFolderId(dir) {
+	const config = fs.readFileSync(path.join(dir, "Code.gs"), "utf8");
+	const match = config.match(/^const ROOT_FOLDER_ID = '([A-Za-z0-9_-]+)';$/m);
+	check(
+		match && validId(match[1]),
+		"Missing or invalid Drive root configuration.",
+	);
+	return match[1];
+}
+
+function parseJsonPrefix(output) {
+	const text = output.trimStart();
+	check(text.startsWith("{"), "Unable to inspect Web App metadata.");
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+	for (let i = 0; i < text.length; i++) {
+		const character = text[i];
+		if (inString) {
+			if (escaped) escaped = false;
+			else if (character === "\\") escaped = true;
+			else if (character === '"') inString = false;
+			continue;
+		}
+		if (character === '"') inString = true;
+		else if (character === "{") depth++;
+		else if (character === "}" && --depth === 0) {
+			return {
+				value: JSON.parse(text.slice(0, i + 1)),
+				trailing: text.slice(i + 1).trim(),
+			};
+		}
+	}
+	throw Error("Unable to inspect Web App metadata.");
+}
+
 function verifiedUrl(dir, id) {
-	const stdout = clasp(dir, "open-web-app", [id], false);
-	const match = stdout.match(/^\s*(\{[^\r\n]+\})/);
-	check(match, "Unable to inspect Web App metadata.");
-	const url = new URL(JSON.parse(match[1]).url);
+	const stdout = clasp(dir, "open-web-app", [id], true, false);
+	const { value, trailing } = parseJsonPrefix(stdout);
+	check(typeof value.url === "string", "Unable to inspect Web App metadata.");
+	const url = new URL(value.url);
+	check(
+		trailing === `Open ${url.href} in your browser to continue.` ||
+			trailing === `Opening ${url.href} in your browser.`,
+		"Unexpected clasp output while inspecting Web App metadata.",
+	);
 	check(
 		url.protocol === "https:" &&
 			url.hostname === "script.google.com" &&
@@ -269,6 +341,8 @@ try {
 			same(livePolicy, headPolicy),
 			"Remote HEAD policy differs from production.",
 		);
+		const productionRoot = rootFolderId(production);
+		const headRoot = rootFolderId(snapshot);
 		chosen = requested || livePolicy;
 		check(
 			same(chosen, livePolicy) || v["allow-policy-change"],
@@ -278,10 +352,9 @@ try {
 			chosen.access === "MYSELF" || v["acknowledge-exposure"],
 			"Non-private deployment requires --acknowledge-exposure.",
 		);
-		const config = fs.readFileSync(path.join(snapshot, "Code.gs"), "utf8");
-		const match = config.match(/^const ROOT_FOLDER_ID = '([A-Za-z0-9_-]+)';$/m);
 		check(
-			match && (match[1] === v["folder-id"] || v["allow-folder-change"]),
+			[productionRoot, headRoot].every((rootId) => rootId === v["folder-id"]) ||
+				v["allow-folder-change"],
 			"Changing the Drive root requires --allow-folder-change.",
 		);
 		oldUrl = verifiedUrl(snapshot, state.deploymentId);
