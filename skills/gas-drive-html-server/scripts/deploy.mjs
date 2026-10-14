@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// biome-ignore-all format: Preserve standalone, independently reviewed implementation.
 // Self-contained clasp deployment for the gas-drive-html-server skill.
 import { createHash } from "node:crypto";
 import fs from "node:fs";
