@@ -50,7 +50,7 @@ const save = () => {
 function claspEnvironment() {
 	const env = { ...process.env };
 	for (const key of Object.keys(env)) {
-		if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/.test(key))
+		if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/i.test(key))
 			delete env[key];
 	}
 	if (fs.existsSync(localBin))

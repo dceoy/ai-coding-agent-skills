@@ -56,6 +56,7 @@ const call = {
   projectIsDirectory,
   hasJson: args.includes("--json"),
   path: process.env.PATH,
+  claspConfigAuth: process.env.clasp_config_auth ?? null,
 };
 fs.appendFileSync(path.join(remote, "calls.json"), JSON.stringify(call) + "\\n");
 if (!projectExists || !fs.existsSync(ignorePath)) process.exit(12);
@@ -281,6 +282,16 @@ test("fresh deployment creates and verifies using the local clasp and normalized
 	);
 	assert.ok(calls.some((call) => call.command === "open-web-app" && call.hasJson));
 	assert.ok(f.remote("current.json")["Code.gs"].includes(`const ROOT_FOLDER_ID = '${rootA}';`));
+});
+
+test("fresh deployment ignores a lowercase inherited clasp auth override", (t) => {
+	const f = fixture(t);
+	const result = f.run(f.newArgs(), {
+		clasp_config_auth: "/tmp/unintended-account.json",
+	});
+	assert.equal(result.status, 0, result.stderr);
+	assert.ok(f.calls().length > 0);
+	assert.ok(f.calls().every((call) => call.claspConfigAuth === null));
 });
 
 test("existing deployment normalizes Code.js clones and retains its URL and deployment ID", (t) => {
