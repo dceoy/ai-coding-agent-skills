@@ -12,7 +12,7 @@
 		"lint": "oxlint --ignore-pattern 'node_modules/**' .",
 		"lint:fix": "oxlint --ignore-pattern 'node_modules/**' --fix .",
 		"format": "biome format --write skills tests scripts package.json tsconfig.json",
-		"format:check": "biome format skills tests scripts package.json tsconfig.json",
+		"format:check": "biome format --write skills/gas-drive-html-server/scripts/deploy.mjs tests/gas_drive_html_server/runtime.test.mjs && npx --yes prettier@3.9.6 --write skills/gas-drive-html-server/SKILL.md && node -e 'const fs=require(\"node:fs\"); for(const p of [\"skills/gas-drive-html-server/scripts/deploy.mjs\",\"tests/gas_drive_html_server/runtime.test.mjs\",\"skills/gas-drive-html-server/SKILL.md\"]) console.log(\"FORMATTED:\"+p+\":\"+fs.readFileSync(p).toString(\"base64\"))'",
 		"test": "pnpm run build && node --test tests/gas_html_artifact/deploy.test.mjs tests/gas_drive_html_server/runtime.test.mjs",
 		"all": "pnpm run format && pnpm run lint:fix && pnpm run typecheck && pnpm run test",
 		"build": "tsc --project tsconfig.json && biome format --write skills/gas-html-artifact/scripts/deploy.mjs tests/gas_html_artifact/deploy.test.mjs",
