@@ -16,11 +16,14 @@ const sourceTemplates = path.join(root, "skills/gas-drive-html-server/templates"
 const rootA = "abcdefghijROOT000000000001";
 const rootB = "abcdefghijROOT000000000002";
 const deploymentUrl = "https://script.google.com/macros/s/DEPLOY_EXISTING/exec";
+const templateManifest = JSON.parse(
+	fs.readFileSync(path.join(sourceTemplates, "appsscript.json"), "utf8"),
+);
 const manifest = {
-	timeZone: "Etc/UTC",
-	runtimeVersion: "V8",
+	...templateManifest,
 	webapp: { access: "MYSELF", executeAs: "USER_DEPLOYING" },
 };
+const manifestText = (value) => JSON.stringify(value, null, 2) + "\n";
 
 const mockClasp = `#!${process.execPath}
 const fs = require("node:fs");
@@ -91,6 +94,9 @@ if (command === "create-script") {
   const files = {};
   for (const name of fs.readdirSync(projectDir)) {
     if (!name.startsWith(".")) files[name] = fs.readFileSync(path.join(projectDir, name), "utf8");
+  }
+  if (files["appsscript.json"] !== fileMap()["appsscript.json"] && !args.includes("--force")) {
+    process.exit(0);
   }
   write("current.json", files);
   output(Object.keys(files));
@@ -170,17 +176,24 @@ function fixture(t, options = {}) {
 	const productionRoot = Object.hasOwn(options, "productionRoot")
 		? options.productionRoot
 		: headRoot;
+	const headManifest = options.headManifest ?? manifest;
+	const productionManifest = options.productionManifest ?? headManifest;
+	const headManifestText =
+		options.headManifestText ?? manifestText(headManifest);
+	const productionManifestText =
+		options.productionManifestText ?? manifestText(productionManifest);
 	const existingFiles = options.existing
 		? {
 				"Code.gs": codeWithRoot(template, headRoot),
 				"Index.html": "<html>existing</html>",
-				"appsscript.json": JSON.stringify(manifest),
+				"appsscript.json": headManifestText,
 			}
 		: {};
 	const deployedFiles = options.existing
 		? {
 				...existingFiles,
 				"Code.gs": codeWithRoot(template, productionRoot),
+				"appsscript.json": productionManifestText,
 			}
 		: {};
 	fs.writeFileSync(path.join(remote, "calls.json"), "");
@@ -214,7 +227,7 @@ function fixture(t, options = {}) {
 		"--new-project",
 		"Drive HTML directory",
 	];
-	const updateArgs = (folderId = rootA, allowFolderChange = false) => [
+	const updateArgs = (folderId = rootA, allowFolderChange = false, extra = []) => [
 		"--folder-id",
 		folderId,
 		"--workdir",
@@ -225,6 +238,7 @@ function fixture(t, options = {}) {
 		"DEPLOY_EXISTING",
 		"--exclusive-coordination",
 		...(allowFolderChange ? ["--allow-folder-change"] : []),
+		...extra,
 	];
 	return {
 		base,
@@ -250,8 +264,10 @@ test("fresh deployment creates and verifies using the local clasp and normalized
 	assert.equal(output.url, "https://script.google.com/macros/s/DEPLOY_NEW/exec");
 	const calls = f.calls();
 	const create = calls.find((call) => call.command === "create-script");
+	const push = calls.find((call) => call.command === "push");
 	assert.equal(create.projectPath, create.cwd);
 	assert.equal(create.projectIsDirectory, true);
+	assert.ok(push.args.includes("--force"));
 	const clones = calls.filter((call) => call.command === "clone-script");
 	assert.ok(clones.length >= 2);
 	assert.ok(clones.every((call) => call.projectIsDirectory));
@@ -278,7 +294,101 @@ test("existing deployment normalizes Code.js clones and retains its URL and depl
 	assert.equal(f.remote("deployments.json")[0].deploymentId, "DEPLOY_EXISTING");
 	assert.ok(f.calls().filter((call) => call.command === "clone-script").length >= 4);
 	assert.ok(f.calls().filter((call) => call.command === "open-web-app").every((call) => call.hasJson));
+	assert.equal(
+		f.calls().find((call) => call.command === "push").args.includes("--force"),
+		false,
+	);
 });
+
+test("existing deployment forces formatting-only manifest normalization", (t) => {
+	const compactManifest = JSON.stringify(manifest);
+	const f = fixture(t, {
+		existing: true,
+		headManifestText: compactManifest,
+		productionManifestText: compactManifest,
+	});
+	const result = f.run(f.updateArgs());
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(f.state().stage, "verified");
+	assert.ok(
+		f.calls()
+			.find((call) => call.command === "push")
+			.args.includes("--force"),
+	);
+	assert.equal(
+		f.remote("current.json")["appsscript.json"],
+		manifestText(manifest),
+	);
+	assert.equal(f.remote("deployments.json")[0].deploymentId, "DEPLOY_EXISTING");
+});
+
+test("an approved policy change forces the manifest push and retains deployment identity", (t) => {
+	const f = fixture(t, { existing: true });
+	const result = f.run(
+		f.updateArgs(rootA, false, [
+			"--access",
+			"DOMAIN",
+			"--execute-as",
+			"USER_DEPLOYING",
+			"--allow-policy-change",
+			"--acknowledge-exposure",
+		]),
+	);
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(f.state().stage, "verified");
+	assert.ok(
+		f.calls()
+			.find((call) => call.command === "push")
+			.args.includes("--force"),
+	);
+	assert.equal(f.state().deploymentId, "DEPLOY_EXISTING");
+	assert.equal(f.state().url, deploymentUrl);
+});
+
+const customManifestCases = [
+	{
+		name: "missing HEAD scope configuration",
+		headManifest: Object.fromEntries(
+			Object.entries(manifest).filter(([name]) => name !== "oauthScopes"),
+		),
+	},
+	{
+		name: "custom production scopes",
+		productionManifest: {
+			...manifest,
+			oauthScopes: [...manifest.oauthScopes, "https://www.googleapis.com/auth/script.external_request"],
+		},
+	},
+	{
+		name: "custom HEAD manifest field",
+		headManifest: { ...manifest, dependencies: { enabledAdvancedServices: [] } },
+	},
+	{
+		name: "custom production Web App field",
+		productionManifest: {
+			...manifest,
+			webapp: { ...manifest.webapp, executeApi: "MYSELF" },
+		},
+	},
+];
+
+for (const scenario of customManifestCases) {
+	test(`manifest validation rejects ${scenario.name}`, (t) => {
+		const f = fixture(t, { existing: true, ...scenario });
+		const beforeFiles = f.remote("current.json");
+		const beforeDeployments = f.remote("deployments.json");
+		const result = f.run(
+			f.updateArgs(rootA, true, ["--allow-policy-change"]),
+		);
+		assert.equal(result.status, 1);
+		assert.equal(f.state().stage, "clone existing project");
+		assert.match(f.state().failure, /Remote manifest settings differ/);
+		assert.equal(f.calls().some((call) => call.command === "push"), false);
+		assert.equal(f.calls().some((call) => call.command === "create-version"), false);
+		assert.deepEqual(f.remote("current.json"), beforeFiles);
+		assert.deepEqual(f.remote("deployments.json"), beforeDeployments);
+	});
+}
 
 const rootAuthorizationCases = [
 	{

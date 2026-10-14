@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
+import { isDeepStrictEqual, parseArgs } from "node:util";
 
 const templateDir = fileURLToPath(new URL("../templates/", import.meta.url));
 const fileNames = ["Code.gs", "Index.html", "appsscript.json"];
@@ -177,6 +177,18 @@ function policy(manifest) {
 	return { access: result.access, executeAs: result.executeAs };
 }
 
+function manifestSettings(manifest) {
+	const { webapp, ...settings } = manifest;
+	if (webapp) {
+		const extraWebAppSettings = { ...webapp };
+		delete extraWebAppSettings.access;
+		delete extraWebAppSettings.executeAs;
+		if (Object.keys(extraWebAppSettings).length)
+			settings.webapp = extraWebAppSettings;
+	}
+	return settings;
+}
+
 function rootFolderId(dir) {
 	const config = fs.readFileSync(path.join(dir, "Code.gs"), "utf8");
 	const match = config.match(/^const ROOT_FOLDER_ID = '([A-Za-z0-9_-]+)';$/m);
@@ -315,6 +327,7 @@ try {
 	let chosen;
 	let before;
 	let oldUrl;
+	const templateManifest = readJson(path.join(templateDir, "appsscript.json"));
 
 	if (fresh) {
 		chosen = requested || { access: "MYSELF", executeAs: "USER_DEPLOYING" };
@@ -333,10 +346,12 @@ try {
 		);
 		const production = path.join(work, "production");
 		clone(state.scriptId, production, selected.versionNumber);
-		const livePolicy = policy(
-			readJson(path.join(production, "appsscript.json")),
+		const productionManifest = readJson(
+			path.join(production, "appsscript.json"),
 		);
-		const headPolicy = policy(readJson(path.join(snapshot, "appsscript.json")));
+		const headManifest = readJson(path.join(snapshot, "appsscript.json"));
+		const livePolicy = policy(productionManifest);
+		const headPolicy = policy(headManifest);
 		check(
 			same(livePolicy, headPolicy),
 			"Remote HEAD policy differs from production.",
@@ -351,6 +366,13 @@ try {
 		check(
 			chosen.access === "MYSELF" || v["acknowledge-exposure"],
 			"Non-private deployment requires --acknowledge-exposure.",
+		);
+		check(
+			isDeepStrictEqual(
+				manifestSettings(productionManifest),
+				templateManifest,
+			) && isDeepStrictEqual(manifestSettings(headManifest), templateManifest),
+			"Remote manifest settings differ from the skill template; reconcile them before updating.",
 		);
 		check(
 			[productionRoot, headRoot].every((rootId) => rootId === v["folder-id"]) ||
@@ -374,9 +396,8 @@ try {
 			content = content.replace("__ROOT_FOLDER_ID__", v["folder-id"]);
 		}
 		if (name === "appsscript.json") {
-			const manifest = JSON.parse(content);
-			manifest.webapp = chosen;
-			content = JSON.stringify(manifest, null, 2) + "\n";
+			content =
+				JSON.stringify({ ...templateManifest, webapp: chosen }, null, 2) + "\n";
 		}
 		fs.writeFileSync(path.join(project, name), content);
 	}
@@ -423,13 +444,11 @@ try {
 	stage = "push";
 	state.pushAttempted = true;
 	save();
-	const changedPolicy =
-		!fresh &&
-		!same(
-			chosen,
-			policy(readJson(path.join(work, "snapshot", "appsscript.json"))),
-		);
-	clasp(project, "push", fresh || changedPolicy ? ["--force"] : []);
+	const manifestChanged =
+		fresh ||
+		fs.readFileSync(path.join(work, "snapshot", "appsscript.json"), "utf8") !==
+			fs.readFileSync(path.join(project, "appsscript.json"), "utf8");
+	clasp(project, "push", manifestChanged ? ["--force"] : []);
 	stage = "verify pushed files";
 	check(
 		same(

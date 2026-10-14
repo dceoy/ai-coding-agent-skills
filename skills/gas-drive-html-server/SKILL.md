@@ -70,8 +70,10 @@ require `--allow-policy-change`, and changing its Drive root requires
 
 The deployer refuses an existing GAS project that is not exclusively owned by
 this skill. It validates selected deployment metadata, checks production and
-HEAD policies, re-clones before pushing to detect concurrent modifications,
-checks readback, creates a version and verifies the deployed `/exec` URL.
+HEAD policies, and requires other manifest settings to match the bundled
+template. Reconcile custom manifest settings manually before updating. It
+re-clones before pushing to detect concurrent modifications, checks readback,
+creates a version and verifies the deployed `/exec` URL.
 There is no atomic compare-and-swap; exclusive remote coordination is mandatory.
 
 Inspect `deployment.json` and `.clasp.json` inside the private workdir for
