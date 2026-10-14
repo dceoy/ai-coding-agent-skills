@@ -54,6 +54,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 ### Artifact Deployment
 
 - `gas-html-artifact` - Deploy an existing HTML artifact to Apps Script HTML Service with clasp, preserving compatible bytes and existing project files
+- `gas-drive-html-server` - Deploy an independent Drive-backed HTML directory index as a GAS Web App, with live folder listings and no HTML redeploys
 
 ### Skill Management
 
@@ -100,7 +101,7 @@ the main agent, not a simulated child agent.
 
 Install and authenticate the required CLI tools before running skills:
 
-- **Node.js >=20 and Google's `clasp` CLI** - For `gas-html-artifact`
+- **Node.js >=20 and Google's `clasp` CLI** - For `gas-html-artifact` and `gas-drive-html-server`
   - Use `pnpm exec clasp` (preferred), `npx --no-install clasp`, or direct `clasp` depending on available executables
   - Authenticate with the chosen launcher and enable the Apps Script API before deployment
   - Mocked deployment tests require Node.js but no Google credentials
