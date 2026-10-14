@@ -13,7 +13,7 @@
 		"lint:fix": "oxlint --ignore-pattern 'node_modules/**' --fix .",
 		"format": "biome format --write skills tests scripts package.json tsconfig.json",
 		"format:check": "biome format skills tests scripts package.json tsconfig.json",
-		"test": "pnpm run build && node --test tests/gas_html_artifact/deploy.test.mjs",
+		"test": "pnpm run build && node --test tests/gas_html_artifact/deploy.test.mjs tests/gas_drive_html_server/deploy.test.mjs tests/gas_drive_html_server/runtime.test.mjs",
 		"all": "pnpm run format && pnpm run lint:fix && pnpm run typecheck && pnpm run test",
 		"build": "tsc --project tsconfig.json && biome format --write skills/gas-html-artifact/scripts/deploy.mjs tests/gas_html_artifact/deploy.test.mjs",
 		"typecheck": "tsc --noEmit",
