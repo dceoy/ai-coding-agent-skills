@@ -104,9 +104,7 @@ artifact. All fields are required; only `evidence` must be non-empty:
   "sourceSha256": "<sha256 of original bytes>",
   "artifactSha256": "<sha256 of deployed bytes>",
   "secretReview": "passed",
-  "evidence": [
-    "Browser-ready HTML; self-contained; no host API or scriptlet dependencies"
-  ],
+  "evidence": ["Browser-ready HTML; self-contained; no host API or scriptlet dependencies"],
   "dependencies": [],
   "transformations": [],
   "limitations": ["Static inspection only; runtime behavior not verified"],
