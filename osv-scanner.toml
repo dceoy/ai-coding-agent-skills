@@ -1,0 +1,9 @@
+# Keep aligned with the advisory exception in pnpm-workspace.yaml.
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+reason = """
+No fixed braces release is published. clasp 3.4.1 uses micromatch.not() for
+.claspignore filtering; that path delegates to picomatch and does not call
+braces' vulnerable helpers. Reassess if clasp or micromatch changes this call
+path, or when braces publishes a fixed release.
+"""
