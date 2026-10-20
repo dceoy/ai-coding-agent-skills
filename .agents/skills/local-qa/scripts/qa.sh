@@ -25,7 +25,7 @@ pnpm run lint:fix
 pnpm audit --fix=override
 
 # Markdown
-pnpm dlx prettier --write '**/*.md'
+pnpm dlx oxfmt --write '**/*.md'
 if [[ -f .markdownlint-cli2.jsonc ]]; then
   git ls-files -z -- '*.md' '*.mdx' | xargs -0 -t pnpm dlx markdownlint-cli2 --fix --config .markdownlint-cli2.jsonc
 else
