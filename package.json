@@ -29,7 +29,7 @@
 		"@google/clasp": "3.4.1",
 		"@types/node": "26.6.5",
 		"oxfmt": "^0.72.0",
-		"oxlint": "^1.87.0",
+		"oxlint": "^1.88.0",
 		"typescript": "7.0.2"
 	}
 }
