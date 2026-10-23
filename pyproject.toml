@@ -25,6 +25,7 @@ classifiers = [
 Repository = "https://github.com/dceoy/ai-coding-agent-skills.git"
 
 [tool.uv]
+exclude-newer = "1 day"
 package = false
 
 [dependency-groups]
