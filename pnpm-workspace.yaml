@@ -1,3 +1,4 @@
+minimumReleaseAge: 1440
 audit:
   ignore:
     # No fixed braces release is published. clasp 3.4.1 uses micromatch.not() for .claspignore filtering; that path delegates to picomatch and does not call braces' vulnerable helpers.
