@@ -9,7 +9,7 @@ updates:
       default-days: 7
     open-pull-requests-limit: 10
     groups:
-      dependencies:
+      github-actions-dependencies:
         patterns:
           - '*'
   - package-ecosystem: npm
@@ -20,7 +20,7 @@ updates:
       default-days: 7
     open-pull-requests-limit: 10
     groups:
-      dependencies:
+      npm-dependencies:
         patterns:
           - '*'
   - package-ecosystem: uv
@@ -31,6 +31,6 @@ updates:
       default-days: 7
     open-pull-requests-limit: 10
     groups:
-      dependencies:
+      uv-dependencies:
         patterns:
           - '*'
