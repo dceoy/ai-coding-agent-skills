@@ -36,7 +36,7 @@ jobs:
       contents: read
       actions: read
       security-events: write
-    uses: dceoy/gha-for-devops/.github/workflows/github-codeql-analysis.yml@main  # zizmor: ignore[unpinned-uses]
+    uses: dceoy/gha-for-devops/.github/workflows/github-codeql-analysis.yml@50e2b143e80904ccd78ffdee3d918ad6040a4ffc
     with:
       language: >
         ["actions","python"]
