@@ -8,6 +8,10 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 10
+    groups:
+      dependencies:
+        patterns:
+          - '*'
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -15,6 +19,10 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 10
+    groups:
+      dependencies:
+        patterns:
+          - '*'
   - package-ecosystem: uv
     directory: /
     schedule:
@@ -22,3 +30,7 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 10
+    groups:
+      dependencies:
+        patterns:
+          - '*'
