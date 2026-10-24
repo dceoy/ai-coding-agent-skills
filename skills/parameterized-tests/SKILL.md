@@ -1,4 +1,5 @@
 ---
+
 name: parameterized-tests
 description: Enforce native parameterized or table-driven tests when adding or modifying unit tests that exercise the same behavior with multiple data cases. Use whenever unit tests add repeated cases, edge-case matrices, or duplicated setup, execution, and assertions that differ only by case data.
 ---
@@ -27,7 +28,6 @@ See [references/frameworks.md](./references/frameworks.md) for common framework 
 ## Parameterize
 
 Parameterize when cases differ only by data such as:
-
 - Inputs or arguments.
 - Expected return values.
 - Expected errors or exception values when the assertion structure remains the same.
@@ -37,7 +37,6 @@ Parameterize when cases differ only by data such as:
 ## Keep Separate
 
 Keep tests separate when parameterization would require materially different:
-
 - Setup or teardown.
 - Execution paths or side effects.
 - Assertion semantics.
