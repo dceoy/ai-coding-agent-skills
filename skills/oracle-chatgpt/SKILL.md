@@ -1,5 +1,4 @@
 ---
-
 name: oracle-chatgpt
 description: Run exactly one arbitrary prompt through ChatGPT via Oracle browser mode and return the captured response without reinterpretation. Use when the user explicitly wants a generic ChatGPT-via-Oracle consult without task-specific orchestration.
 allowed-tools: Bash(oracle:_), Bash(which:_), Bash(mktemp:*), Write
@@ -14,6 +13,7 @@ response without semantic rewriting.
 ## When to Use
 
 Use this skill when the user explicitly wants to:
+
 - send an arbitrary prompt to ChatGPT through Oracle;
 - reuse Oracle's browser/session or remote-browser routing without adding task-specific workflow logic; or
 - obtain ChatGPT's response verbatim for another agent workflow.
@@ -24,6 +24,7 @@ results to external services.
 ## Prerequisites
 
 Require:
+
 - `oracle` in `PATH`;
 - an authenticated ChatGPT browser session usable by Oracle; and
 - `GPT-5.6 Sol` available to Oracle browser mode.
@@ -66,6 +67,7 @@ Prefer the runtime's direct stdin/data channel when it can supply the prompt byt
 interpolation.
 
 If the runtime cannot bind stdin directly:
+
 1. Run `mktemp` and capture the absolute path it prints.
 2. Use the runtime's file-writing capability to write exactly the caller's prompt to that exact path as data.
 3. Redirect that exact absolute path to Oracle stdin. Substitute the literal path returned by `mktemp`; do not rely on a
