@@ -1,0 +1,11 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
+	"files": {
+		"includes": [
+			"**",
+			"!!**/*.md",
+			"!!**/*.mdx",
+			"!!**/templates/Code.gs"
+		]
+	}
+}

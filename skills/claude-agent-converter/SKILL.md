@@ -1,6 +1,6 @@
 ---
 name: claude-agent-converter
-description: Convert Claude Code subagents (.claude/agents/*.md) to standard Agent Skills (skills/*/SKILL.md). Use when migrating subagents to portable skill format, extracting reusable workflows from agents, or standardizing agent definitions across AI runtimes.
+description: Convert Claude Code subagents (.claude/agents/_.md) to standard Agent Skills (skills/_/SKILL.md). Use when migrating subagents to portable skill format, extracting reusable workflows from agents, or standardizing agent definitions across AI runtimes.
 ---
 
 # Claude Agent Converter
