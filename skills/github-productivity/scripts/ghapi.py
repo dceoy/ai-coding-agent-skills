@@ -100,7 +100,7 @@ def scrub_provenance(record: dict[str, Any]) -> dict[str, Any]:
     return scrubbed
 
 
-def _redact_value(value: Any) -> Any:  # ruff: ignore[ANN401]
+def _redact_value(value: Any) -> Any:  # ruff: ignore[any-type]
     """Apply value-shape secret redaction to a string; pass other types through.
 
     Args:
