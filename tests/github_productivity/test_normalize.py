@@ -143,7 +143,7 @@ def _user(
     return {"id": actor_id, "login": login, "type": actor_type}
 
 
-def _pr_object(number: int, **overrides: Any) -> dict[str, Any]:  # ruff: ignore[ANN401]
+def _pr_object(number: int, **overrides: Any) -> dict[str, Any]:  # ruff: ignore[any-type]
     """Build a minimal PR object with sensible defaults."""
     base = {
         "number": number,
@@ -480,7 +480,7 @@ def test_actor_map_change_renormalizes_without_github_access(
 ) -> None:
     """Changing the derivation-only actor map re-normalizes retained raw data."""
 
-    def _boom(**_kwargs: Any) -> Any:  # ruff: ignore[ANN401]
+    def _boom(**_kwargs: Any) -> Any:  # ruff: ignore[any-type]
         msg = "normalize must not touch GitHub"
         raise AssertionError(msg)
 
