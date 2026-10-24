@@ -1,5 +1,4 @@
 ---
-
 name: claude-agent-converter
 description: Convert Claude Code subagents (.claude/agents/_.md) to standard Agent Skills (skills/_/SKILL.md). Use when migrating subagents to portable skill format, extracting reusable workflows from agents, or standardizing agent definitions across AI runtimes.
 ---
@@ -167,12 +166,14 @@ When an agent has multiple modes (common pattern: ask, exec, review, search):
 ### Option A: Separate Skills (Recommended)
 
 Create one skill per mode:
+
 - `agent-ask` - Read-only Q&A
 - `agent-exec` - Code generation/modification
 - `agent-review` - Code review
 - `agent-search` - Web research
 
 Benefits:
+
 - Clear, focused skills.
 - Appropriate constraints per skill.
 - Easier to discover and use.
@@ -180,6 +181,7 @@ Benefits:
 ### Option B: Single Skill with Modes
 
 Keep as one skill if modes are tightly coupled:
+
 - Document mode selection in workflow.
 - Include all mode workflows.
 - Clearly separate mode-specific sections.
@@ -285,12 +287,14 @@ If scope is unclear, default to reviewing uncommitted changes with `git diff`.
 ### Input: Multi-mode agent with ask/exec/review/search
 
 Create four separate skills:
+
 1. `skills/agent-ask/SKILL.md` - Q&A mode content
 2. `skills/agent-exec/SKILL.md` - Execution mode content
 3. `skills/agent-review/SKILL.md` - Review mode content
 4. `skills/agent-search/SKILL.md` - Search mode content
 
 Each skill includes:
+
 - Mode-specific description and triggers.
 - Mode-specific workflow from agent prompt.
 - Mode-specific constraints (read-only for ask/review/search).
@@ -311,6 +315,7 @@ Each skill includes:
 ## Next Steps
 
 After conversion:
+
 - Review generated SKILL.md for completeness.
 - Verify workflow steps are clear and actionable.
 - Check that constraints are documented accurately.
