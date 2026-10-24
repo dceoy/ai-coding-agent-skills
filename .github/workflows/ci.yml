@@ -49,7 +49,6 @@ jobs:
     with:
       package-scripts: format:check,lint,typecheck,build:check,test
       package-path: .
-      node-version: latest
       audit: true
   dependabot-auto-merge:
     if: >
