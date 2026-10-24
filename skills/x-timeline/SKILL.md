@@ -1,4 +1,5 @@
 ---
+
 name: x-timeline
 description: Read an authenticated X Following or For You timeline through agent-browser without APIs or engagement actions.
 allowed-tools: Bash(which:*)
@@ -154,7 +155,6 @@ changing the underlying collection status.
 
 Attempt this path before any navigation or click. The goal is for normal reads to require only session inspection,
 URL checks, snapshots, waits, and scrolling.
-
 1. Check whether `x_timeline_session` is already active using the installed workflow's session-inspection command. This
    inspection must not create a new browser or attach to an unrelated session.
 
@@ -213,7 +213,6 @@ single article may also contain status links for a nested quoted post; never use
 top-level candidate ID. Do not depend on X CSS classes or `data-testid` values.
 
 For each candidate, stop appending immediately once `limit` distinct top-level posts have been retained. Otherwise:
-
 - Accept only an absolute `https` status URL on exact hosts `x.com`, `www.x.com`, `twitter.com`, or `www.twitter.com`.
 - Require path shape `/<user>/status/<numeric-id>` with no extra identity segments.
 - Normalize the URL to `https://x.com/<user>/status/<numeric-id>` and use the numeric status ID as the primary key.
@@ -233,7 +232,6 @@ reference. If adding the complete candidate would exceed the budget, do not appe
 `stop_reason: output_limit`.
 
 If fewer than `limit` distinct posts are available after the first read, repeat at most 10 total read-and-scroll cycles:
-
 1. Run the origin/authentication/readiness gate and verify the requested selected tab.
 2. Scroll the timeline incrementally.
 3. Wait a bounded interval for newly rendered content.
@@ -245,7 +243,6 @@ authentication/setup loss, or a bounded cycle that yields no new status IDs. Nev
 
 For a requested time window, continue past the initial visible sample until one of the same hard bounds is reached or a
 safe lower time boundary is established. A lower boundary may be considered established only when all of these are true:
-
 - the selected feed is `following`; never assume the ranked `for-you` feed is time-monotonic;
 - every retained top-level post from the feed start through the candidate boundary has an exact, classifiable timestamp;
 - the exact timestamps observed in rendered feed order have remained non-increasing through collection; and
@@ -272,7 +269,6 @@ For `format: raw`, emit the normalized structure directly after applying the req
 window metadata and completeness state.
 
 For `format: digest`, make the sample and evidence explicit:
-
 - State the selected tab and collection coverage as retained posts versus effective `limit`; when filtering, also state
   the number of matching posts.
 - For a requested time window, state its resolved timezone and whether coverage is complete or partial. If exact
