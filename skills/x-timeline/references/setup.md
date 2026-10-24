@@ -69,6 +69,7 @@ user, and require explicit approval before `confirm <id>`.
 Never click post links, media, profile links, engagement controls, or ambiguous text matches.
 
 After a confirmed tab click, run a bounded synchronization loop with a 30-second deadline and at most 10 attempts:
+
 1. Pass the bounded origin/authentication/readiness gate.
 2. Wait 500 ms.
 3. Verify that the requested tab is selected.
