@@ -1,5 +1,4 @@
 ---
-
 name: github-productivity
 description: Collect, retain, normalize, and analyze GitHub organization repository/PR/review/timeline/commit data through `gh api` into an organization-week delivery panel with a pre-specified interrupted time-series model, required sensitivities, fixed charts, and a Markdown report.
 ---
@@ -7,6 +6,7 @@ description: Collect, retain, normalize, and analyze GitHub organization reposit
 # GitHub Productivity
 
 Retrospectively analyze GitHub-observable organization delivery activity.
+
 - `collect` — repository/PR/review/timeline/commit retrieval through `gh api`, with append-only raw retention, immutable run manifests, and a committed `state.json` that is the sole acceptance frontier for what counts as canonical evidence.
 - `normalize` — deterministic derivation of canonical entities from the committed run lineage: newest-committed PR snapshot-bundle selection (whole-bundle replacement, never child-row union), actor classification, draft-lifecycle reconstruction, and an idempotent, filesystem-order-independent tree under `<workdir>/normalized/`.
 - `aggregate` — builds a continuous UTC-ISO-week organization-week panel (delivery, review-flow, review-burden, rework, size, and composition metrics) from normalized entities, applying the `[--start, --end)` window and the `as_of` data cutoff.
@@ -110,6 +110,7 @@ uv run skills/github-productivity/scripts/productivity.py report \
 ## Interpretation contract
 
 This skill produces GitHub-observable collection and normalized-entity data only. Anyone deriving metrics or conclusions from it — in this skill or downstream — must:
+
 - never call merged PR count productivity by itself;
 - never call queue/cycle time a quality metric;
 - never call review count or comment count review precision or quality;
