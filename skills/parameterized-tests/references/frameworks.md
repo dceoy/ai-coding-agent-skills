@@ -1,7 +1,6 @@
 # Framework Idioms
 
 Use the repository's existing test framework and native parameterization mechanism.
-
 - Python / pytest: `@pytest.mark.parametrize`; use `ids=` or `pytest.param(..., id=...)` when raw values are unclear.
 - Go / `testing`: table-driven tests with named `t.Run` subtests.
 - JavaScript / TypeScript / Vitest or Jest: `test.each` or `it.each`.
