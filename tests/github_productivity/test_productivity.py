@@ -77,7 +77,7 @@ def test_collect_command_dispatches_and_returns_ok(
     """A successful ``collect`` run returns the OK exit code."""
     captured: dict[str, Any] = {}
 
-    def fake_run_collect(**kwargs: Any) -> Any:  # ruff: ignore[ANN401]
+    def fake_run_collect(**kwargs: Any) -> Any:  # ruff: ignore[any-type]
         captured.update(kwargs)
         return type(
             "Outcome", (), {"run_id": "run-1", "status": "complete", "manifest": {}}
@@ -106,7 +106,7 @@ def test_collect_command_returns_incomplete_exit_code(
 ) -> None:
     """An incomplete run returns the incomplete exit code."""
 
-    def fake_run_collect(**_kwargs: Any) -> Any:  # ruff: ignore[ANN401]
+    def fake_run_collect(**_kwargs: Any) -> Any:  # ruff: ignore[any-type]
         return type(
             "Outcome",
             (),
@@ -133,7 +133,7 @@ def test_collect_command_returns_locked_exit_code(
 ) -> None:
     """A workdir already locked by another run returns the locked exit code."""
 
-    def fake_run_collect(**_kwargs: Any) -> Any:  # ruff: ignore[ANN401]
+    def fake_run_collect(**_kwargs: Any) -> Any:  # ruff: ignore[any-type]
         msg = "already locked"
         raise workdir.WorkdirLockedError(msg)
 
@@ -157,7 +157,7 @@ def test_collect_command_returns_invalid_args_exit_code_on_organization_mismatch
 ) -> None:
     """A workdir committed to a different organization returns the invalid-args code."""
 
-    def fake_run_collect(**_kwargs: Any) -> Any:  # ruff: ignore[ANN401]
+    def fake_run_collect(**_kwargs: Any) -> Any:  # ruff: ignore[any-type]
         msg = "organization mismatch"
         raise workdir.OrganizationMismatchError(msg)
 
@@ -193,7 +193,7 @@ def test_normalize_command_dispatches_and_returns_ok(
     """A successful ``normalize`` run returns the OK exit code."""
     captured: dict[str, Any] = {}
 
-    def fake_run_normalize(**kwargs: Any) -> Any:  # ruff: ignore[ANN401]
+    def fake_run_normalize(**kwargs: Any) -> Any:  # ruff: ignore[any-type]
         captured.update(kwargs)
         return type("Outcome", (), {"committed_run_id": "run-1", "status": "written"})()
 
@@ -210,7 +210,7 @@ def test_normalize_command_returns_derivation_failed_on_error(
 ) -> None:
     """A normalization error maps to the derivation-failed exit code."""
 
-    def fake_run_normalize(**_kwargs: Any) -> Any:  # ruff: ignore[ANN401]
+    def fake_run_normalize(**_kwargs: Any) -> Any:  # ruff: ignore[any-type]
         msg = "nothing committed"
         raise productivity.NormalizeError(msg)
 
