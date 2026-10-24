@@ -1,13 +1,13 @@
 ---
+
 name: commit
 description: Create a single git commit from current staged and unstaged changes with an appropriate message. Use when the user asks to commit current work.
-allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git diff:*), Bash(git branch:*), Bash(git log:*)
+allowed-tools: Bash(git add:_), Bash(git status:_), Bash(git commit:_), Bash(git diff:_), Bash(git branch:_), Bash(git log:_)
 ---
 
 # Commit
 
 Create one commit for the current work.
-
 - Inspect `git status`, `git diff HEAD`, the current branch, and recent commits.
 - If there is nothing to commit, report that and stop.
 - Stage only changes relevant to the requested work; preserve unrelated user changes.
