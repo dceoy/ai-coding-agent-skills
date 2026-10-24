@@ -165,7 +165,7 @@ def test_lock_exit_never_deletes_a_lock_it_no_longer_owns(tmp_path: Path) -> Non
     it, then the original, now-stale ``CollectionLock`` instance exiting.
     """
     original = workdir.CollectionLock(tmp_path, "run-a")
-    original.__enter__()  # noqa: PLC2801 -- exercising the protocol without exiting yet
+    original.__enter__()  # ruff: ignore[PLC2801]-- exercising the protocol without exiting yet
     workdir.lock_path(tmp_path).unlink()
     with workdir.CollectionLock(tmp_path, "run-b"):
         original.__exit__(None, None, None)
