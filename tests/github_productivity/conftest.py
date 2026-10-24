@@ -49,7 +49,7 @@ class FakeGh:
         """Register the pages a matching paginated call should return."""
         self.list_pages[endpoint, sort, direction] = pages
 
-    def set_object(self, endpoint: str, payload: Any) -> None:  # noqa: ANN401
+    def set_object(self, endpoint: str, payload: Any) -> None:  # ruff: ignore[ANN401]
         """Register the payload a non-paginated call should return."""
         self.objects[endpoint] = payload
 
@@ -65,7 +65,7 @@ class FakeGh:
         repository_id: int | None,
         run_id: str,
         per_page: int = 100,
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:  # ruff: ignore[ANN401]
         """Fake replacement for ``ghapi.paginate``."""
         self.calls.append(("paginate", endpoint, dict(params)))
         if any(tag in endpoint for tag in self.failing_substrings):
