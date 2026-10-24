@@ -1,5 +1,4 @@
 ---
-
 name: gas-html-artifact
 description: Deploy an existing HTML artifact to Google Apps Script HTML Service with Google's clasp CLI, preserving compatible bytes or applying reviewed compatibility conversions. Requires an artifact; a product request alone is insufficient.
 ---
@@ -38,6 +37,7 @@ flowchart TD
 Require `--source` (readable, non-empty HTML), `--report` (compatibility JSON)
 and `--workdir` (fresh dedicated directory, separate from input files).
 Paths with spaces work; parent directories must exist.
+
 - **Project:** select exactly one of `--new-project TITLE`, `--script-id ID` or
   `--clasp-config FILE`. Missing access or authentication never authorizes
   creating a replacement project.
@@ -77,6 +77,7 @@ screen for secrets without disclosing them, and stop on security concerns.
 Client-side HTML is visible to its users.
 
 Check:
+
 - Browser-ready HTML vs. JSX, TypeScript or unbuilt modules; inspect actual
   built output and dependency URLs rather than rejecting frameworks by name.
 - Complete local/relative assets (only `Index.html` is served by this wrapper).
@@ -86,6 +87,7 @@ Check:
 - Template scriptlets: `createHtmlOutputFromFile()` does **not** evaluate them.
 
 Record `compatible`, `convertible`, `unsupported` or `uncertain`:
+
 - **Compatible:** leave bytes, formatting and links untouched.
 - **Convertible:** preserve the original; build a separate `--derivative` only
   from known assets/behavior, reassess it and report every material change.
@@ -98,15 +100,15 @@ artifact. All fields are required; only `evidence` must be non-empty:
 
 ```json
 {
-	"decision": "compatible",
-	"sourceSha256": "<sha256 of original bytes>",
-	"artifactSha256": "<sha256 of deployed bytes>",
-	"secretReview": "passed",
-	"evidence": ["Self-contained HTML; no host APIs or scriptlets"],
-	"dependencies": [],
-	"transformations": [],
-	"limitations": ["Static inspection only; runtime behavior not verified"],
-	"unresolved": []
+  "decision": "compatible",
+  "sourceSha256": "<sha256 of original bytes>",
+  "artifactSha256": "<sha256 of deployed bytes>",
+  "secretReview": "passed",
+  "evidence": ["Self-contained HTML; no host APIs or scriptlets"],
+  "dependencies": [],
+  "transformations": [],
+  "limitations": ["Static inspection only; runtime behavior not verified"],
+  "unresolved": []
 }
 ```
 
@@ -161,6 +163,7 @@ node ./scripts/deploy.mjs --source '/artifacts/my page.html' \
 Verify script binding, selected deployment ID, version, deployed manifest policy
 and production `/exec` URL. `open-web-app ID --json` is read without launching
 a browser; never infer a URL or substitute `/dev`. Supported paths:
+
 - `/macros/s/<deploymentId>/exec`
 - `/a/macros/<domain>/s/<deploymentId>/exec`
 - `/a/<domain>/macros/s/<deploymentId>/exec`
