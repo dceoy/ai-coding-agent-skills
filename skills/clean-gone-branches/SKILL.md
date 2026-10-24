@@ -1,4 +1,5 @@
 ---
+
 name: clean-gone-branches
 description: Remove local git branches whose configured upstream is marked [gone], including associated worktrees.
 ---
