@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import subprocess  # ruff: ignore[S404]
+import subprocess  # ruff: ignore[suspicious-subprocess-import]
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
