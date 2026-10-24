@@ -46,7 +46,7 @@ def run_mock_sweep(
         "FAKE_PROMPT": str(tmp_path / "prompt.txt"),
         "FAKE_EXIT_CODE": str(exit_code),
     }
-    return subprocess.run(  # noqa: S603 - fixed script path under test
+    return subprocess.run(  # ruff: ignore[S603]- fixed script path under test
         [bash, str(SCRIPT), "--max-count=3"],
         env=env,
         text=True,
