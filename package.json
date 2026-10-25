@@ -4,10 +4,9 @@
 	"private": true,
 	"description": "Agent skills for AI coders",
 	"type": "module",
-	"packageManager": "pnpm@11.22.0",
 	"engines": {
 		"node": ">=22.23.4",
-		"pnpm": ">=11"
+		"pnpm": ">=12"
 	},
 	"scripts": {
 		"lint": "oxlint --ignore-pattern 'node_modules/**' .",
@@ -38,6 +37,11 @@
 			"name": "node",
 			"version": ">=22.23.4",
 			"onFail": "download"
+		},
+		"packageManager": {
+			"name": "pnpm",
+			"version": "12.14.0",
+			"onFail": "error"
 		}
 	}
 }
