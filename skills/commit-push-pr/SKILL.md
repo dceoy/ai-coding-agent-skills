@@ -1,5 +1,4 @@
 ---
-
 name: commit-push-pr
 description: Commit staged and unstaged changes, push the branch to origin, and open a pull request using the GitHub CLI. Use when the user asks to commit, push, and create a PR in one workflow.
 allowed-tools: "Bash(git checkout --branch:\u002A), Bash(git add:\u002A), Bash(git status:\u002A), Bash(git push:\u002A), Bash(git commit:\u002A), Bash(gh pr create:\u002A), Bash(gh repo view:\u002A), Bash(git diff:\u002A), Bash(git branch:\u002A), Bash(git log:\u002A)"

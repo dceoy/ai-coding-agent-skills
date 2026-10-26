@@ -1,5 +1,4 @@
 ---
-
 name: simplify-codebase
 description: Reduce a repository's maintenance surface across the whole codebase with KISS, DRY, and YAGNI while preserving required behavior. Use when asked to simplify, shrink, deduplicate, remove dead code, or refactor for maintainability, and proactively when the agent identifies clear, material simplification opportunities.
 ---

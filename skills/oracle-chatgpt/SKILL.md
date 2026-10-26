@@ -1,5 +1,4 @@
 ---
-
 name: oracle-chatgpt
 description: Run exactly one arbitrary prompt through ChatGPT via Oracle browser mode and return the captured response without reinterpretation. Use when the user explicitly wants a generic ChatGPT-via-Oracle consult without task-specific orchestration.
 allowed-tools: "Bash(oracle:\u002A), Bash(which:\u002A), Bash(mktemp:\u002A), Write"

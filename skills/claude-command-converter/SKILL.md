@@ -1,5 +1,4 @@
 ---
-
 name: claude-command-converter
 description: Convert Claude Code commands in `.claude/commands/<name>.md` files to standard Agent Skills in `skills/<name>/SKILL.md`. Use when migrating slash commands to portable skill format, creating skills from existing commands, or standardizing command definitions across AI runtimes.
 ---

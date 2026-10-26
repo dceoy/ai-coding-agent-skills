@@ -1,5 +1,4 @@
 ---
-
 name: gas-html-artifact
 description: Deploy an existing HTML artifact to Google Apps Script HTML Service with Google's clasp CLI, preserving compatible bytes or applying reviewed compatibility conversions. Requires an artifact; a product request alone is insufficient.
 ---
@@ -99,21 +98,19 @@ Record `compatible`, `convertible`, `unsupported` or `uncertain`:
 Write a non-secret JSON report with SHA-256 of the original and deployable
 artifact. All fields are required; only `evidence` must be non-empty:
 
-<!-- markdownlint-disable MD010 -->
 ```json
 {
-	"decision": "compatible",
-	"sourceSha256": "<sha256 of original bytes>",
-	"artifactSha256": "<sha256 of deployed bytes>",
-	"secretReview": "passed",
-	"evidence": ["Self-contained HTML; no host APIs or scriptlets"],
-	"dependencies": [],
-	"transformations": [],
-	"limitations": ["Static inspection only; runtime behavior not verified"],
-	"unresolved": []
+  "decision": "compatible",
+  "sourceSha256": "<sha256 of original bytes>",
+  "artifactSha256": "<sha256 of deployed bytes>",
+  "secretReview": "passed",
+  "evidence": ["Self-contained HTML; no host APIs or scriptlets"],
+  "dependencies": [],
+  "transformations": [],
+  "limitations": ["Static inspection only; runtime behavior not verified"],
+  "unresolved": []
 }
 ```
-<!-- markdownlint-enable MD010 -->
 
 For conversion use `decision: convertible` and `--derivative PATH`. Resolve all
 unresolved concerns before deployment. The report is an evidence-based
