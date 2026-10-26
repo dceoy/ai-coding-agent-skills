@@ -1,4 +1,4 @@
-# ruff: noqa: DOC201, DOC501
+# ruff: file-ignore[docstring-missing-returns, docstring-missing-exception]
 """Repository, PR, review, timeline, and commit collection through ``gh api``.
 
 Implements the collection half of the transaction contract in
@@ -157,7 +157,7 @@ def fetch_organization_repositories(ctx: _RunContext) -> list[dict[str, Any]]:
     return [repositories[key] for key in sorted(repositories)]
 
 
-def _record_repository(repositories: dict[int, dict[str, Any]], item: Any) -> None:  # noqa: ANN401
+def _record_repository(repositories: dict[int, dict[str, Any]], item: Any) -> None:  # ruff: ignore[any-type]
     """Retain an enumeration identity once, rejecting contradictory snapshots."""
     repo = _repository_summary(item)
     if repositories.setdefault(repo["id"], repo) != repo:
@@ -165,7 +165,7 @@ def _record_repository(repositories: dict[int, dict[str, Any]], item: Any) -> No
         raise ghapi.GhApiError(msg)
 
 
-def _repository_summary(item: Any) -> dict[str, Any]:  # noqa: ANN401
+def _repository_summary(item: Any) -> dict[str, Any]:  # ruff: ignore[any-type]
     """Validate the repository fields that control identity and collection."""
     fields = {"id", "name", "full_name", "archived", "fork", "created_at"}
     if not isinstance(item, dict) or not fields <= item.keys():
@@ -195,7 +195,7 @@ def _repository_summary(item: Any) -> dict[str, Any]:  # noqa: ANN401
     return {key: item[key] for key in fields}
 
 
-def _api_timestamp(value: Any) -> datetime:  # noqa: ANN401
+def _api_timestamp(value: Any) -> datetime:  # ruff: ignore[any-type]
     """Parse an API timestamp, translating malformed evidence to API failure."""
     try:
         return _parse_ts(value)
@@ -204,7 +204,7 @@ def _api_timestamp(value: Any) -> datetime:  # noqa: ANN401
         raise ghapi.GhApiError(msg) from exc
 
 
-def _discovered_number(item: Any) -> int:  # noqa: ANN401
+def _discovered_number(item: Any) -> int:  # ruff: ignore[any-type]
     """Validate a discovery item and return its positive PR/issue number."""
     number = item.get("number") if isinstance(item, dict) else None
     if type(number) is not int or number <= 0:
@@ -399,7 +399,7 @@ def _fetch_bundle_entry(
     return pr_payload
 
 
-def _validate_pr_payload(payload: Any, repo_id: int, number: int) -> None:  # noqa: ANN401
+def _validate_pr_payload(payload: Any, repo_id: int, number: int) -> None:  # ruff: ignore[any-type]
     """Reject a malformed or mismatched PR detail before fetching its children."""
     if not isinstance(payload, dict):
         msg = "PR detail must be an object"
@@ -828,7 +828,7 @@ def _ordered_source_run_ids(checkpoint: dict[str, Any]) -> list[str]:
     return sources
 
 
-def _rewrite_run_id(row: Any, generation_run_id: str) -> dict[str, Any]:  # noqa: ANN401
+def _rewrite_run_id(row: Any, generation_run_id: str) -> dict[str, Any]:  # ruff: ignore[any-type]
     """Rewrite shard-local provenance to the sealed generation identity."""
     if not isinstance(row, dict):
         msg = "raw evidence row must be a JSON object"

@@ -1072,7 +1072,7 @@ def test_rate_limit_resumes_at_first_unfinished_repository(
     delegate = ghapi.paginate
     failed = False
 
-    def flaky_paginate(**kwargs: Any) -> Any:  # noqa: ANN401
+    def flaky_paginate(**kwargs: Any) -> Any:  # ruff: ignore[any-type]
         nonlocal failed
         endpoint = str(kwargs["endpoint"])
         if endpoint == "/repos/acme/repo2/pulls" and not failed:
@@ -1112,7 +1112,7 @@ def test_rate_limit_resumes_at_first_unfinished_pr_bundle(
     delegate = ghapi.request
     failed = False
 
-    def flaky_request(**kwargs: Any) -> Any:  # noqa: ANN401
+    def flaky_request(**kwargs: Any) -> Any:  # ruff: ignore[any-type]
         nonlocal failed
         endpoint = str(kwargs["endpoint"])
         if endpoint == "/repos/acme/repo1/pulls/2" and not failed:
@@ -1158,7 +1158,7 @@ def test_resume_rebuilds_stale_seal_after_new_shards_complete(
     delegate = ghapi.request
     failed = False
 
-    def flaky_request(**kwargs: Any) -> Any:  # noqa: ANN401
+    def flaky_request(**kwargs: Any) -> Any:  # ruff: ignore[any-type]
         nonlocal failed
         endpoint = str(kwargs["endpoint"])
         if endpoint == "/repos/acme/repo1/pulls/2" and not failed:
@@ -1237,7 +1237,7 @@ def test_collector_revision_change_discards_pending_checkpoint(
     delegate = ghapi.paginate
     failed = False
 
-    def flaky_paginate(**kwargs: Any) -> Any:  # noqa: ANN401
+    def flaky_paginate(**kwargs: Any) -> Any:  # ruff: ignore[any-type]
         nonlocal failed
         endpoint = str(kwargs["endpoint"])
         if endpoint == "/repos/acme/repo2/pulls" and not failed:
@@ -1272,7 +1272,7 @@ def test_non_retryable_failure_finalizes_incomplete_generation(
     fake_gh.set_list("/orgs/acme/repos", [[make_repo(1, "repo1")]])
     delegate = ghapi.paginate
 
-    def failing_paginate(**kwargs: Any) -> Any:  # noqa: ANN401
+    def failing_paginate(**kwargs: Any) -> Any:  # ruff: ignore[any-type]
         if kwargs["endpoint"] == "/repos/acme/repo1/pulls":
             msg = "gh api failed (HTTP 404): Not Found"
             raise ghapi.GhApiError(msg)
