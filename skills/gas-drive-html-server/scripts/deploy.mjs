@@ -191,12 +191,14 @@ function manifestSettings(manifest) {
 
 function rootFolderId(dir) {
 	const config = fs.readFileSync(path.join(dir, "Code.gs"), "utf8");
-	const match = config.match(/^const ROOT_FOLDER_ID = '([A-Za-z0-9_-]+)';$/m);
+	const match = config.match(
+		/^const ROOT_FOLDER_ID = (["'])([A-Za-z0-9_-]+)\1;$/m,
+	);
 	check(
-		match && validId(match[1]),
+		match && validId(match[2]),
 		"Missing or invalid Drive root configuration.",
 	);
-	return match[1];
+	return match[2];
 }
 
 function parseJsonPrefix(output) {

@@ -281,7 +281,12 @@ test("fresh deployment creates and verifies using the local clasp and normalized
 		JSON.stringify(calls.map((call) => [call.path, f.localBin])),
 	);
 	assert.ok(calls.some((call) => call.command === "open-web-app" && call.hasJson));
-	assert.ok(f.remote("current.json")["Code.gs"].includes(`const ROOT_FOLDER_ID = '${rootA}';`));
+	assert.ok(
+		[
+			`const ROOT_FOLDER_ID = '${rootA}';`,
+			`const ROOT_FOLDER_ID = "${rootA}";`,
+		].some((line) => f.remote("current.json")["Code.gs"].includes(line)),
+	);
 });
 
 test("fresh deployment ignores a lowercase inherited clasp auth override", (t) => {
