@@ -1,4 +1,5 @@
 ---
+
 name: parameterized-tests
 description: Enforce native parameterized or table-driven tests when adding or modifying unit tests that exercise the same behavior with multiple data cases. Use whenever unit tests add repeated cases, edge-case matrices, or duplicated setup, execution, and assertions that differ only by case data.
 ---

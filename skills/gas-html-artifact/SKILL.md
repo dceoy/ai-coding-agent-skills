@@ -1,4 +1,5 @@
 ---
+
 name: gas-html-artifact
 description: Deploy an existing HTML artifact to Google Apps Script HTML Service with Google's clasp CLI, preserving compatible bytes or applying reviewed compatibility conversions. Requires an artifact; a product request alone is insufficient.
 ---
@@ -100,15 +101,15 @@ artifact. All fields are required; only `evidence` must be non-empty:
 
 ```json
 {
-  "decision": "compatible",
-  "sourceSha256": "<sha256 of original bytes>",
-  "artifactSha256": "<sha256 of deployed bytes>",
-  "secretReview": "passed",
-  "evidence": ["Self-contained HTML; no host APIs or scriptlets"],
-  "dependencies": [],
-  "transformations": [],
-  "limitations": ["Static inspection only; runtime behavior not verified"],
-  "unresolved": []
+	"decision": "compatible",
+	"sourceSha256": "<sha256 of original bytes>",
+	"artifactSha256": "<sha256 of deployed bytes>",
+	"secretReview": "passed",
+	"evidence": ["Self-contained HTML; no host APIs or scriptlets"],
+	"dependencies": [],
+	"transformations": [],
+	"limitations": ["Static inspection only; runtime behavior not verified"],
+	"unresolved": []
 }
 ```
 

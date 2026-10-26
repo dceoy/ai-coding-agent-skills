@@ -1,4 +1,5 @@
 ---
+
 name: x-timeline
 description: Read an authenticated X Following or For You timeline through agent-browser without APIs or engagement actions.
 allowed-tools: Bash(which:*)
