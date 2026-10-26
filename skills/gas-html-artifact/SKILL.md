@@ -99,6 +99,7 @@ Record `compatible`, `convertible`, `unsupported` or `uncertain`:
 Write a non-secret JSON report with SHA-256 of the original and deployable
 artifact. All fields are required; only `evidence` must be non-empty:
 
+<!-- markdownlint-disable MD010 -->
 ```json
 {
 	"decision": "compatible",
@@ -112,6 +113,7 @@ artifact. All fields are required; only `evidence` must be non-empty:
 	"unresolved": []
 }
 ```
+<!-- markdownlint-enable MD010 -->
 
 For conversion use `decision: convertible` and `--derivative PATH`. Resolve all
 unresolved concerns before deployment. The report is an evidence-based

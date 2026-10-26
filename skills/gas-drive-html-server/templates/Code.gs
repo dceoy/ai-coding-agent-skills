@@ -88,8 +88,9 @@ function doGet(e) {
 			if (!isDriveId_(p.file)) return errorPage_();
 			const file = DriveApp.getFileById(p.file);
 			if (!isHtml_(file) || !isWithinRoot_(file)) return errorPage_();
-			return HtmlService.createHtmlOutput(file.getBlob().getDataAsString("UTF-8"))
-				.setTitle(file.getName());
+			return HtmlService.createHtmlOutput(
+				file.getBlob().getDataAsString("UTF-8"),
+			).setTitle(file.getName());
 		}
 		if (p.dir !== undefined && !isDriveId_(p.dir)) return errorPage_();
 		const folder = p.dir ? DriveApp.getFolderById(p.dir) : root;
