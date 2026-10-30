@@ -25,9 +25,9 @@
 	},
 	"license": "AGPL-3.0-only",
 	"devDependencies": {
-		"@biomejs/biome": "^2.6.3",
+		"@biomejs/biome": "^2.6.4",
 		"@google/clasp": "3.4.1",
-		"@types/node": "26.6.5",
+		"@types/node": "26.6.6",
 		"oxfmt": "^0.75.0",
 		"oxlint": "^1.90.0",
 		"typescript": "7.0.2"
