@@ -1,6 +1,6 @@
 ---
 name: github-productivity
-description: Collect, retain, normalize, and analyze GitHub organization repository/PR/review/timeline/commit data through `gh api` into an organization-week delivery panel with a pre-specified interrupted time-series model, required sensitivities, fixed charts, and a Markdown report.
+description: Collect, retain, normalize, and analyze GitHub organization repository/PR/review/timeline/commit data through `gh api` into an organization-week delivery panel with a pre-specified interrupted time-series model, required sensitivities, fixed charts, and a Markdown report. Use when the user wants a retrospective, evidence-based analysis of engineering delivery or review activity across a GitHub organization.
 ---
 
 # GitHub Productivity

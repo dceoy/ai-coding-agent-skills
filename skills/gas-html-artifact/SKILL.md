@@ -1,6 +1,6 @@
 ---
 name: gas-html-artifact
-description: Deploy an existing HTML artifact to Google Apps Script HTML Service with Google's clasp CLI, preserving compatible bytes or applying reviewed compatibility conversions. Requires an artifact; a product request alone is insufficient.
+description: Deploy an existing HTML artifact to Google Apps Script HTML Service with Google's clasp CLI, preserving compatible bytes or applying reviewed compatibility conversions. Use when the user supplies an HTML file to publish or update as an Apps Script Web App. Requires an artifact; a product request alone is insufficient.
 ---
 
 # GAS HTML Artifact

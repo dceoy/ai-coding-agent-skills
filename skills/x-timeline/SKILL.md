@@ -1,6 +1,6 @@
 ---
 name: x-timeline
-description: Read an authenticated X Following or For You timeline through agent-browser without APIs or engagement actions.
+description: Read an authenticated X Following or For You timeline through agent-browser without APIs or engagement actions. Use when the user wants to read, summarize, or filter their X home timeline, optionally within today, yesterday, or a trailing time window.
 allowed-tools: Bash(which:*)
 ---
 
