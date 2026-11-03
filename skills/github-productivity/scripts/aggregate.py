@@ -22,9 +22,9 @@ import json
 import operator
 import secrets
 import statistics
-import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from time import sleep
 from typing import TYPE_CHECKING, Any
 
 import workdir
@@ -292,7 +292,7 @@ def load_entities(workdir_path: Path) -> Entities:
                 )
             before_text = after_text
         if attempt < _LOAD_ENTITIES_MAX_ATTEMPTS - 1:
-            time.sleep(_LOAD_ENTITIES_RETRY_DELAY_SECONDS)
+            sleep(_LOAD_ENTITIES_RETRY_DELAY_SECONDS)
     if before_text is None:
         msg = f"{derivation_path} does not exist; run 'normalize' before 'aggregate'"
         raise AggregateError(msg)
