@@ -34,7 +34,7 @@ name: agent-name
 description: When Claude should delegate to this subagent
 tools: Read, Grep, Glob, Bash
 disallowedTools: Write, Edit
-model: fast | default | advanced | inherit
+model: sonnet | opus | haiku | inherit
 permissionMode: default | acceptEdits | dontAsk | bypassPermissions | plan
 skills: skill-1, skill-2
 hooks:

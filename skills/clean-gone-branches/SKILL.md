@@ -1,6 +1,6 @@
 ---
 name: clean-gone-branches
-description: Remove local git branches whose configured upstream is marked [gone], including associated worktrees.
+description: Remove local git branches whose configured upstream is marked [gone], including associated worktrees. Use when the user wants to clean up stale local branches after their remote branches were merged or deleted.
 ---
 
 # Clean Gone Branches
