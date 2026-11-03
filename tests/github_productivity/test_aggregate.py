@@ -393,7 +393,7 @@ def test_load_entities_retries_on_concurrent_normalize_commit(
     """A derivation marker that changes mid-read is retried, not trusted."""
     write_state(tmp_path, repository_ids=[1])
     write_normalized(tmp_path, repositories=[repo_row(1)], pull_requests=[])
-    monkeypatch.setattr(aggregate.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(aggregate, "sleep", lambda _seconds: None)
     derivation_reads = iter([
         '{"committed_run_id": "run1"}',
         '{"committed_run_id": "run2"}',
@@ -414,7 +414,7 @@ def test_load_entities_retries_past_transient_missing_marker(
     """A marker briefly absent mid-``normalize`` is re-read, not trusted as gone."""
     write_state(tmp_path, repository_ids=[1])
     write_normalized(tmp_path, repositories=[repo_row(1)], pull_requests=[])
-    monkeypatch.setattr(aggregate.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(aggregate, "sleep", lambda _seconds: None)
     derivation_reads = iter([
         None,
         '{"committed_run_id": "run1"}',
@@ -435,7 +435,7 @@ def test_load_entities_fails_closed_on_persistent_concurrent_normalize(
     """A derivation marker that never stabilizes fails closed after retries."""
     write_state(tmp_path, repository_ids=[1])
     write_normalized(tmp_path, repositories=[repo_row(1)], pull_requests=[])
-    monkeypatch.setattr(aggregate.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(aggregate, "sleep", lambda _seconds: None)
     counter = iter(range(1_000))
     monkeypatch.setattr(
         aggregate,
