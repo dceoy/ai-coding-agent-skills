@@ -22,9 +22,9 @@ import json
 import operator
 import secrets
 import statistics
-from time import sleep
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from time import sleep
 from typing import TYPE_CHECKING, Any
 
 import workdir
