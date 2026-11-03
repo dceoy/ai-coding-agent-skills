@@ -36,7 +36,7 @@ jobs:
       contents: read
       actions: read
       security-events: write
-    uses: dceoy/gha-for-devops/.github/workflows/github-codeql-analysis.yml@664463f91334a5030111bfab0a999be23230edca
+    uses: dceoy/gha-for-devops/.github/workflows/github-codeql-analysis.yml@d0c92a28069d18ee102c355b31c248f65aeb66d0
     with:
       language: >
         ["actions","python"]
