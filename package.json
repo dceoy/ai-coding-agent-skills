@@ -24,11 +24,11 @@
 	},
 	"license": "AGPL-3.0-only",
 	"devDependencies": {
-		"@biomejs/biome": "^2.6.5",
+		"@biomejs/biome": "^2.6.6",
 		"@google/clasp": "3.4.1",
 		"@types/node": "26.6.6",
-		"oxfmt": "^0.76.0",
-		"oxlint": "^1.91.0",
+		"oxfmt": "^0.77.0",
+		"oxlint": "^1.92.0",
 		"typescript": "7.0.2"
 	},
 	"devEngines": {
