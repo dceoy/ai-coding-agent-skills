@@ -18,12 +18,12 @@ If the existing issue or source cannot be identified, request the missing input 
 
 ## Supported GitHub Issue Artifact types
 
-| Type | When to use | Content |
-| --- | --- | --- |
-| `link` | Default for a supplied Claude Artifact sharing URL | The exact verified HTTP(S) artifact URL |
-| `embedded_html` | The actual, self-contained HTML source/export is available and the user wants it embedded | The reviewed HTML source, without a generated replacement |
-| `generic` | The original Claude Artifact is a Markdown/text document or a user-provided textual export | The original document text |
-| `plan` | Only when the user explicitly requests an implementation plan as the Issue Artifact | A plan derived from evidence, clearly distinct from the original artifact |
+| Type            | When to use                                                                                | Content                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `link`          | Default for a supplied Claude Artifact sharing URL                                         | The exact verified HTTP(S) artifact URL                                   |
+| `embedded_html` | The actual, self-contained HTML source/export is available and the user wants it embedded  | The reviewed HTML source, without a generated replacement                 |
+| `generic`       | The original Claude Artifact is a Markdown/text document or a user-provided textual export | The original document text                                                |
+| `plan`          | Only when the user explicitly requests an implementation plan as the Issue Artifact        | A plan derived from evidence, clearly distinct from the original artifact |
 
 A PDF, design ZIP, slide deck, or image is **not** automatically converted into HTML or Markdown. Prefer a `link` to the existing Claude Artifact when the source is not a supported textual representation. Do not claim an embedded HTML artifact is equivalent to a complex or externally dependent Claude Artifact.
 
