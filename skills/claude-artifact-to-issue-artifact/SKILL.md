@@ -1,5 +1,5 @@
 ---
-name: claude-artifact-to-issue
+name: claude-artifact-to-issue-artifact
 description: Turn an existing Claude Artifact shared link, export, or source file into a traceable GitHub implementation issue. Use when asked to create a GitHub issue from a Claude Artifact, documenting observed behavior, acceptance criteria, and unresolved dependencies without inventing features or deploying code.
 ---
 
