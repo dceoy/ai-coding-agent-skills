@@ -32,6 +32,7 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 - `clean-gone-branches` - Clean up local branches marked as [gone] and their worktrees
 - `commit` - Create a git commit with an appropriate message
 - `commit-push-pr` - Commit, push, and open a pull request
+- `claude-artifact-to-issue-artifact` - Attach a Claude Artifact to an existing GitHub issue as a native Issue Artifact
 
 ### Code Quality
 
