@@ -99,6 +99,7 @@ Install and authenticate the required CLI tools before running skills:
   - Install: `npm install -g @steipete/oracle`
   - ChatGPT: sign in for Oracle browser mode
   - Remote browser routing is optional and uses Oracle's native configuration
+
 ## Usage notes
 
 - Skills do not always auto-run; use your agent's skill invocation flow or ask for the skill explicitly.
