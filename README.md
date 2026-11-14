@@ -46,10 +46,6 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 - `scripts/oracle-pr-sweep.sh [--debug] [--max-count=<int>]` - Submit an open-PR batch review through Oracle + ChatGPT `@GitHub`, requesting one `COMMENT` review per current PR. Runs Oracle in the foreground in browser mode with `gpt-6` (requires Oracle 0.20.1+ and GPT-6 browser access), waiting for the browser session to finish. The CLI exit status does not independently confirm that GitHub reviews were published. The wrapper retains no separate status or output log; use `oracle status` or `oracle session <id>` for Oracle-managed runs. The positional `[MAX_COUNT]` form remains supported; the default limit is 20 (range 1-50).
 
-### Delivery Analytics
-
-- `github-productivity` - Collect, retain, normalize, and analyze GitHub organization PR/review/timeline/commit data via `gh api` into an organization-week delivery panel with a pre-specified interrupted time-series model, sensitivities, charts, and a report
-
 ### Artifact Deployment
 
 - `gas-html-artifact` - Deploy an existing HTML artifact to Apps Script HTML Service with clasp, preserving compatible bytes and existing project files

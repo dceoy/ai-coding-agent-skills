@@ -7,11 +7,7 @@ maintainers = [{name = "dceoy", email = "dceoy@users.noreply.github.com"}]
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">= 3.11, < 3.14"
-dependencies = [
-    "matplotlib>=3.11.1",
-    "numpy>=2.4.6",
-    "statsmodels>=0.15.0",
-]
+dependencies = []
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -54,10 +50,6 @@ ignore = [
     "suspicious-subprocess-import", # subprocess required for git/gh invocation
     "print", # CLI output via print
 ]
-"skills/github-productivity/scripts/{ghapi,workdir}.py" = [
-    "subprocess-without-shell-equals-true", # subprocess call with a fixed, non-shell argument vector
-    "start-process-with-partial-path", # `gh`/`git` are invoked via PATH by design, matching CLI convention
-]
 "tests/**/*.py" = [
     "docstring-missing-returns", # Missing return documentation
     "docstring-missing-exception", # Raised exception missing from docstring
@@ -80,7 +72,6 @@ max-public-methods = 40
 [tool.pyright]
 include = ["skills"]
 exclude = ["build", ".venv", "**/__pycache__"]
-extraPaths = ["skills/github-productivity/scripts"]
 venvPath = "."
 venv = ".venv"
 typeCheckingMode = "strict"
@@ -96,7 +87,7 @@ addopts = [
     "--doctest-modules",
     "--capture=no",
 ]
-pythonpath = [".", "skills/github-productivity/scripts"]
+pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
