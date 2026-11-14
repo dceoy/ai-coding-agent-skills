@@ -19,9 +19,8 @@ Each skill directory contains a `SKILL.md` that documents prerequisites and invo
 2. Pick a runtime and explore the relevant integration:
    - **Claude Code / Claude Code Routines:** `.claude/skills -> ../skills` (symlink exposing all skills)
    - **Codex CLI skills:** `.agents/skills/` (per-skill symlinks into `skills/`)
-   - **Codex CLI custom subagents:** `.codex/agents/` (project-scoped definitions discovered automatically by current Codex releases)
 
-3. Open a skill directory or `.codex/agents/README.md` to learn how to invoke it.
+3. Open a skill directory's `SKILL.md` to learn how to invoke it.
 
 ## Skills
 
@@ -66,19 +65,6 @@ All skills are located in `skills/` and surfaced through shared discovery or run
 
 For issue-to-PR implementation, pull request review, and feedback resolution, see [dceoy/pr-loop](https://github.com/dceoy/pr-loop). It is maintained separately and provides the `issue-to-pr`, `pr-review`, `pr-feedback-triage`, and composite `pr-loop` agent skills.
 
-## Codex Custom Subagents
-
-Four optional native, read-only roles are defined under `.codex/agents/`:
-`planner`, `advisor`, `reviewer`, and `feedback-analyst`.
-Each TOML specifies its default model and reasoning effort; the top-level
-agent owns implementation. The routing policy is `.codex/AGENTS.md`, which
-must be installed as `$CODEX_HOME/AGENTS.md` to apply globally (it is not
-read automatically from the repository root).
-
-See [Codex agent setup](./.codex/agents/README.md) for installation and
-capability checks. Unsupported named-role dispatch falls back to work in
-the main agent, not a simulated child agent.
-
 ## Structure
 
 ```text
@@ -88,9 +74,6 @@ the main agent, not a simulated child agent.
 │   └── skills/              # Per-skill symlinks into skills/ (other runtimes)
 ├── .claude/
 │   └── skills -> ../skills  # Symlink exposing skills/ to Claude Code runtime
-├── .codex/
-│   ├── AGENTS.md            # Codex user-wide routing template
-│   └── agents/              # Project-scoped Codex custom subagents
 ├── .github/
 │   └── workflows/           # CI workflows (ci.yml)
 ├── scripts/                 # Standalone CLI helpers
@@ -110,7 +93,7 @@ Install and authenticate the required CLI tools before running skills:
 - **Claude Code** - For `.claude/` agents and skills
   - Install: <https://docs.anthropic.com/en/docs/claude-code>
   - Auth: Follow CLI onboarding flow
-- **Codex CLI** - For `.agents/skills/` and `.codex/agents/`
+- **Codex CLI** - For `.agents/skills/`
   - Install: `npm install -g @openai/codex`
   - Auth: run `codex login`
 - **Oracle CLI** - For `oracle-chatgpt` and `scripts/oracle-pr-sweep.sh`
