@@ -292,7 +292,7 @@ try {
 		"Provide --access and --execute-as together.",
 	);
 	const requested = v.access
-		? { access: v.access, executeAs: v["execute-as"] }
+		? { access: v.access, executeAs: v["execute-as"]! }
 		: null;
 	check(
 		!requested ||
