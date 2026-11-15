@@ -80,7 +80,7 @@ For issue-to-PR implementation, pull request review, and feedback resolution, se
 
 Install and authenticate the required CLI tools before running skills:
 
-- **Node.js >=20 and Google's `clasp` CLI** - For `gas-html-artifact` and `gas-drive-html-server`
+- **Node.js and Google's `clasp` CLI** - For `gas-html-artifact` (Node.js >=20) and `gas-drive-html-server` (Node.js >=22.23.4)
   - Use `pnpm exec clasp` (preferred), `npx --no-install clasp`, or direct `clasp` depending on available executables
   - Authenticate with the chosen launcher and enable the Apps Script API before deployment
   - Mocked deployment tests require Node.js but no Google credentials
