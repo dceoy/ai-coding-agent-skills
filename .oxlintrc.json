@@ -9,5 +9,11 @@
   "options": {
     "denyWarnings": true,
     "reportUnusedDisableDirectives": "error"
-  }
+  },
+  "rules": {
+    "unicorn/prefer-set-has": "off",
+    "unicorn/no-array-sort": "off",
+    "eslint/no-shadow": "off"
+  },
+  "ignorePatterns": [".agents/**", ".claude/**"]
 }
