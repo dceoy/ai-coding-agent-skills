@@ -1,6 +1,13 @@
 {
   "files": {
-    "includes": ["**", "!!**/*.yaml", "!!**/*.yml"]
+    "includes": [
+      "**",
+      "!!**/*.gs",
+      "!!**/.agents/**",
+      "!!**/.claude/**",
+      "!!**/*.yaml",
+      "!!**/*.yml"
+    ]
   },
   "linter": {
     "enabled": true,
@@ -14,7 +21,12 @@
       },
       "style": {
         "noExcessiveLinesPerFile": "off",
-        "useExportsLast": "off"
+        "useExportsLast": "off",
+        "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off",
+        "noImplicitAnyLet": "off"
       }
     }
   }
