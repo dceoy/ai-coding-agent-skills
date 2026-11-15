@@ -35,7 +35,8 @@ const validDeploy = (value: unknown): value is string =>
 const check: (ok: unknown, message: string) => asserts ok = (ok, message) => {
 	if (!ok) throw Error(message);
 };
-const readJson = (file: string): any => JSON.parse(fs.readFileSync(file, "utf8"));
+const readJson = (file: string): any =>
+	JSON.parse(fs.readFileSync(file, "utf8"));
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const filesHash = (dir) =>
@@ -530,6 +531,8 @@ try {
 } catch (error) {
 	state.failure = error instanceof Error ? error.message : "Unknown error";
 	save();
-	console.error(stage + ": " + (error instanceof Error ? error.message : "Unknown error"));
+	console.error(
+		stage + ": " + (error instanceof Error ? error.message : "Unknown error"),
+	);
 	process.exitCode = 1;
 }
