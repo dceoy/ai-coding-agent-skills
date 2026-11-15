@@ -8,6 +8,22 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 
+/** Recovery metadata persisted beside the isolated deployment workdir. */
+type DeploymentState = {
+	folderId?: string;
+	scriptId?: string;
+	deploymentId?: string;
+	runtimeSmokeTest?: string;
+	policy?: { access: string; executeAs: string };
+	payloadSha256?: Record<string, string>;
+	creationAttempted?: boolean;
+	pushAttempted?: boolean;
+	version?: number;
+	deploymentAttempted?: boolean;
+	url?: string;
+	failure?: string;
+};
+
 const templateDir = fileURLToPath(new URL("../templates/", import.meta.url));
 const fileNames = ["Code.gs", "Index.html", "appsscript.json"];
 const accessLevels = ["MYSELF", "DOMAIN", "ANYONE", "ANYONE_ANONYMOUS"];
@@ -16,7 +32,7 @@ const validId = (value: unknown): value is string =>
 	typeof value === "string" && /^[A-Za-z0-9_-]{10,}$/.test(value);
 const validDeploy = (value: unknown): value is string =>
 	typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
-const check = (ok: unknown, message: string): asserts ok => {
+const check: (ok: unknown, message: string) => asserts ok = (ok, message) => {
 	if (!ok) throw Error(message);
 };
 const readJson = (file: string): any => JSON.parse(fs.readFileSync(file, "utf8"));
@@ -34,11 +50,11 @@ const writeJson = (file: string, value: unknown) =>
 		mode: 0o600,
 	});
 
-let work;
+let work: string;
 let workCreated = false;
 let stage = "validate";
-let state: Record<string, any> = {};
-let runner;
+let state: DeploymentState = {};
+let runner: string[] | undefined;
 const localBin = fileURLToPath(
 	new URL("../../../node_modules/.bin/", import.meta.url),
 );
@@ -105,7 +121,7 @@ function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
 function clasp(
 	dir,
 	command,
-	args = [],
+	args: string[] = [],
 	asJson = true,
 	parseJsonOutput = asJson,
 ) {
@@ -124,7 +140,7 @@ function clasp(
 	);
 }
 
-function clone(scriptId, dir, version) {
+function clone(scriptId: string, dir: string, version?: number) {
 	fs.mkdirSync(dir);
 	const result = clasp(dir, "clone-script", [
 		scriptId,
@@ -336,7 +352,7 @@ try {
 	} else {
 		stage = "clone existing project";
 		const snapshot = path.join(work, "snapshot");
-		before = clone(state.scriptId, snapshot);
+		before = clone(state.scriptId!, snapshot);
 		const selected = clasp(snapshot, "list-deployments").find(
 			(d) => d.deploymentId === state.deploymentId,
 		);
@@ -347,7 +363,7 @@ try {
 			"Deployment not found.",
 		);
 		const production = path.join(work, "production");
-		clone(state.scriptId, production, selected.versionNumber);
+		clone(state.scriptId!, production, selected.versionNumber);
 		const productionManifest = readJson(
 			path.join(production, "appsscript.json"),
 		);
@@ -381,7 +397,7 @@ try {
 				v["allow-folder-change"],
 			"Changing the Drive root requires --allow-folder-change.",
 		);
-		oldUrl = verifiedUrl(snapshot, state.deploymentId);
+		oldUrl = verifiedUrl(snapshot, state.deploymentId!);
 		fs.copyFileSync(
 			path.join(snapshot, ".clasp.json"),
 			path.join(project, ".clasp.json"),
@@ -417,7 +433,7 @@ try {
 		const output = clasp(
 			bootstrap,
 			"create-script",
-			["--type", "standalone", "--title", v["new-project"]],
+			["--type", "standalone", "--title", v["new-project"]!],
 			false,
 		);
 		const match = output.match(
@@ -438,7 +454,7 @@ try {
 	} else {
 		stage = "check remote consistency";
 		check(
-			same(before, clone(state.scriptId, path.join(work, "recheck"))),
+			same(before, clone(state.scriptId!, path.join(work, "recheck"))),
 			"Concurrent project modification; refusing push.",
 		);
 	}
@@ -455,7 +471,7 @@ try {
 	check(
 		same(
 			state.payloadSha256,
-			clone(state.scriptId, path.join(work, "readback")),
+			clone(state.scriptId!, path.join(work, "readback")),
 		),
 		"Pushed payload mismatch.",
 	);
@@ -470,7 +486,7 @@ try {
 	check(
 		same(
 			state.payloadSha256,
-			clone(state.scriptId, path.join(work, "version"), state.version),
+			clone(state.scriptId!, path.join(work, "version"), state.version),
 		),
 		"Immutable version payload mismatch.",
 	);
@@ -485,7 +501,7 @@ try {
 				"gas-drive-html-server",
 			])
 		: clasp(project, "update-deployment", [
-				state.deploymentId,
+				state.deploymentId!,
 				"--versionNumber",
 				String(state.version),
 			]);
@@ -503,7 +519,7 @@ try {
 		live && live.versionNumber === state.version,
 		"Deployment readback mismatch.",
 	);
-	state.url = verifiedUrl(project, state.deploymentId);
+	state.url = verifiedUrl(project, state.deploymentId!);
 	check(
 		!oldUrl || oldUrl === state.url,
 		"Deployment URL unexpectedly changed.",
