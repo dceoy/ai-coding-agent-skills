@@ -1,15 +1,11 @@
 {
   "files": {
-    "includes": [
-      "**",
-      "!!**/*.yaml",
-      "!!**/*.yml"
-    ]
+    "includes": ["**", "!!**/*.yaml", "!!**/*.yml"]
   },
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "all",
+      "preset": "recommended",
       "correctness": {
         "useQwikValidLexicalScope": "off"
       },
