@@ -1,101 +1,43 @@
 ---
 name: gas-drive-html-server
-description: Create or update an independent Google Apps Script Web App that indexes and serves HTML files from a specified Google Drive folder, including its subfolders. Use when the user wants a browsable web index of HTML files stored in Drive. Does not depend on gas-html-artifact.
+description: Deploy or update a standalone Google Apps Script Web App that indexes and serves HTML files from a Google Drive folder using the bundled CLI. Use when the user needs a browsable Drive-backed HTML directory.
 ---
 
 # GAS Drive HTML Server
 
-Deploy a **self-contained** Google Apps Script directory index. The GAS project's
-`Index.html` is an Apache/Nginx-style autoindex page: on each request it lists
-HTML files and subfolders beneath a chosen Google Drive root. Drive HTML is
-read at request time; content changes do **not** require GAS redeployment.
-This skill never creates or edits the HTML artifacts in Drive.
+Use the bundled `scripts/deploy.mjs` CLI; do not recreate its deployment logic or modify the GAS templates. The Web App lists subfolders and serves HTML files from the selected Drive folder at request time, so changes to Drive HTML do not require redeployment. This skill does not create or edit those HTML files.
 
-## Routing
+## Run
 
-| URL                   | Behavior                       |
-| --------------------- | ------------------------------ |
-| `/exec`               | Index configured root folder   |
-| `/exec?dir=FOLDER_ID` | List a descendant folder       |
-| `/exec?file=FILE_ID`  | Display a descendant HTML file |
+Prerequisites: Node.js (see the repository's `package.json`), installed `@google/clasp` via `pnpm install`, `clasp login`, and the Apps Script API enabled. Use an existing parent directory and a **fresh** `--workdir` for every attempt.
 
-Links use an absolute Web App URL, Drive IDs (avoids duplicate names) and
-`<base target="_top">` for iframe navigation. The index displays names, last
-modified times and byte sizes, with folders listed before files. All user
-data in `Index.html` is contextually escaped by `<?= ... ?>` scriptlets.
-Child containment follows parents to the configured root; shortcuts are not
-traversed. Only `.html`/`.htm` files with `text/html` MIME type are served.
-No cache or background synchronization is required.
-
-## Preconditions and security
-
-1. Obtain a real Google Drive folder ID. Confirm the deploying Google account
-   can read the folder and intended descendants. Do not guess a replacement.
-2. Review the folder's HTML, editors and dependencies for secrets, hostile
-   scripts, unsupported HTML Service features and unintended disclosure.
-   Files added/modified later become visible _without_ code deployment.
-3. Choose deployment access/identity deliberately. New deployments default to
-   `MYSELF`/`USER_DEPLOYING`. Broader access requires an explicit flag.
-   `USER_DEPLOYING` reads private Drive data as the deployer even for visitors
-   with no direct Drive permissions. `USER_ACCESSING` requires viewers' OAuth
-   consent and their own Drive access.
-4. Install Google's `@google/clasp` CLI, Node.js >=20, authenticate with
-   `clasp login`, and enable the Apps Script API.
-5. Use a fresh dedicated workdir and ensure exclusive remote edit coordination
-   before updating an existing project.
-
-## Deploy
-
-The skill's own `scripts/deploy.mjs` and `templates/` are self-contained and
-do **not** call or import `gas-html-artifact`.
+From the repository root:
 
 ```bash
-# New standalone Web App; defaults to deployer-only visibility
-node scripts/deploy.mjs \
+# Create (private by default)
+node skills/gas-drive-html-server/scripts/deploy.mjs \
   --folder-id 'DRIVE_FOLDER_ID' --workdir '/tmp/gas-index-new' \
   --new-project 'Drive HTML directory'
 
-# Update an existing deployment, keeping its deployment URL
-node scripts/deploy.mjs \
+# Update the same Web App URL
+node skills/gas-drive-html-server/scripts/deploy.mjs \
   --folder-id 'DRIVE_FOLDER_ID' --workdir '/tmp/gas-index-update' \
   --script-id 'SCRIPT_ID' --deployment-id 'DEPLOYMENT_ID' \
   --exclusive-coordination
 ```
 
-Provide `--access` (`MYSELF`, `DOMAIN`, `ANYONE`, `ANYONE_ANONYMOUS`)
-and `--execute-as` (`USER_DEPLOYING`, `USER_ACCESSING`) together. Wider access
-requires `--acknowledge-exposure`. Changes to an existing policy additionally
-require `--allow-policy-change`, and changing its Drive root requires
-`--allow-folder-change`. Reassess published content before either change.
+For an explicit access policy, pass `--access` (`MYSELF`, `DOMAIN`, `ANYONE`, `ANYONE_ANONYMOUS`) **together with** `--execute-as` (`USER_DEPLOYING` or `USER_ACCESSING`). Non-private access also requires `--acknowledge-exposure`. Updates that change the access policy or Drive root additionally require `--allow-policy-change` or `--allow-folder-change`, respectively. Do not add approval flags without the user's authorization.
 
-The deployer refuses an existing GAS project that is not exclusively owned by
-this skill. It validates selected deployment metadata, checks production and
-HEAD policies, and requires other manifest settings to match the bundled
-template. Reconcile custom manifest settings manually before updating. It
-re-clones before pushing to detect concurrent modifications, checks readback,
-creates a version and verifies the deployed `/exec` URL.
-There is no atomic compare-and-swap; exclusive remote coordination is mandatory.
+## Safety and verification
 
-Inspect `deployment.json` and `.clasp.json` inside the private workdir for
-recovery. Remote creation/push/deployment may succeed despite CLI failure.
-**Never blindly retry a project creation.** Credentials must not be committed,
-displayed, or stored in the deployment payload. A metadata-verified URL is not
-a runtime smoke test; verify the real page and links separately with consent.
+- Obtain and confirm the actual Drive folder ID and the deploying account's access; never guess IDs. Review the HTML, its editors, and external dependencies for secrets, active scripts, and unintended disclosure. Newly added Drive files become available without redeployment.
+- Default deployment is `MYSELF` / `USER_DEPLOYING`. With `USER_DEPLOYING`, visitors may see private Drive HTML through the Web App even without Drive permissions; `USER_ACCESSING` instead requires viewer authorization and access. Confirm the exposure model before choosing broader access.
+- Updating an existing script requires exclusive remote edit coordination. The CLI performs project ownership, policy, remote-state, payload, and deployment checks, but cannot provide an atomic remote compare-and-swap.
+- Inspect `deployment.json` and `.clasp.json` in the private workdir after a failure. Remote creation or deployment may have succeeded; **do not blindly retry**. Keep credentials and workdir metadata private.
+- Report the verified deployment URL, but distinguish metadata verification from a runtime test. Check the actual page and links separately with appropriate access.
 
 ## Limitations
 
-- Apps Script HTML Service runs in an iframe sandbox and is not a general
-  Nginx/Apache static server. Relative CSS/JS/image assets, arbitrary HTTP
-  headers, status codes, MIME types, SPA fallback and unrestricted APIs are
-  unsupported. HTML must be self-contained or reference compatible HTTPS assets.
-- Error pages returned by HTML Service cannot set HTTP 403/404 status codes.
-- Very large directories may exceed Apps Script execution/Drive quotas.
-- DriveApp has limitations for shared drives; Advanced Drive Service would
-  require separate implementation.
-- The script needs the `drive.readonly` OAuth scope, which covers more than
-  one folder at authorization time. The runtime applies its own root restriction.
-  Publishing the Web App publicly exposes the selected folder's HTML to visitors.
+Apps Script HTML Service is iframe-sandboxed, **not** a general-purpose static web server. HTML should be self-contained or use compatible HTTPS assets; relative assets, arbitrary headers/status codes, SPA fallback, and unrestricted APIs are unsupported. Large folders may hit quotas; shared drives may require a different Drive API implementation. The OAuth `drive.readonly` scope is broader than the selected root, which the Web App restricts at runtime.
 
-Documentation: [Apps Script Web Apps](https://developers.google.com/apps-script/guides/web),
-[DriveApp](https://developers.google.com/apps-script/reference/drive/drive-app),
-[HTML templates](https://developers.google.com/apps-script/guides/html/templates).
+See [Apps Script Web Apps](https://developers.google.com/apps-script/guides/web) and [HTML Service](https://developers.google.com/apps-script/guides/html).
