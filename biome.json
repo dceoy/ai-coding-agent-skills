@@ -2,8 +2,33 @@
   "files": {
     "includes": [
       "**",
+      "!!**/.agents",
+      "!!**/.claude",
+      "!!**/templates",
+      "!!**/*.gs",
       "!!**/*.yaml",
       "!!**/*.yml"
     ]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "useQwikValidLexicalScope": "off"
+      },
+      "complexity": {
+        "useLiteralKeys": "off"
+      },
+      "style": {
+        "noExcessiveLinesPerFile": "off",
+        "useExportsLast": "off",
+        "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off",
+        "noImplicitAnyLet": "off"
+      }
+    }
   }
 }

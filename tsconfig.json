@@ -8,7 +8,12 @@
 		"skipLibCheck": true,
 		"types": ["node"],
 		"noEmitOnError": true,
-		"forceConsistentCasingInFileNames": true
+		"forceConsistentCasingInFileNames": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"noUncheckedSideEffectImports": true,
+		"verbatimModuleSyntax": true
 	},
 	"include": [
 		"skills/gas-html-artifact/scripts/deploy.mts",
