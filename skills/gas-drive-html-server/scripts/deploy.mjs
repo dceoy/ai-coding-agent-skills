@@ -2,8 +2,8 @@
 // biome-ignore-all format: Preserve standalone, independently reviewed implementation.
 // Self-contained clasp deployment for the gas-drive-html-server skill.
 import { createHash } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, parseArgs } from "node:util";
@@ -512,8 +512,8 @@ try {
 	save();
 	console.log(JSON.stringify({ ...state, stage }, null, 2));
 } catch (error) {
-	state.failure = error.message;
+	state.failure = error instanceof Error ? error.message : "Unknown error";
 	save();
-	console.error(stage + ": " + error.message);
+	console.error(stage + ": " + (error instanceof Error ? error.message : "Unknown error"));
 	process.exitCode = 1;
 }
