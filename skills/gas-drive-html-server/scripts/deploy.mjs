@@ -2,12 +2,11 @@
 // biome-ignore-all format: Preserve standalone, independently reviewed implementation.
 // Self-contained clasp deployment for the gas-drive-html-server skill.
 import { createHash } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, parseArgs } from "node:util";
-
 const templateDir = fileURLToPath(new URL("../templates/", import.meta.url));
 const fileNames = ["Code.gs", "Index.html", "appsscript.json"];
 const accessLevels = ["MYSELF", "DOMAIN", "ANYONE", "ANYONE_ANONYMOUS"];
@@ -33,7 +32,6 @@ const writeJson = (file, value) =>
 	fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", {
 		mode: 0o600,
 	});
-
 let work;
 let workCreated = false;
 let stage = "validate";
@@ -46,7 +44,6 @@ const save = () => {
 	if (workCreated)
 		writeJson(path.join(work, "deployment.json"), { ...state, stage });
 };
-
 function claspEnvironment() {
 	const env = { ...process.env };
 	for (const key of Object.keys(env)) {
@@ -57,7 +54,6 @@ function claspEnvironment() {
 		env.PATH = [env.PATH, localBin].filter(Boolean).join(path.delimiter);
 	return env;
 }
-
 function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
 	const env = claspEnvironment();
 	if (!runner) {
@@ -101,7 +97,6 @@ function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
 		throw Error("Unexpected clasp JSON at " + stage);
 	}
 }
-
 function clasp(
 	dir,
 	command,
@@ -123,7 +118,6 @@ function clasp(
 		parseJsonOutput,
 	);
 }
-
 function clone(scriptId, dir, version) {
 	fs.mkdirSync(dir);
 	const result = clasp(dir, "clone-script", [
@@ -165,7 +159,6 @@ function clone(scriptId, dir, version) {
 	);
 	return filesHash(dir);
 }
-
 function policy(manifest) {
 	const result = manifest.webapp;
 	check(
@@ -176,7 +169,6 @@ function policy(manifest) {
 	);
 	return { access: result.access, executeAs: result.executeAs };
 }
-
 function manifestSettings(manifest) {
 	const { webapp, ...settings } = manifest;
 	if (webapp) {
@@ -188,7 +180,6 @@ function manifestSettings(manifest) {
 	}
 	return settings;
 }
-
 function rootFolderId(dir) {
 	const config = fs.readFileSync(path.join(dir, "Code.gs"), "utf8");
 	const match = config.match(
@@ -200,7 +191,6 @@ function rootFolderId(dir) {
 	);
 	return match[2];
 }
-
 function parseJsonPrefix(output) {
 	const text = output.trimStart();
 	check(text.startsWith("{"), "Unable to inspect Web App metadata.");
@@ -226,7 +216,6 @@ function parseJsonPrefix(output) {
 	}
 	throw Error("Unable to inspect Web App metadata.");
 }
-
 function verifiedUrl(dir, id) {
 	const stdout = clasp(dir, "open-web-app", [id], true, false);
 	const { value, trailing } = parseJsonPrefix(stdout);
@@ -247,7 +236,6 @@ function verifiedUrl(dir, id) {
 	);
 	return url.href;
 }
-
 try {
 	const argv = process.argv.slice(2);
 	const flags = argv
@@ -308,7 +296,6 @@ try {
 		!fresh || (!v["allow-folder-change"] && !v["allow-policy-change"]),
 		"Change-approval flags are update-only.",
 	);
-
 	work = path.resolve(v.workdir);
 	check(
 		!fs.existsSync(work) && fs.existsSync(path.dirname(work)),
@@ -330,7 +317,6 @@ try {
 	let before;
 	let oldUrl;
 	const templateManifest = readJson(path.join(templateDir, "appsscript.json"));
-
 	if (fresh) {
 		chosen = requested || { access: "MYSELF", executeAs: "USER_DEPLOYING" };
 	} else {
@@ -387,7 +373,6 @@ try {
 			path.join(project, ".clasp.json"),
 		);
 	}
-
 	for (const name of fileNames) {
 		let content = fs.readFileSync(path.join(templateDir, name), "utf8");
 		if (name === "Code.gs") {
@@ -406,7 +391,6 @@ try {
 	state.policy = chosen;
 	state.payloadSha256 = filesHash(project);
 	save();
-
 	if (fresh) {
 		stage = "create project";
 		const bootstrap = path.join(work, "bootstrap");
@@ -442,7 +426,6 @@ try {
 			"Concurrent project modification; refusing push.",
 		);
 	}
-
 	stage = "push";
 	state.pushAttempted = true;
 	save();
@@ -512,8 +495,10 @@ try {
 	save();
 	console.log(JSON.stringify({ ...state, stage }, null, 2));
 } catch (error) {
-	state.failure = error.message;
+	state.failure = error instanceof Error ? error.message : "Unknown error";
 	save();
-	console.error(stage + ": " + error.message);
+	console.error(
+		stage + ": " + (error instanceof Error ? error.message : "Unknown error"),
+	);
 	process.exitCode = 1;
 }
