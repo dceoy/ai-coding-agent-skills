@@ -14,9 +14,9 @@
 		"format:check": "biome format --md-formatter-enabled=false skills tests scripts package.json tsconfig.json && oxfmt --check '**/*.{md,mdx}' --no-error-on-unmatched-pattern",
 		"test": "pnpm run build && node --test tests/gas_html_artifact/deploy.test.mjs tests/gas_drive_html_server/deploy.test.mjs tests/gas_drive_html_server/runtime.test.mjs",
 		"all": "pnpm run format && pnpm run lint:fix && pnpm run typecheck && pnpm run test",
-		"build": "tsc --project tsconfig.json && biome format --write skills/gas-html-artifact/scripts/deploy.mjs tests/gas_html_artifact/deploy.test.mjs",
+		"build": "tsc --project tsconfig.json && biome format --write skills/gas-html-artifact/scripts/deploy.mjs skills/gas-drive-html-server/scripts/deploy.mjs tests/gas_html_artifact/deploy.test.mjs",
 		"typecheck": "tsc --noEmit",
-		"build:check": "pnpm run build && git diff --exit-code -- skills/gas-html-artifact/scripts/deploy.mjs"
+		"build:check": "pnpm run build && git diff --exit-code -- skills/gas-html-artifact/scripts/deploy.mjs skills/gas-drive-html-server/scripts/deploy.mjs"
 	},
 	"repository": {
 		"type": "git",
