@@ -5,5 +5,21 @@
       "!!**/*.yaml",
       "!!**/*.yml"
     ]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "all",
+      "correctness": {
+        "useQwikValidLexicalScope": "off"
+      },
+      "complexity": {
+        "useLiteralKeys": "off"
+      },
+      "style": {
+        "noExcessiveLinesPerFile": "off",
+        "useExportsLast": "off"
+      }
+    }
   }
 }
