@@ -9,16 +9,16 @@ Use `scripts/deploy.mjs` with the bundled GAS templates. Do not regenerate the d
 
 ## CLI
 
-Prerequisites: Node.js per `package.json`, `pnpm install`, `pnpm exec clasp login`, and the Apps Script API enabled. Run from the repository root, with a new workdir for each attempt:
+Prerequisites: Node.js >=22.23.4, Google's `@google/clasp` CLI installed so `clasp` is on `PATH` (for example `npm install -g @google/clasp`), `clasp login`, and the Apps Script API enabled. Run from the Skill directory (the installed Skill's root, or `skills/gas-drive-html-server` in a repository checkout), with a new workdir for each attempt:
 
 ```bash
 # New Web App (private by default)
-node skills/gas-drive-html-server/scripts/deploy.mjs \
+node scripts/deploy.mjs \
   --folder-id 'DRIVE_FOLDER_ID' --workdir '/tmp/gas-index-new' \
   --new-project 'Drive HTML directory'
 
 # Update an existing deployment (preserves its URL)
-node skills/gas-drive-html-server/scripts/deploy.mjs \
+node scripts/deploy.mjs \
   --folder-id 'DRIVE_FOLDER_ID' --workdir '/tmp/gas-index-update' \
   --script-id 'SCRIPT_ID' --deployment-id 'DEPLOYMENT_ID' \
   --exclusive-coordination
