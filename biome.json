@@ -2,9 +2,10 @@
   "files": {
     "includes": [
       "**",
+      "!!**/.agents",
+      "!!**/.claude",
+      "!!**/templates",
       "!!**/*.gs",
-      "!!**/.agents/**",
-      "!!**/.claude/**",
       "!!**/*.yaml",
       "!!**/*.yml"
     ]
