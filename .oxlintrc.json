@@ -1,19 +1,29 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "categories": {
-    "correctness": "error",
-    "suspicious": "error",
-    "perf": "error"
-  },
-  "plugins": ["import", "oxc", "promise", "typescript", "unicorn"],
-  "options": {
-    "denyWarnings": true,
-    "reportUnusedDisableDirectives": "error"
-  },
-  "rules": {
-    "unicorn/prefer-set-has": "off",
-    "unicorn/no-array-sort": "off",
-    "eslint/no-shadow": "off"
-  },
-  "ignorePatterns": [".agents/**", ".claude/**"]
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"categories": {
+		"correctness": "error",
+		"suspicious": "error",
+		"perf": "error"
+	},
+	"plugins": [
+		"import",
+		"oxc",
+		"promise",
+		"typescript",
+		"unicorn"
+	],
+	"options": {
+		"denyWarnings": true,
+		"reportUnusedDisableDirectives": "error",
+		"typeAware": true
+	},
+	"rules": {
+		"unicorn/prefer-set-has": "off",
+		"unicorn/no-array-sort": "off",
+		"eslint/no-shadow": "off"
+	},
+	"ignorePatterns": [
+		".agents/**",
+		".claude/**"
+	]
 }
