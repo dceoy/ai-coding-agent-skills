@@ -195,7 +195,10 @@ importers:
         version: 0.78.0
       oxlint:
         specifier: ^1.93.0
-        version: 1.93.0
+        version: 1.93.0(oxlint-tsgolint@7.0.2007)
+      oxlint-tsgolint:
+        specifier: 7.0.2007
+        version: 7.0.2007
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -1571,7 +1574,7 @@ packages:
       vite-plus:
         optional: true
 
-  oxlint@1.93.0:
+  oxlint@1.93.0(oxlint-tsgolint@7.0.2007):
     resolution: {integrity: sha512-19JMsQFX+YvEbcUTFQxjTwhvs0Ibg0D6CFneSLgpwnACWcY/6LjhpGpkPodh0T5aIT1pjMTLlYaeBFzaVgugTA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
@@ -1892,6 +1895,27 @@ packages:
 
   zod@4.6.6:
     resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
+
+
+  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
+
+
+  '@oxlint-tsgolint/darwin-x64@7.0.2007':
+
+
+  '@oxlint-tsgolint/linux-arm64@7.0.2007':
+
+
+  '@oxlint-tsgolint/linux-x64@7.0.2007':
+
+
+  '@oxlint-tsgolint/win32-arm64@7.0.2007':
+
+
+  '@oxlint-tsgolint/win32-x64@7.0.2007':
+
+
+  oxlint-tsgolint@7.0.2007:
 
 snapshots:
 
@@ -3336,3 +3360,23 @@ snapshots:
       zod: 4.6.6
 
   zod@4.6.6: {}
+
+  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
+
+
+  '@oxlint-tsgolint/darwin-x64@7.0.2007':
+
+
+  '@oxlint-tsgolint/linux-arm64@7.0.2007':
+
+
+  '@oxlint-tsgolint/linux-x64@7.0.2007':
+
+
+  '@oxlint-tsgolint/win32-arm64@7.0.2007':
+
+
+  '@oxlint-tsgolint/win32-x64@7.0.2007':
+
+
+  oxlint-tsgolint@7.0.2007:
