@@ -8,7 +8,7 @@
 		"pnpm": ">=12"
 	},
 	"scripts": {
-		"lint": "oxlint --ignore-pattern 'node_modules/**' . && biome lint .",
+		"lint": "oxlint --ignore-pattern 'node_modules/**' . && biome lint . --error-on-warnings --max-diagnostics=250",
 		"lint:fix": "oxlint --ignore-pattern 'node_modules/**' --fix . && biome lint --write .",
 		"format": "biome format --md-formatter-enabled=false --write skills tests scripts package.json tsconfig.json && oxfmt --write '**/*.{md,mdx}' --no-error-on-unmatched-pattern",
 		"format:check": "biome format --md-formatter-enabled=false skills tests scripts package.json tsconfig.json && oxfmt --check '**/*.{md,mdx}' --no-error-on-unmatched-pattern",
@@ -29,7 +29,8 @@
 		"@types/node": "26.6.6",
 		"oxfmt": "^0.78.0",
 		"oxlint": "^1.93.0",
-		"typescript": "7.0.2"
+		"typescript": "7.0.2",
+		"oxlint-tsgolint": "7.0.2007"
 	},
 	"devEngines": {
 		"runtime": {
