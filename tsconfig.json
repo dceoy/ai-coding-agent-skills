@@ -4,16 +4,23 @@
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"strict": true,
-		"noImplicitAny": false,
 		"skipLibCheck": true,
-		"types": ["node"],
+		"types": [
+			"node"
+		],
 		"noEmitOnError": true,
 		"forceConsistentCasingInFileNames": true,
 		"noImplicitReturns": true,
 		"noFallthroughCasesInSwitch": true,
 		"noImplicitOverride": true,
 		"noUncheckedSideEffectImports": true,
-		"verbatimModuleSyntax": true
+		"verbatimModuleSyntax": true,
+		"exactOptionalPropertyTypes": true,
+		"noUncheckedIndexedAccess": true,
+		"noPropertyAccessFromIndexSignature": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"isolatedModules": true
 	},
 	"include": [
 		"skills/gas-html-artifact/scripts/deploy.mts",
