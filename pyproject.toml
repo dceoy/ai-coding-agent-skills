@@ -26,6 +26,7 @@ package = false
 
 [dependency-groups]
 dev = [
+    "semgrep",
     "ruff >= 0.11.0",
     "pyright >= 1.1.407",
     "pytest >= 8.0.0",
