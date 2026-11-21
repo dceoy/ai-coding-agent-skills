@@ -3067,12 +3067,6 @@ snapshots:
       '@oxlint/binding-win32-x64-msvc': 1.93.0
       oxlint-tsgolint: 7.0.2007
 
-  path-to-regexp@6.3.0: {}
-
-  pathe@2.0.3: {}
-
-  semver@7.8.6: {}
-
   p-limit@4.0.0:
     dependencies:
       yocto-queue: 1.2.2
