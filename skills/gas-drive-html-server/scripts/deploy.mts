@@ -33,13 +33,19 @@ const validId = (value: unknown): value is string =>
 const validDeploy = (value: unknown): value is string =>
 	typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
 const check: (ok: unknown, message: string) => asserts ok = (ok, message) => {
-	if (!ok) throw Error(message);
+	if (!ok) {
+		throw Error(message);
+	}
 };
-const readJson = (file: string): any =>
+const readJson = (
+	file: string,
+): /* biome-ignore lint/suspicious/noExplicitAny: JSON boundary is validated at use sites. */ any =>
 	JSON.parse(fs.readFileSync(file, "utf8"));
-const hash = (value) => createHash("sha256").update(value).digest("hex");
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const filesHash = (dir) =>
+const hash = (value: string | Buffer) =>
+	createHash("sha256").update(value).digest("hex");
+const same = (a: unknown, b: unknown) =>
+	JSON.stringify(a) === JSON.stringify(b);
+const filesHash = (dir: string) =>
 	Object.fromEntries(
 		fileNames.map((name) => [
 			name,
@@ -55,35 +61,45 @@ let work: string;
 let workCreated = false;
 let stage = "validate";
 let state: DeploymentState = {};
-let runner: string[] | undefined;
+let runner: [string, ...string[]] | undefined;
 const localBin = fileURLToPath(
 	new URL("../../../node_modules/.bin/", import.meta.url),
 );
 const save = () => {
-	if (workCreated)
+	if (workCreated) {
 		writeJson(path.join(work, "deployment.json"), { ...state, stage });
+	}
 };
 
 function claspEnvironment() {
 	const env = { ...process.env };
 	for (const key of Object.keys(env)) {
-		if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/i.test(key))
+		if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/i.test(key)) {
 			delete env[key];
+		}
 	}
-	if (fs.existsSync(localBin))
-		env.PATH = [env.PATH, localBin].filter(Boolean).join(path.delimiter);
+	if (fs.existsSync(localBin)) {
+		env["PATH"] = [env["PATH"], localBin].filter(Boolean).join(path.delimiter);
+	}
 	return env;
 }
 
-function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
+function run(
+	args: string[],
+	cwd: string,
+	asJson = true,
+	parseJsonOutput = asJson,
+) {
 	const env = claspEnvironment();
 	if (!runner) {
-		runner = [
-			["pnpm", "exec", "clasp"],
-			["npx", "--no-install", "--package=@google/clasp", "clasp"],
-			["clasp"],
-		].find(([exe, ...prefix]) => {
-			const r = spawnSync(exe, [...prefix, "--version"], {
+		runner = (
+			[
+				["pnpm", "exec", "clasp"],
+				["npx", "--no-install", "--package=@google/clasp", "clasp"],
+				["clasp"],
+			] as [string, ...string[]][]
+		).find(([candidateExe, ...candidatePrefix]) => {
+			const r = spawnSync(candidateExe, [...candidatePrefix, "--version"], {
 				cwd,
 				env,
 				encoding: "utf8",
@@ -111,7 +127,9 @@ function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
 			stage +
 			". Raw diagnostics withheld; check authentication, Apps Script API and permissions.",
 	);
-	if (!parseJsonOutput) return r.stdout;
+	if (!parseJsonOutput) {
+		return r.stdout;
+	}
 	try {
 		return JSON.parse(r.stdout);
 	} catch {
@@ -120,8 +138,8 @@ function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
 }
 
 function clasp(
-	dir,
-	command,
+	dir: string,
+	command: string,
 	args: string[] = [],
 	asJson = true,
 	parseJsonOutput = asJson,
@@ -165,8 +183,8 @@ function clone(scriptId: string, dir: string, version?: number) {
 			fs
 				.readdirSync(dir)
 				.filter((x) => x !== ".clasp.json")
-				.sort(),
-			[...fileNames].sort(),
+				.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+			[...fileNames].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
 		),
 		"Refusing unmanaged GAS project or unexpected remote files.",
 	);
@@ -183,7 +201,7 @@ function clone(scriptId: string, dir: string, version?: number) {
 	return filesHash(dir);
 }
 
-function policy(manifest) {
+function policy(manifest: { webapp?: { access: string; executeAs: string } }) {
 	const result = manifest.webapp;
 	check(
 		result &&
@@ -194,19 +212,28 @@ function policy(manifest) {
 	return { access: result.access, executeAs: result.executeAs };
 }
 
-function manifestSettings(manifest) {
+function manifestSettings(manifest: Record<string, unknown>) {
 	const { webapp, ...settings } = manifest;
-	if (webapp) {
+	check(
+		!webapp || (typeof webapp === "object" && !Array.isArray(webapp)),
+		"Invalid web app settings.",
+	);
+	if (webapp && typeof webapp === "object") {
 		const extraWebAppSettings = { ...webapp };
-		delete extraWebAppSettings.access;
-		delete extraWebAppSettings.executeAs;
-		if (Object.keys(extraWebAppSettings).length)
-			settings.webapp = extraWebAppSettings;
+		if ("access" in extraWebAppSettings) {
+			delete extraWebAppSettings.access;
+		}
+		if ("executeAs" in extraWebAppSettings) {
+			delete extraWebAppSettings.executeAs;
+		}
+		if (Object.keys(extraWebAppSettings).length) {
+			settings["webapp"] = extraWebAppSettings;
+		}
 	}
 	return settings;
 }
 
-function rootFolderId(dir) {
+function rootFolderId(dir: string) {
 	const config = fs.readFileSync(path.join(dir, "Code.gs"), "utf8");
 	const match = config.match(
 		/^const ROOT_FOLDER_ID = (["'])([A-Za-z0-9_-]+)\1;$/m,
@@ -218,7 +245,7 @@ function rootFolderId(dir) {
 	return match[2];
 }
 
-function parseJsonPrefix(output) {
+function parseJsonPrefix(output: string) {
 	const text = output.trimStart();
 	check(text.startsWith("{"), "Unable to inspect Web App metadata.");
 	let depth = 0;
@@ -227,14 +254,20 @@ function parseJsonPrefix(output) {
 	for (let i = 0; i < text.length; i++) {
 		const character = text[i];
 		if (inString) {
-			if (escaped) escaped = false;
-			else if (character === "\\") escaped = true;
-			else if (character === '"') inString = false;
+			if (escaped) {
+				escaped = false;
+			} else if (character === "\\") {
+				escaped = true;
+			} else if (character === '"') {
+				inString = false;
+			}
 			continue;
 		}
-		if (character === '"') inString = true;
-		else if (character === "{") depth++;
-		else if (character === "}" && --depth === 0) {
+		if (character === '"') {
+			inString = true;
+		} else if (character === "{") {
+			depth++;
+		} else if (character === "}" && --depth === 0) {
 			return {
 				value: JSON.parse(text.slice(0, i + 1)),
 				trailing: text.slice(i + 1).trim(),
@@ -244,7 +277,7 @@ function parseJsonPrefix(output) {
 	throw Error("Unable to inspect Web App metadata.");
 }
 
-function verifiedUrl(dir, id) {
+function verifiedUrl(dir: string, id: string) {
 	const stdout = clasp(dir, "open-web-app", [id], true, false);
 	const { value, trailing } = parseJsonPrefix(stdout);
 	check(typeof value.url === "string", "Unable to inspect Web App metadata.");
@@ -336,16 +369,18 @@ try {
 	fs.writeFileSync(path.join(work, ".claspignore"), "");
 	state = {
 		folderId: v["folder-id"],
-		scriptId: v["script-id"],
-		deploymentId: v["deployment-id"],
+		...(v["script-id"] !== undefined ? { scriptId: v["script-id"] } : {}),
+		...(v["deployment-id"] !== undefined
+			? { deploymentId: v["deployment-id"] }
+			: {}),
 		runtimeSmokeTest: "not performed",
 	};
 	save();
 	const project = path.join(work, "project");
 	fs.mkdirSync(project);
-	let chosen;
-	let before;
-	let oldUrl;
+	let chosen: { access: string; executeAs: string };
+	let before: Record<string, string> | undefined;
+	let oldUrl: string | undefined;
 	const templateManifest = readJson(path.join(templateDir, "appsscript.json"));
 
 	if (fresh) {
@@ -355,7 +390,8 @@ try {
 		const snapshot = path.join(work, "snapshot");
 		before = clone(state.scriptId!, snapshot);
 		const selected = clasp(snapshot, "list-deployments").find(
-			(d) => d.deploymentId === state.deploymentId,
+			(d: { deploymentId: string; versionNumber: number }) =>
+				d.deploymentId === state.deploymentId,
 		);
 		check(
 			selected &&
@@ -514,7 +550,8 @@ try {
 	state.deploymentId = deployment.deploymentId;
 	save();
 	const live = clasp(project, "list-deployments").find(
-		(d) => d.deploymentId === state.deploymentId,
+		(d: { deploymentId: string; versionNumber: number }) =>
+			d.deploymentId === state.deploymentId,
 	);
 	check(
 		live && live.versionNumber === state.version,

@@ -168,8 +168,9 @@ function fixture(t, options = {}) {
 	fs.mkdirSync(toolPath);
 	fs.mkdirSync(remote);
 	fs.copyFileSync(sourceDeploy, path.join(deployDir, "deploy.mjs"));
-	for (const name of ["Code.gs", "Index.html", "appsscript.json"])
+	for (const name of ["Code.gs", "Index.html", "appsscript.json"]) {
 		fs.copyFileSync(path.join(sourceTemplates, name), path.join(templateDir, name));
+	}
 	fs.writeFileSync(path.join(localBin, "clasp"), mockClasp, { mode: 0o755 });
 
 	const template = fs.readFileSync(path.join(sourceTemplates, "Code.gs"), "utf8");

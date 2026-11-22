@@ -16,7 +16,9 @@ const validId = (value) =>
 const validDeploy = (value) =>
 	typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
 const check = (ok, message) => {
-	if (!ok) throw Error(message);
+	if (!ok) {
+		throw Error(message);
+	}
 };
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -41,17 +43,20 @@ const localBin = fileURLToPath(
 	new URL("../../../node_modules/.bin/", import.meta.url),
 );
 const save = () => {
-	if (workCreated)
+	if (workCreated) {
 		writeJson(path.join(work, "deployment.json"), { ...state, stage });
+	}
 };
 function claspEnvironment() {
 	const env = { ...process.env };
 	for (const key of Object.keys(env)) {
-		if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/i.test(key))
+		if (/^(DEBUG|NODE_OPTIONS|NODE_PATH|CLASP_CONFIG_.*)$/i.test(key)) {
 			delete env[key];
+		}
 	}
-	if (fs.existsSync(localBin))
-		env.PATH = [env.PATH, localBin].filter(Boolean).join(path.delimiter);
+	if (fs.existsSync(localBin)) {
+		env["PATH"] = [env["PATH"], localBin].filter(Boolean).join(path.delimiter);
+	}
 	return env;
 }
 function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
@@ -61,8 +66,8 @@ function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
 			["pnpm", "exec", "clasp"],
 			["npx", "--no-install", "--package=@google/clasp", "clasp"],
 			["clasp"],
-		].find(([exe, ...prefix]) => {
-			const r = spawnSync(exe, [...prefix, "--version"], {
+		].find(([candidateExe, ...candidatePrefix]) => {
+			const r = spawnSync(candidateExe, [...candidatePrefix, "--version"], {
 				cwd,
 				env,
 				encoding: "utf8",
@@ -90,7 +95,9 @@ function run(args, cwd, asJson = true, parseJsonOutput = asJson) {
 			stage +
 			". Raw diagnostics withheld; check authentication, Apps Script API and permissions.",
 	);
-	if (!parseJsonOutput) return r.stdout;
+	if (!parseJsonOutput) {
+		return r.stdout;
+	}
 	try {
 		return JSON.parse(r.stdout);
 	} catch {
@@ -142,8 +149,8 @@ function clone(scriptId, dir, version) {
 			fs
 				.readdirSync(dir)
 				.filter((x) => x !== ".clasp.json")
-				.sort(),
-			[...fileNames].sort(),
+				.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+			[...fileNames].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
 		),
 		"Refusing unmanaged GAS project or unexpected remote files.",
 	);
@@ -171,12 +178,21 @@ function policy(manifest) {
 }
 function manifestSettings(manifest) {
 	const { webapp, ...settings } = manifest;
-	if (webapp) {
+	check(
+		!webapp || (typeof webapp === "object" && !Array.isArray(webapp)),
+		"Invalid web app settings.",
+	);
+	if (webapp && typeof webapp === "object") {
 		const extraWebAppSettings = { ...webapp };
-		delete extraWebAppSettings.access;
-		delete extraWebAppSettings.executeAs;
-		if (Object.keys(extraWebAppSettings).length)
-			settings.webapp = extraWebAppSettings;
+		if ("access" in extraWebAppSettings) {
+			delete extraWebAppSettings.access;
+		}
+		if ("executeAs" in extraWebAppSettings) {
+			delete extraWebAppSettings.executeAs;
+		}
+		if (Object.keys(extraWebAppSettings).length) {
+			settings["webapp"] = extraWebAppSettings;
+		}
 	}
 	return settings;
 }
@@ -200,14 +216,20 @@ function parseJsonPrefix(output) {
 	for (let i = 0; i < text.length; i++) {
 		const character = text[i];
 		if (inString) {
-			if (escaped) escaped = false;
-			else if (character === "\\") escaped = true;
-			else if (character === '"') inString = false;
+			if (escaped) {
+				escaped = false;
+			} else if (character === "\\") {
+				escaped = true;
+			} else if (character === '"') {
+				inString = false;
+			}
 			continue;
 		}
-		if (character === '"') inString = true;
-		else if (character === "{") depth++;
-		else if (character === "}" && --depth === 0) {
+		if (character === '"') {
+			inString = true;
+		} else if (character === "{") {
+			depth++;
+		} else if (character === "}" && --depth === 0) {
 			return {
 				value: JSON.parse(text.slice(0, i + 1)),
 				trailing: text.slice(i + 1).trim(),
@@ -306,8 +328,10 @@ try {
 	fs.writeFileSync(path.join(work, ".claspignore"), "");
 	state = {
 		folderId: v["folder-id"],
-		scriptId: v["script-id"],
-		deploymentId: v["deployment-id"],
+		...(v["script-id"] !== undefined ? { scriptId: v["script-id"] } : {}),
+		...(v["deployment-id"] !== undefined
+			? { deploymentId: v["deployment-id"] }
+			: {}),
 		runtimeSmokeTest: "not performed",
 	};
 	save();

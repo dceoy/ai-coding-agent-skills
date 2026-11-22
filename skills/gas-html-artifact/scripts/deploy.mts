@@ -58,16 +58,22 @@ const claspLaunchers = [
 ];
 let selectedClaspLauncher: (typeof claspLaunchers)[number] | undefined;
 function requireThat(condition: unknown, message: string): asserts condition {
-	if (!condition) throw new Error(message);
+	if (!condition) {
+		throw new Error(message);
+	}
 }
-function parseJSON(text: string): any {
+function parseJSON(
+	text: string,
+): /* biome-ignore lint/suspicious/noExplicitAny: JSON boundary is validated at use sites. */ any {
 	try {
 		return JSON.parse(text);
 	} catch {
 		throw new Error("Invalid JSON; contents withheld.");
 	}
 }
-function json(file: string): any {
+function json(
+	file: string,
+): /* biome-ignore lint/suspicious/noExplicitAny: JSON boundary is validated at use sites. */ any {
 	return parseJSON(fs.readFileSync(file, "utf8"));
 }
 function digest(bytes: Buffer | string): string {
@@ -110,7 +116,9 @@ function files(root: string, prefix = ""): string[] {
 				!entry.isSymbolicLink(),
 				"Symlinks are forbidden in the staged payload.",
 			);
-			if (entry.isDirectory()) return files(root, name);
+			if (entry.isDirectory()) {
+				return files(root, name);
+			}
 			requireThat(entry.isFile(), "Non-regular staged file.");
 			return [name];
 		})
@@ -123,7 +131,7 @@ function payload(root: string): Record<string, string> {
 				/\.(gs|js|html|json)$/.test(name) &&
 				!path.basename(name).startsWith("."),
 		)
-		.map((name) => [
+		.map((name): [string, string] => [
 			name.replace(/\.gs$/, ".js"),
 			digest(fs.readFileSync(path.join(root, name))),
 		])
@@ -141,15 +149,17 @@ function claspEnvironment(): NodeJS.ProcessEnv {
 	// Never inherit target overrides or verbose OAuth diagnostics from the caller.
 	const env = { ...process.env };
 	for (const key of Object.keys(env)) {
-		if (/^(clasp_config_|DEBUG$|NODE_OPTIONS$|NODE_PATH$)/.test(key))
+		if (/^(clasp_config_|DEBUG$|NODE_OPTIONS$|NODE_PATH$)/.test(key)) {
 			delete env[key];
+		}
 	}
 	// Expose a repo-local clasp binary even though deployment uses isolated workdirs.
 	const localBin = fileURLToPath(
 		new URL("../../../node_modules/.bin/", import.meta.url),
 	);
-	if (fs.existsSync(localBin))
-		env.PATH = [env.PATH, localBin].filter(Boolean).join(path.delimiter);
+	if (fs.existsSync(localBin)) {
+		env["PATH"] = [env["PATH"], localBin].filter(Boolean).join(path.delimiter);
+	}
 	return env;
 }
 function projectOptions(project: string): string[] {
@@ -160,7 +170,11 @@ function projectOptions(project: string): string[] {
 		path.join(work, "empty.claspignore"),
 	];
 }
-function run(args: string[], cwd = work, asJSON = true): any {
+function run(
+	args: string[],
+	cwd = work,
+	asJSON = true,
+): /* biome-ignore lint/suspicious/noExplicitAny: JSON boundary is validated at use sites. */ any {
 	const invoke = (launcher: (typeof claspLaunchers)[number]) =>
 		spawnSync(launcher.executable, [...launcher.prefix, ...args], {
 			cwd,
@@ -199,14 +213,16 @@ function run(args: string[], cwd = work, asJSON = true): any {
 		(error as Error & { exitCode?: number }).exitCode = result.status || 1;
 		throw error;
 	}
-	if (!asJSON) return result.stdout;
+	if (!asJSON) {
+		return result.stdout;
+	}
 	return parseJSON(result.stdout);
 }
 function clasp(
 	command: string,
 	args: string[] = [],
 	cwd = path.join(work, "project"),
-): any {
+): /* biome-ignore lint/suspicious/noExplicitAny: JSON boundary is validated at use sites. */ any {
 	return run(
 		[
 			"--json",
@@ -237,7 +253,7 @@ function clone(
 	requireThat(
 		Array.isArray(retrieved.files) &&
 			retrieved.files.length > 0 &&
-			retrieved.files.every((file) => {
+			retrieved.files.every((file: string) => {
 				const resolved = path.resolve(destination, file);
 				return (
 					inside(destination, resolved) &&
@@ -272,11 +288,16 @@ function save(): void {
 	writeJSON(path.join(work, "deployment.json"), state);
 }
 function isPolicy(value: unknown): value is Policy {
-	if (!value || typeof value !== "object") return false;
-	const candidate = value as Record<string, unknown>;
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+	if (!("access" in value) || !("executeAs" in value)) {
+		return false;
+	}
+	const candidate = value;
 	return (
-		accessValues.some((access) => access === candidate.access) &&
-		executeValues.some((executeAs) => executeAs === candidate.executeAs)
+		accessValues.some((access) => access === candidate["access"]) &&
+		executeValues.some((executeAs) => executeAs === candidate["executeAs"])
 	);
 }
 function policy(value: unknown): Policy {
@@ -386,8 +407,9 @@ try {
 		"Invalid deployment ID.",
 	);
 	let scriptId = v["script-id"];
-	if (v["clasp-config"])
+	if (v["clasp-config"]) {
 		scriptId = json(fs.realpathSync(v["clasp-config"])).scriptId;
+	}
 	requireThat(
 		v["new-project"] || identifier(scriptId),
 		"Invalid script binding.",
@@ -428,12 +450,13 @@ try {
 		"transformations",
 		"limitations",
 		"unresolved",
-	])
+	]) {
 		requireThat(
 			Array.isArray(report[key]) &&
 				report[key].every((value) => typeof value === "string"),
 			`Report requires ${key} array.`,
 		);
+	}
 	requireThat(
 		report.unresolved.length === 0,
 		"Resolve dependencies before deployment.",
@@ -484,16 +507,16 @@ try {
 			help.includes("--ignore"),
 		"Required clasp commands/JSON output unavailable.",
 	);
-	for (const [command, flags] of [
+	for (const [capabilityCommand, requiredFlags] of [
 		["push", ["--force"]],
 		["create-deployment", ["--versionNumber"]],
 		["update-deployment", ["--versionNumber"]],
 		["create-script", ["--type", "--title"]],
 	] as Array<[string, string[]]>) {
-		const commandHelp = run([command, "--help"], parent, false);
+		const commandHelp = run([capabilityCommand, "--help"], parent, false);
 		requireThat(
-			flags.every((flag) => commandHelp.includes(flag)),
-			`Missing ${command} capabilities.`,
+			requiredFlags.every((flag) => commandHelp.includes(flag)),
+			`Missing ${capabilityCommand} capabilities.`,
 		);
 	}
 	requireThat(
@@ -504,8 +527,10 @@ try {
 	fs.writeFileSync(path.join(work, "empty.claspignore"), "");
 	writeJSON(path.join(work, "compatibility.json"), report);
 	state = {
-		scriptId,
-		deploymentId: v["deployment-id"],
+		...(scriptId !== undefined ? { scriptId } : {}),
+		...(v["deployment-id"] !== undefined
+			? { deploymentId: v["deployment-id"] }
+			: {}),
 		source: { path: source.path, sha256: source.sha256 },
 		artifact: { path: artifact.path, sha256: artifact.sha256 },
 		report: "compatibility.json",
@@ -514,9 +539,9 @@ try {
 	};
 	save();
 	const project = path.join(work, "project");
-	let baseline;
+	let baseline: Record<string, string> | undefined;
 	let deployments: Array<{ deploymentId: string; versionNumber: number }> = [];
-	let selected;
+	let selected: { deploymentId: string; versionNumber: number } | undefined;
 	let chosenPolicy = requestedPolicy;
 	if (!v["new-project"]) {
 		stage = "retrieve existing project";
@@ -640,7 +665,9 @@ try {
 		manifest.webapp = { ...manifest.webapp, ...chosenPolicy };
 		writeJSON(manifestPath, manifest);
 	}
-	state.policy = chosenPolicy;
+	if (chosenPolicy !== undefined) {
+		state.policy = chosenPolicy;
+	}
 	state.files = files(project).filter((name) => name !== ".clasp.json");
 	const expectedPayload = payload(project);
 	state.payloadSha256 = expectedPayload;
@@ -682,7 +709,7 @@ try {
 				const match = output.match(
 					/Created new script: https:\/\/script\.google\.com\/d\/([A-Za-z0-9_-]+)\/edit/,
 				);
-				if (match && !state.scriptId) {
+				if (match?.[1] && !state.scriptId) {
 					scriptId = match[1];
 					state.scriptId = scriptId;
 					state.stage = "project created";
@@ -698,7 +725,9 @@ try {
 					);
 					(error as Error & { exitCode?: number }).exitCode = code || 1;
 					reject(error);
-				} else resolve();
+				} else {
+					resolve();
+				}
 			});
 		});
 		requireThat(
@@ -782,7 +811,8 @@ try {
 	);
 	stage = "verify deployment";
 	const live = clasp("list-deployments").find(
-		(d) => d.deploymentId === state.deploymentId,
+		(d: { deploymentId: string; versionNumber: number }) =>
+			d.deploymentId === state.deploymentId,
 	);
 	requireThat(
 		live && live.versionNumber === state.version,
@@ -808,16 +838,17 @@ try {
 	console.error(
 		`Failed stage: ${stage}. ${error instanceof Error ? error.message : "Unknown error"}`,
 	);
-	if (pushed)
+	if (pushed) {
 		console.error(
 			deploymentAttempted
 				? "Remote HEAD changed and deployment may have advanced; verification incomplete. Inspect recorded IDs before resuming."
 				: "Remote HEAD changed; selected production deployment was not advanced. No rollback performed.",
 		);
-	else if (pushAttempted)
+	} else if (pushAttempted) {
 		console.error(
 			"Push outcome uncertain; inspect remote HEAD before resuming. No later stage was attempted.",
 		);
+	}
 	if (state) {
 		state.failedStage = stage;
 		try {
@@ -826,9 +857,16 @@ try {
 			/* Retain the previous record on filesystem failure. */
 		}
 	}
-	if (state)
+	if (state) {
 		console.error(
 			`Inspect ${path.join(work, "deployment.json")} and staging files; never repeat creation blindly.`,
 		);
-	process.exitCode = (error as Error & { exitCode?: number }).exitCode || 1;
+	}
+	process.exitCode =
+		error &&
+		typeof error === "object" &&
+		"exitCode" in error &&
+		typeof error.exitCode === "number"
+			? error.exitCode || 1
+			: 1;
 }

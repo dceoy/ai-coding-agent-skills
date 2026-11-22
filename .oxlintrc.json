@@ -25,5 +25,24 @@
 	"ignorePatterns": [
 		".agents/**",
 		".claude/**"
+	],
+	"overrides": [
+		{
+			"files": [
+				"tests/**/*.test.mts"
+			],
+			"rules": {
+				"typescript/no-floating-promises": "off",
+				"typescript/no-unsafe-type-assertion": "off"
+			}
+		},
+		{
+			"files": [
+				"skills/gas-html-artifact/scripts/deploy.mjs"
+			],
+			"rules": {
+				"typescript/restrict-template-expressions": "off"
+			}
+		}
 	]
 }
