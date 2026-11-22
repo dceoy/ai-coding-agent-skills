@@ -25,7 +25,9 @@ const claspLaunchers = [
 ];
 let selectedClaspLauncher;
 function requireThat(condition, message) {
-	if (!condition) throw new Error(message);
+	if (!condition) {
+		throw new Error(message);
+	}
 }
 function parseJSON(text) {
 	try {
@@ -77,7 +79,9 @@ function files(root, prefix = "") {
 				!entry.isSymbolicLink(),
 				"Symlinks are forbidden in the staged payload.",
 			);
-			if (entry.isDirectory()) return files(root, name);
+			if (entry.isDirectory()) {
+				return files(root, name);
+			}
 			requireThat(entry.isFile(), "Non-regular staged file.");
 			return [name];
 		})
@@ -108,15 +112,17 @@ function claspEnvironment() {
 	// Never inherit target overrides or verbose OAuth diagnostics from the caller.
 	const env = { ...process.env };
 	for (const key of Object.keys(env)) {
-		if (/^(clasp_config_|DEBUG$|NODE_OPTIONS$|NODE_PATH$)/.test(key))
+		if (/^(clasp_config_|DEBUG$|NODE_OPTIONS$|NODE_PATH$)/.test(key)) {
 			delete env[key];
+		}
 	}
 	// Expose a repo-local clasp binary even though deployment uses isolated workdirs.
 	const localBin = fileURLToPath(
 		new URL("../../../node_modules/.bin/", import.meta.url),
 	);
-	if (fs.existsSync(localBin))
-		env.PATH = [env.PATH, localBin].filter(Boolean).join(path.delimiter);
+	if (fs.existsSync(localBin)) {
+		env["PATH"] = [env["PATH"], localBin].filter(Boolean).join(path.delimiter);
+	}
 	return env;
 }
 function projectOptions(project) {
@@ -166,7 +172,9 @@ function run(args, cwd = work, asJSON = true) {
 		error.exitCode = result.status || 1;
 		throw error;
 	}
-	if (!asJSON) return result.stdout;
+	if (!asJSON) {
+		return result.stdout;
+	}
 	return parseJSON(result.stdout);
 }
 function clasp(command, args = [], cwd = path.join(work, "project")) {
@@ -231,11 +239,16 @@ function save() {
 	writeJSON(path.join(work, "deployment.json"), state);
 }
 function isPolicy(value) {
-	if (!value || typeof value !== "object") return false;
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+	if (!("access" in value) || !("executeAs" in value)) {
+		return false;
+	}
 	const candidate = value;
 	return (
-		accessValues.some((access) => access === candidate.access) &&
-		executeValues.some((executeAs) => executeAs === candidate.executeAs)
+		accessValues.some((access) => access === candidate["access"]) &&
+		executeValues.some((executeAs) => executeAs === candidate["executeAs"])
 	);
 }
 function policy(value) {
@@ -344,8 +357,9 @@ try {
 		"Invalid deployment ID.",
 	);
 	let scriptId = v["script-id"];
-	if (v["clasp-config"])
+	if (v["clasp-config"]) {
 		scriptId = json(fs.realpathSync(v["clasp-config"])).scriptId;
+	}
 	requireThat(
 		v["new-project"] || identifier(scriptId),
 		"Invalid script binding.",
@@ -386,12 +400,13 @@ try {
 		"transformations",
 		"limitations",
 		"unresolved",
-	])
+	]) {
 		requireThat(
 			Array.isArray(report[key]) &&
 				report[key].every((value) => typeof value === "string"),
 			`Report requires ${key} array.`,
 		);
+	}
 	requireThat(
 		report.unresolved.length === 0,
 		"Resolve dependencies before deployment.",
@@ -442,16 +457,16 @@ try {
 			help.includes("--ignore"),
 		"Required clasp commands/JSON output unavailable.",
 	);
-	for (const [command, flags] of [
+	for (const [capabilityCommand, requiredFlags] of [
 		["push", ["--force"]],
 		["create-deployment", ["--versionNumber"]],
 		["update-deployment", ["--versionNumber"]],
 		["create-script", ["--type", "--title"]],
 	]) {
-		const commandHelp = run([command, "--help"], parent, false);
+		const commandHelp = run([capabilityCommand, "--help"], parent, false);
 		requireThat(
-			flags.every((flag) => commandHelp.includes(flag)),
-			`Missing ${command} capabilities.`,
+			requiredFlags.every((flag) => commandHelp.includes(flag)),
+			`Missing ${capabilityCommand} capabilities.`,
 		);
 	}
 	requireThat(
@@ -462,8 +477,10 @@ try {
 	fs.writeFileSync(path.join(work, "empty.claspignore"), "");
 	writeJSON(path.join(work, "compatibility.json"), report);
 	state = {
-		scriptId,
-		deploymentId: v["deployment-id"],
+		...(scriptId !== undefined ? { scriptId } : {}),
+		...(v["deployment-id"] !== undefined
+			? { deploymentId: v["deployment-id"] }
+			: {}),
 		source: { path: source.path, sha256: source.sha256 },
 		artifact: { path: artifact.path, sha256: artifact.sha256 },
 		report: "compatibility.json",
@@ -598,7 +615,9 @@ try {
 		manifest.webapp = { ...manifest.webapp, ...chosenPolicy };
 		writeJSON(manifestPath, manifest);
 	}
-	state.policy = chosenPolicy;
+	if (chosenPolicy !== undefined) {
+		state.policy = chosenPolicy;
+	}
 	state.files = files(project).filter((name) => name !== ".clasp.json");
 	const expectedPayload = payload(project);
 	state.payloadSha256 = expectedPayload;
@@ -640,7 +659,7 @@ try {
 				const match = output.match(
 					/Created new script: https:\/\/script\.google\.com\/d\/([A-Za-z0-9_-]+)\/edit/,
 				);
-				if (match && !state.scriptId) {
+				if (match?.[1] && !state.scriptId) {
 					scriptId = match[1];
 					state.scriptId = scriptId;
 					state.stage = "project created";
@@ -656,7 +675,9 @@ try {
 					);
 					error.exitCode = code || 1;
 					reject(error);
-				} else resolve();
+				} else {
+					resolve();
+				}
 			});
 		});
 		requireThat(
@@ -766,16 +787,17 @@ try {
 	console.error(
 		`Failed stage: ${stage}. ${error instanceof Error ? error.message : "Unknown error"}`,
 	);
-	if (pushed)
+	if (pushed) {
 		console.error(
 			deploymentAttempted
 				? "Remote HEAD changed and deployment may have advanced; verification incomplete. Inspect recorded IDs before resuming."
 				: "Remote HEAD changed; selected production deployment was not advanced. No rollback performed.",
 		);
-	else if (pushAttempted)
+	} else if (pushAttempted) {
 		console.error(
 			"Push outcome uncertain; inspect remote HEAD before resuming. No later stage was attempted.",
 		);
+	}
 	if (state) {
 		state.failedStage = stage;
 		try {
@@ -784,9 +806,16 @@ try {
 			/* Retain the previous record on filesystem failure. */
 		}
 	}
-	if (state)
+	if (state) {
 		console.error(
 			`Inspect ${path.join(work, "deployment.json")} and staging files; never repeat creation blindly.`,
 		);
-	process.exitCode = error.exitCode || 1;
+	}
+	process.exitCode =
+		error &&
+		typeof error === "object" &&
+		"exitCode" in error &&
+		typeof error.exitCode === "number"
+			? error.exitCode || 1
+			: 1;
 }

@@ -1,19 +1,48 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "categories": {
-    "correctness": "error",
-    "suspicious": "error",
-    "perf": "error"
-  },
-  "plugins": ["import", "oxc", "promise", "typescript", "unicorn"],
-  "options": {
-    "denyWarnings": true,
-    "reportUnusedDisableDirectives": "error"
-  },
-  "rules": {
-    "unicorn/prefer-set-has": "off",
-    "unicorn/no-array-sort": "off",
-    "eslint/no-shadow": "off"
-  },
-  "ignorePatterns": [".agents/**", ".claude/**"]
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"categories": {
+		"correctness": "error",
+		"suspicious": "error",
+		"perf": "error"
+	},
+	"plugins": [
+		"import",
+		"oxc",
+		"promise",
+		"typescript",
+		"unicorn"
+	],
+	"options": {
+		"denyWarnings": true,
+		"reportUnusedDisableDirectives": "error",
+		"typeAware": true
+	},
+	"rules": {
+		"unicorn/prefer-set-has": "off",
+		"unicorn/no-array-sort": "off",
+		"eslint/no-shadow": "off"
+	},
+	"ignorePatterns": [
+		".agents/**",
+		".claude/**"
+	],
+	"overrides": [
+		{
+			"files": [
+				"tests/**/*.test.mts"
+			],
+			"rules": {
+				"typescript/no-floating-promises": "off",
+				"typescript/no-unsafe-type-assertion": "off"
+			}
+		},
+		{
+			"files": [
+				"skills/gas-html-artifact/scripts/deploy.mjs"
+			],
+			"rules": {
+				"typescript/restrict-template-expressions": "off"
+			}
+		}
+	]
 }

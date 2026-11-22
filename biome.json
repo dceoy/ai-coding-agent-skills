@@ -1,34 +1,83 @@
 {
-  "files": {
-    "includes": [
-      "**",
-      "!!**/.agents",
-      "!!**/.claude",
-      "!!**/templates",
-      "!!**/*.gs",
-      "!!**/*.yaml",
-      "!!**/*.yml"
-    ]
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "preset": "recommended",
-      "correctness": {
-        "useQwikValidLexicalScope": "off"
-      },
-      "complexity": {
-        "useLiteralKeys": "off"
-      },
-      "style": {
-        "noExcessiveLinesPerFile": "off",
-        "useExportsLast": "off",
-        "noNonNullAssertion": "off"
-      },
-      "suspicious": {
-        "noExplicitAny": "off",
-        "noImplicitAnyLet": "off"
-      }
-    }
-  }
+	"files": {
+		"includes": [
+			"**",
+			"!!**/.agents",
+			"!!**/.claude",
+			"!!**/templates",
+			"!!**/*.gs",
+			"!!**/*.yaml",
+			"!!**/*.yml"
+		]
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "all",
+			"correctness": {
+				"useQwikValidLexicalScope": "off"
+			},
+			"complexity": {
+				"useLiteralKeys": "off"
+			},
+			"style": {
+				"noExcessiveLinesPerFile": "off",
+				"useExportsLast": "off",
+				"noNonNullAssertion": "off",
+				"noDefaultExport": "off"
+			},
+			"suspicious": {}
+		}
+	},
+	"overrides": [
+		{
+			"includes": [
+				"skills/gas-*/scripts/deploy.mts",
+				"skills/gas-*/scripts/deploy.mjs",
+				"tests/**/*.mjs",
+				"tests/**/*.mts"
+			],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noNodejsModules": "off"
+					},
+					"performance": {
+						"noNamespaceImport": "off",
+						"useTopLevelRegex": "off",
+						"noDelete": "off"
+					},
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"tests/**"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConditionalExpect": "off",
+						"noMisplacedAssertion": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"skills/gas-drive-html-server/scripts/deploy.mts",
+				"skills/gas-drive-html-server/scripts/deploy.mjs"
+			],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"useMaxParams": "off"
+					}
+				}
+			}
+		}
+	]
 }

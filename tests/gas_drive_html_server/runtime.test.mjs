@@ -38,8 +38,8 @@ function setup() {
   const output = content => ({ content, setTitle(title) { this.title = title; return this; } });
   const context = vm.createContext({
     DriveApp: {
-      getFolderById: id => { if (!folders[id]) throw Error("Missing"); return folders[id]; },
-      getFileById: id => { if (!files[id]) throw Error("Missing"); return files[id]; },
+      getFolderById: id => { if (!folders[id]) { throw Error("Missing");  }return folders[id]; },
+      getFileById: id => { if (!files[id]) { throw Error("Missing");  }return files[id]; },
     },
     HtmlService: {
       createHtmlOutput: output,

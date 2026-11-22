@@ -90,7 +90,9 @@ const child = spawn(executable, commandArgs, {stdio:'inherit'});
 child.on('error', () => process.exit(127));
 child.on('close', code => process.exit(code ?? 1));
 `;
-function parseJSON(input: string | Buffer): any {
+function parseJSON(
+	input: string | Buffer,
+): /* biome-ignore lint/suspicious/noExplicitAny: JSON boundary is validated at use sites. */ any {
 	return JSON.parse(input.toString());
 }
 
@@ -103,11 +105,12 @@ function fixture(t: TestContext, existing = false) {
 	fs.mkdirSync(bin);
 	fs.writeFileSync(path.join(bin, "clasp"), mock, { mode: 0o755 });
 	fs.symlinkSync(process.execPath, path.join(bin, "node"));
-	for (const runner of ["pnpm", "npx"])
+	for (const runner of ["pnpm", "npx"]) {
 		fs.writeFileSync(path.join(bin, runner), mockRunner, { mode: 0o755 });
+	}
 	const remote = path.join(base, "remote");
 	fs.mkdirSync(remote);
-	const put = (name, v) =>
+	const put = (name: string, v: unknown) =>
 		fs.writeFileSync(path.join(remote, name), JSON.stringify(v));
 	const remoteFiles = existing
 		? {
@@ -214,17 +217,21 @@ function fixture(t: TestContext, existing = false) {
 				.split("\n")
 				.filter(Boolean),
 		calls: () =>
-			parseJSON(fs.readFileSync(path.join(remote, "calls.json"))).filter(
-				(c) => !c.args.includes("--help"),
-			),
-		get: (name) => parseJSON(fs.readFileSync(path.join(remote, name))),
+			(
+				parseJSON(fs.readFileSync(path.join(remote, "calls.json"))) as Array<{
+					cmd: string;
+					args: string[];
+					cwd: string;
+				}>
+			).filter((c) => !c.args.includes("--help")),
+		get: (name: string) => parseJSON(fs.readFileSync(path.join(remote, name))),
 	};
 }
 function without(args: string[], ...names: string[]): string[] {
 	return args.filter(
 		(value, i) =>
 			!names.includes(value) &&
-			!(i > 0 && names.includes(args[i - 1]) && !value.startsWith("--")),
+			!(i > 0 && names.includes(args[i - 1]!) && !value.startsWith("--")),
 	);
 }
 const mutations = (f: ReturnType<typeof fixture>) =>
@@ -247,13 +254,16 @@ for (const [name, unavailable] of [
 ] as Array<[string, string[]]>) {
 	test(`uses ${name} for all clasp commands`, (t) => {
 		const f = fixture(t);
-		for (const runner of unavailable) fs.unlinkSync(path.join(f.bin, runner));
+		for (const runner of unavailable) {
+			fs.unlinkSync(path.join(f.bin, runner));
+		}
 		const result = f.run();
 		assert.equal(result.status, 0, result.stderr);
 		assert.ok(f.calls().some((call) => call.cmd === "create-script"));
 		const launched = f.launchers();
-		if (name === "clasp") assert.deepEqual(launched, []);
-		else {
+		if (name === "clasp") {
+			assert.deepEqual(launched, []);
+		} else {
 			assert.ok(launched.length > 0);
 			assert.ok(launched.every((runner) => runner === name));
 		}
@@ -308,7 +318,7 @@ test("does not retry direct clasp after an actual npx command failure", (t) => {
 });
 
 test("real npx with an empty offline package cache falls back to PATH clasp", (t) => {
-	const npx = (process.env.PATH || "")
+	const npx = (process.env["PATH"] || "")
 		.split(path.delimiter)
 		.map((directory) => path.join(directory, "npx"))
 		.find((candidate) => fs.existsSync(candidate));
@@ -361,11 +371,12 @@ test("initial deployment preserves source bytes and verifies metadata", (t) => {
 		fs.readFileSync(path.join(f.work, "project/Index.html")),
 		fs.readFileSync(f.source),
 	);
-	assert.deepEqual(Object.keys(f.get("files.json")).sort(), [
-		"Code.gs",
-		"Index.html",
-		"appsscript.json",
-	]);
+	assert.deepEqual(
+		Object.keys(f.get("files.json")).sort((a, b) =>
+			a < b ? -1 : a > b ? 1 : 0,
+		),
+		["Code.gs", "Index.html", "appsscript.json"],
+	);
 	const state = parseJSON(
 		fs.readFileSync(path.join(f.work, "deployment.json")),
 	);
@@ -377,7 +388,7 @@ test("initial deployment preserves source bytes and verifies metadata", (t) => {
 		f
 			.calls()
 			.find((c) => c.cmd === "push")
-			.args.includes("--force"),
+			?.args.includes("--force"),
 		true,
 	);
 });
@@ -387,8 +398,9 @@ test("update preserves unrelated complete payload, scopes/services, policy and U
 	const result = f.run();
 	assert.equal(result.status, 0, result.stderr);
 	const after = f.get("files.json");
-	for (const name of ["Other.js", "Partial.html", "appsscript.json"])
+	for (const name of ["Other.js", "Partial.html", "appsscript.json"]) {
 		assert.equal(after[name], before[name]);
+	}
 	assert.equal(
 		f
 			.calls()
@@ -399,7 +411,7 @@ test("update preserves unrelated complete payload, scopes/services, policy and U
 		f
 			.calls()
 			.find((c) => c.cmd === "push")
-			.args.includes("--force"),
+			?.args.includes("--force"),
 		false,
 	);
 	assert.deepEqual(f.get("deployments.json"), [
@@ -566,7 +578,7 @@ for (const [failed, later] of [
 	["push", "create-version"],
 	["create-version", "update-deployment"],
 	["update-deployment", "open-web-app"],
-]) {
+] as const) {
 	test(`preserves ${failed} failure status and stops later stages`, (t) => {
 		const f = fixture(t, true);
 		const result = f.run(f.args, { MOCK_FAIL: failed });
@@ -578,13 +590,15 @@ for (const [failed, later] of [
 		const callNames = f.calls().map((c) => c.cmd);
 		const failedIndex = callNames.indexOf(failed);
 		assert.equal(callNames.slice(failedIndex + 1).includes(later), false);
-		if (failed === "create-version")
+		if (failed === "create-version") {
 			assert.match(
 				result.stderr,
 				/Remote HEAD changed; selected production deployment was not advanced/,
 			);
-		if (failed === "update-deployment")
+		}
+		if (failed === "update-deployment") {
 			assert.match(result.stderr, /deployment may have advanced/);
+		}
 	});
 }
 test("partial creation records returned ID before subsequent retrieval fails", (t) => {
@@ -623,7 +637,7 @@ for (const [name, url] of [
 		"Workspace account selector",
 		"https://script.google.com/a/~/macros/s/{id}/exec",
 	],
-]) {
+] as const) {
 	for (const existing of [false, true]) {
 		test(`${name} URL is verified for ${existing ? "update" : "initial deployment"}`, (t) => {
 			const f = fixture(t, existing);
@@ -634,7 +648,9 @@ for (const [name, url] of [
 			);
 			assert.equal(state.stage, "verified");
 			assert.equal(state.url, url.replace("{id}", state.deploymentId));
-			if (existing) assert.equal(state.previousURL, state.url);
+			if (existing) {
+				assert.equal(state.previousURL, state.url);
+			}
 		});
 	}
 }
@@ -700,7 +716,9 @@ for (const mode of ["initial", "additional"]) {
 		remoteFiles["Code.js"] = "function unrelated(){ return 3; }";
 		delete remoteFiles["Index.html"];
 		f.put("files.json", remoteFiles);
-		if (mode === "initial") f.put("deployments.json", []);
+		if (mode === "initial") {
+			f.put("deployments.json", []);
+		}
 		const args = without(f.args, "--deployment-id");
 		args.push(
 			`--${mode}`,
@@ -737,7 +755,7 @@ test("update uses selected version policy rather than remote HEAD policy", (t) =
 		f
 			.calls()
 			.find((c) => c.cmd === "push")
-			.args.includes("--force"),
+			?.args.includes("--force"),
 		true,
 	);
 });
