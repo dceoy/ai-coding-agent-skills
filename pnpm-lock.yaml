@@ -179,8 +179,8 @@ importers:
   .:
     devDependencies:
       '@biomejs/biome':
-        specifier: ^2.6.6
-        version: 2.6.7
+        specifier: ^2.6.8
+        version: 2.6.8
       '@google/clasp':
         specifier: 3.4.1
         version: 3.4.1(@types/node@26.6.6)(supports-color@7.2.0)
@@ -189,7 +189,7 @@ importers:
         version: 26.6.6
       node:
         specifier: runtime:>=22.23.4
-        version: runtime:27.0.0-alpha.0.1.0
+        version: runtime:27.0.0-alpha.0.1.1
       oxfmt:
         specifier: ^0.78.0
         version: 0.78.0
@@ -213,71 +213,71 @@ packages:
     resolution: {integrity: sha512-qehxGkRj55h/ff8EMaJ+cYhyaKlHIxqYDn682wQD7RNp9UujOQsHog2uS0r2vzr4pW+sXf90NeeayjcNaX3fFg==}
     engines: {node: '>=6.9.0'}
 
-  '@biomejs/biome@2.6.7':
-    resolution: {integrity: sha512-2bT1FE6FvZZgPLFw4BjcDyRwG8Ry9zYla4X+Lw8oj2SxvqiXHiYkkEpjcrsWQrik6iYHygAa/D67YxLbVz9P1Q==}
+  '@biomejs/biome@2.6.8':
+    resolution: {integrity: sha512-kqZUFvX6/aYQOmzfRN5ANcfNS9wLH4aHLWWP/dQKyhRZVoA6rdWszA7DGugFcxPbMiznUyVYyukVl+ExZN4PQA==}
     engines: {node: '>=14.21.3'}
     hasBin: true
 
-  '@biomejs/cli-android-arm64@2.6.7':
-    resolution: {integrity: sha512-f4fyRTl+rW6QZp+iHdZrKAKptG/xmIDijTnxWhpC1Hnzr8yvjaBm/aJ98JiMv5mMx7jL1MOu4+zwmQUzfcoKBg==}
+  '@biomejs/cli-android-arm64@2.6.8':
+    resolution: {integrity: sha512-X4JKPLK85kfUTwuuaORFplnBfGjKkp62PsFhhcL7F/Tpltc7pyUofjlkkMnlZZLWsifFl7LNB8ngVrwJg1uo1Q==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [android]
 
-  '@biomejs/cli-android-x64@2.6.7':
-    resolution: {integrity: sha512-eUdeN+mh2bwen+By1feKzpFkFGAfLG3Pxi6tbwpzMvePBwFGMd4mnE6gaxDRMiWJ1eMuc+Xhtg3ErbLLbtL5wQ==}
+  '@biomejs/cli-android-x64@2.6.8':
+    resolution: {integrity: sha512-C3Hk485vl+deEj53K08+SYYelPIPkdSZL3qHuD31Xi+qydVa4q2ze+aCYo1k3iJGWtvWtjHaGkDh7S2sX6wk8w==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [android]
 
-  '@biomejs/cli-darwin-arm64@2.6.7':
-    resolution: {integrity: sha512-GewLcsnCsVblgnWYw5QRz5ydy9xphCtlFP37TpLKarezqwZMrH2qxrYblhY6DPOir4gnKyaqDnS/xZWIGVjaKw==}
+  '@biomejs/cli-darwin-arm64@2.6.8':
+    resolution: {integrity: sha512-DHyj+JnRHcn4YdvpiqgTFZMYKSPELMCfFpNNlEuu1L8DKTGXhzW7raIwdsbo2Ie9nCljQLAQkVWQk/mwM0ueiA==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [darwin]
 
-  '@biomejs/cli-darwin-x64@2.6.7':
-    resolution: {integrity: sha512-AMPl+Q+bHjRcNUBn8gwBl+dJAnKRUWGZ7ZiJo2U8tQtdpqJ32OqvIg4cwTH+xv0jrcNVkUSE69nj57zsHZ1WBA==}
+  '@biomejs/cli-darwin-x64@2.6.8':
+    resolution: {integrity: sha512-QWWUPjlA0RnkkgYnFLUHZu+RrDc0FdK0A+wEPA+dENQJwsuSHMH89lspnAw2QUWWc9VHyfluGx1Xmp6Y2GZi8Q==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [darwin]
 
-  '@biomejs/cli-linux-arm64-musl@2.6.7':
-    resolution: {integrity: sha512-BIA7qVO1O15D2wVKxLTcvEWszgOqJVZRUhlksg1KQ9N0VtYCbvknV1vyjFiSrzuBT57+z59gbzhYQCinw9lRSQ==}
+  '@biomejs/cli-linux-arm64-musl@2.6.8':
+    resolution: {integrity: sha512-WB9PhOitX+bRc0G3+GNJGlvbKoWn3JoB9z4E04JQizIC9aPCQyIvwvWG7QZHxw6k20Fi+dHLmZ2fSEmBa9HqiA==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@biomejs/cli-linux-arm64@2.6.7':
-    resolution: {integrity: sha512-Qa2edxQClKn17y1ASWkOOuT96K2si1nTLiPbXMOMilNJ79eNsa1as1kaSbgxOXy1kRUENw76sp4pAddneq3l8Q==}
+  '@biomejs/cli-linux-arm64@2.6.8':
+    resolution: {integrity: sha512-0Bjim8lKwnrvXUHoI4k3Tb51BjoiLEwDnovCI8nSzkk6wj3dShiuAjrx6+X0Hjf4ejR1sRZgTQiSDHlpy9vB7w==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@biomejs/cli-linux-x64-musl@2.6.7':
-    resolution: {integrity: sha512-+AOQyCsPR4nH5L4Hjzp8T0iaHm4UxY3unjL/KUJKc/8ziLnbkbmL3adtWmQW5ERB1zi6LRA1fsjaSuf/xGnLaQ==}
+  '@biomejs/cli-linux-x64-musl@2.6.8':
+    resolution: {integrity: sha512-64Yzo+J4fEk7Kf9SMnVdVxC+Y2A2e/L86QTP9JjGQ57lsddyELLpbBcNMxSJggre2T1AvISwwSrOApkBAHDqNA==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@biomejs/cli-linux-x64@2.6.7':
-    resolution: {integrity: sha512-VpHQ33CPNYrlIn0vyDdRS1KUlS3AiM17FiyEE2gwU000NwzyY4MgjzVHEv2KrmMb5D9Ksm3gFkwg+IOx/ULJNQ==}
+  '@biomejs/cli-linux-x64@2.6.8':
+    resolution: {integrity: sha512-XIk3pLQT56I6Tti+u0DF8FtSNXjCMTPbxVTzfJ9cS2t1ImVKvrqV5b52GuEaJg6/wuiXvz0sjfb5saB4TPRjzA==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@biomejs/cli-win32-arm64@2.6.7':
-    resolution: {integrity: sha512-2nLivZfgcGMIXP/bI8w1FZP5JE2MetP+XZInyMQ7SvJBKlDoGrm/nRjN7uUi9dOaaSlpbRWkHSfb7PqcQR3nXg==}
+  '@biomejs/cli-win32-arm64@2.6.8':
+    resolution: {integrity: sha512-ezjCEZzHIWE2pdh83a7zLVcAAcDaERcTcvfA7uWlxqz/1CuDxgtfO19pDg9B6YY4wKYIDvYBw2QCMnqIshSwmw==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [win32]
 
-  '@biomejs/cli-win32-x64@2.6.7':
-    resolution: {integrity: sha512-uYfH+n+IAtVz3lh7m6JxdjxfJ3WCvAJDE3spHIUbU955V42oKymlhiQiu92fAhXZb7KOjvRcrfImySQbc1MFFg==}
+  '@biomejs/cli-win32-x64@2.6.8':
+    resolution: {integrity: sha512-cD6HvGczZUiAYsY8s2TxxXj2AHFzEdMomvVJfEjzOjBM45nGqIDfBpbtvwGQzDCN8X2yKKk9u1jnDZisT2nxIg==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
@@ -579,6 +579,36 @@ packages:
   '@oxfmt/binding-win32-x64-msvc@0.78.0':
     resolution: {integrity: sha512-r9rWKeDVc7lIrj0Us9kP08W7FudYAoWyEdO40qnKk20bHiTbW/z2v4LoIxxUENQyFfApbeV2Gl9XsEgY/tY1dA==}
     engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [win32]
+
+  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
+    resolution: {integrity: sha512-bjNxPFyu1wNK74epHzXrtVLrj7oEuB8jQvJZDSia2d5EZ/0YgnyhI37E9U530IUZlNCqlTWjko1iT3CKAYF9+A==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@oxlint-tsgolint/darwin-x64@7.0.2007':
+    resolution: {integrity: sha512-dCd7mzk2FeTaU46LLeXy5mQyEFICaPqlew/LpehNzEuL86D0jTYlwZHbibRqdRrvkSNgq1szz/7014FIHgyV1g==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@oxlint-tsgolint/linux-arm64@7.0.2007':
+    resolution: {integrity: sha512-qb0XUQXuTmQ8H++zsx/tQitG0/fU3BE16KGp1qXExeDgRzEc7WIlCuN1i+rmA40lty9gQs+x3a73BFODVhTZqA==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@oxlint-tsgolint/linux-x64@7.0.2007':
+    resolution: {integrity: sha512-75vx0067HSgxq/HEZzlHwqhcujn3bshg43fVLTx604jZdZZMQfPVCcxTh2RTEShP7ACT1PRty6vboZlWh5RtEA==}
+    cpu: [x64]
+    os: [linux]
+
+  '@oxlint-tsgolint/win32-arm64@7.0.2007':
+    resolution: {integrity: sha512-6zl7I+BvScfOPtnPtSEP5JA+z8NkDPGd47YnQChL5lLF/Dzs7Rasr1G+q0zGlQcP8OEgW43hW4QlUTXxPfD13Q==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@oxlint-tsgolint/win32-x64@7.0.2007':
+    resolution: {integrity: sha512-VptFHYhBm0SIWCUkx89hmTrKVOQsDg0iB1YE3EBlvRRtCHGUd3pU1kMxPBg1wOd83ZMmIn7zB6maBROtpmrP5g==}
     cpu: [x64]
     os: [win32]
 
@@ -1423,7 +1453,7 @@ packages:
     resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
-  node@runtime:27.0.0-alpha.0.1.0:
+  node@runtime:27.0.0-alpha.0.1.1:
     resolution:
       type: variations
       variants:
@@ -1431,9 +1461,9 @@ packages:
             archive: tarball
             bin:
               node: bin/node
-            integrity: sha256-jr+MK285dWCwYsBIsbj8HxVWqsACCTwivRXzIgz7EYs=
+            integrity: sha256-zKBZXc/sfzgrHYBVZ3nDbhdiN4xvm4k8wwa5BFk567Y=
             type: binary
-            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.0/node-v27.0.0-alpha.0.1.0-aix-ppc64.tar.gz
+            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.1/node-v27.0.0-alpha.0.1.1-aix-ppc64.tar.gz
           targets:
             - cpu: ppc64
               os: aix
@@ -1441,9 +1471,9 @@ packages:
             archive: tarball
             bin:
               node: bin/node
-            integrity: sha256-CYmyOn2g5bNwtYf2FIuRFSdZ0KA16q4KQMmTzD8eGE4=
+            integrity: sha256-CAVd4yYqbzpweTPmi2fZcDQxtKOc2sxbh1x2ZJnAdtw=
             type: binary
-            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.0/node-v27.0.0-alpha.0.1.0-darwin-arm64.tar.gz
+            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.1/node-v27.0.0-alpha.0.1.1-darwin-arm64.tar.gz
           targets:
             - cpu: arm64
               os: darwin
@@ -1451,9 +1481,9 @@ packages:
             archive: tarball
             bin:
               node: bin/node
-            integrity: sha256-IOCamEluLWlW3nEgrPnBt+aLN9mrKWFUJVqFq55KNBU=
+            integrity: sha256-rXIqmrDQhjQ1tdZuA2RVJjlk3fBjNSPzF71ajPXhwpA=
             type: binary
-            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.0/node-v27.0.0-alpha.0.1.0-linux-arm64.tar.gz
+            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.1/node-v27.0.0-alpha.0.1.1-linux-arm64.tar.gz
           targets:
             - cpu: arm64
               os: linux
@@ -1461,9 +1491,9 @@ packages:
             archive: tarball
             bin:
               node: bin/node
-            integrity: sha256-Hmxs2+mzaPDEoj+wSEMcyTxOeEGCIOWx4cxughJCeHw=
+            integrity: sha256-tub21QyvVf96N8YBDrGCj0e+2xjG2M/HYKXH2UoR4jI=
             type: binary
-            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.0/node-v27.0.0-alpha.0.1.0-linux-ppc64le.tar.gz
+            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.1/node-v27.0.0-alpha.0.1.1-linux-ppc64le.tar.gz
           targets:
             - cpu: ppc64le
               os: linux
@@ -1471,9 +1501,9 @@ packages:
             archive: tarball
             bin:
               node: bin/node
-            integrity: sha256-exC801N76dbz+b93UkHNtuSeOigbBJQH4Fh1MtEPRGw=
+            integrity: sha256-rPw8JoAwGpljXAsfIOv/pCsilN7ene23EvsNZDi+iUk=
             type: binary
-            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.0/node-v27.0.0-alpha.0.1.0-linux-s390x.tar.gz
+            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.1/node-v27.0.0-alpha.0.1.1-linux-s390x.tar.gz
           targets:
             - cpu: s390x
               os: linux
@@ -1481,9 +1511,9 @@ packages:
             archive: tarball
             bin:
               node: bin/node
-            integrity: sha256-HOGYBEaockXKL2np2kY4ha+ZnLCdFW5zsskUnx711Ys=
+            integrity: sha256-dHBRxaXX/aQVl+H6bXOdhwul0hZoxsfNdL7l0Nhrl00=
             type: binary
-            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.0/node-v27.0.0-alpha.0.1.0-linux-x64-musl.tar.gz
+            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.1/node-v27.0.0-alpha.0.1.1-linux-x64-musl.tar.gz
           targets:
             - cpu: x64
               os: linux
@@ -1492,9 +1522,9 @@ packages:
             archive: tarball
             bin:
               node: bin/node
-            integrity: sha256-ZWQ1UGabD0w0hlOFKapQ37GL+GJQALXlQYkfX1UmPeo=
+            integrity: sha256-Qqx1DhYBz8QTmcXOvwNSDTLPevPI0hCxSq99LV7IXz8=
             type: binary
-            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.0/node-v27.0.0-alpha.0.1.0-linux-x64.tar.gz
+            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.1/node-v27.0.0-alpha.0.1.1-linux-x64.tar.gz
           targets:
             - cpu: x64
               os: linux
@@ -1502,10 +1532,10 @@ packages:
             archive: zip
             bin:
               node: node.exe
-            integrity: sha256-gwuN1chNdkCk0CJVcarY4bYvK0YSMQNe5XtcEANt4BQ=
-            prefix: node-v27.0.0-alpha.0.1.0-win-arm64
+            integrity: sha256-NH/7EK5CoZd8urUg0tknVMh3iJPX+tpcHlw51TP+Bf8=
+            prefix: node-v27.0.0-alpha.0.1.1-win-arm64
             type: binary
-            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.0/node-v27.0.0-alpha.0.1.0-win-arm64.zip
+            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.1/node-v27.0.0-alpha.0.1.1-win-arm64.zip
           targets:
             - cpu: arm64
               os: win32
@@ -1513,14 +1543,14 @@ packages:
             archive: zip
             bin:
               node: node.exe
-            integrity: sha256-Oq5DeDAXNW2OWjtYG0OfxOIxjc+YQUrgjW10yczJjOA=
-            prefix: node-v27.0.0-alpha.0.1.0-win-x64
+            integrity: sha256-Z6NGFx5icUIC333FcfcuiUA0YWvLFfxdZk+Zitt/oHo=
+            prefix: node-v27.0.0-alpha.0.1.1-win-x64
             type: binary
-            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.0/node-v27.0.0-alpha.0.1.0-win-x64.zip
+            url: https://nodejs.org/download/release/v27.0.0-alpha.0.1.1/node-v27.0.0-alpha.0.1.1-win-x64.zip
           targets:
             - cpu: x64
               os: win32
-    version: 27.0.0-alpha.0.1.0
+    version: 27.0.0-alpha.0.1.1
     hasBin: true
 
   normalize-package-data@6.0.2:
@@ -1573,6 +1603,10 @@ packages:
         optional: true
       vite-plus:
         optional: true
+
+  oxlint-tsgolint@7.0.2007:
+    resolution: {integrity: sha512-i8X2qf6VVqFzoNVP34joMKuZpO6T2uXMOgKJaSPFc6p+E3FTnbIGPRbI8K4ZApmtDTMu2CIeGfpzeK1zzGwfnA==}
+    hasBin: true
 
   oxlint@1.93.0:
     resolution: {integrity: sha512-19JMsQFX+YvEbcUTFQxjTwhvs0Ibg0D6CFneSLgpwnACWcY/6LjhpGpkPodh0T5aIT1pjMTLlYaeBFzaVgugTA==}
@@ -1896,47 +1930,6 @@ packages:
   zod@4.6.6:
     resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
 
-
-  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
-    resolution: {integrity: sha512-bjNxPFyu1wNK74epHzXrtVLrj7oEuB8jQvJZDSia2d5EZ/0YgnyhI37E9U530IUZlNCqlTWjko1iT3CKAYF9+A==}
-    cpu: [arm64]
-    os: [darwin]
-
-
-  '@oxlint-tsgolint/darwin-x64@7.0.2007':
-    resolution: {integrity: sha512-dCd7mzk2FeTaU46LLeXy5mQyEFICaPqlew/LpehNzEuL86D0jTYlwZHbibRqdRrvkSNgq1szz/7014FIHgyV1g==}
-    cpu: [x64]
-    os: [darwin]
-
-
-  '@oxlint-tsgolint/linux-arm64@7.0.2007':
-    resolution: {integrity: sha512-qb0XUQXuTmQ8H++zsx/tQitG0/fU3BE16KGp1qXExeDgRzEc7WIlCuN1i+rmA40lty9gQs+x3a73BFODVhTZqA==}
-    cpu: [arm64]
-    os: [linux]
-
-
-  '@oxlint-tsgolint/linux-x64@7.0.2007':
-    resolution: {integrity: sha512-75vx0067HSgxq/HEZzlHwqhcujn3bshg43fVLTx604jZdZZMQfPVCcxTh2RTEShP7ACT1PRty6vboZlWh5RtEA==}
-    cpu: [x64]
-    os: [linux]
-
-
-  '@oxlint-tsgolint/win32-arm64@7.0.2007':
-    resolution: {integrity: sha512-6zl7I+BvScfOPtnPtSEP5JA+z8NkDPGd47YnQChL5lLF/Dzs7Rasr1G+q0zGlQcP8OEgW43hW4QlUTXxPfD13Q==}
-    cpu: [arm64]
-    os: [win32]
-
-
-  '@oxlint-tsgolint/win32-x64@7.0.2007':
-    resolution: {integrity: sha512-VptFHYhBm0SIWCUkx89hmTrKVOQsDg0iB1YE3EBlvRRtCHGUd3pU1kMxPBg1wOd83ZMmIn7zB6maBROtpmrP5g==}
-    cpu: [x64]
-    os: [win32]
-
-
-  oxlint-tsgolint@7.0.2007:
-    resolution: {integrity: sha512-i8X2qf6VVqFzoNVP34joMKuZpO6T2uXMOgKJaSPFc6p+E3FTnbIGPRbI8K4ZApmtDTMu2CIeGfpzeK1zzGwfnA==}
-    hasBin: true
-
 snapshots:
 
   '@babel/code-frame@7.29.7':
@@ -1947,47 +1940,47 @@ snapshots:
 
   '@babel/helper-validator-identifier@7.29.7': {}
 
-  '@biomejs/biome@2.6.7':
+  '@biomejs/biome@2.6.8':
     optionalDependencies:
-      '@biomejs/cli-android-arm64': 2.6.7
-      '@biomejs/cli-android-x64': 2.6.7
-      '@biomejs/cli-darwin-arm64': 2.6.7
-      '@biomejs/cli-darwin-x64': 2.6.7
-      '@biomejs/cli-linux-arm64': 2.6.7
-      '@biomejs/cli-linux-arm64-musl': 2.6.7
-      '@biomejs/cli-linux-x64': 2.6.7
-      '@biomejs/cli-linux-x64-musl': 2.6.7
-      '@biomejs/cli-win32-arm64': 2.6.7
-      '@biomejs/cli-win32-x64': 2.6.7
+      '@biomejs/cli-android-arm64': 2.6.8
+      '@biomejs/cli-android-x64': 2.6.8
+      '@biomejs/cli-darwin-arm64': 2.6.8
+      '@biomejs/cli-darwin-x64': 2.6.8
+      '@biomejs/cli-linux-arm64': 2.6.8
+      '@biomejs/cli-linux-arm64-musl': 2.6.8
+      '@biomejs/cli-linux-x64': 2.6.8
+      '@biomejs/cli-linux-x64-musl': 2.6.8
+      '@biomejs/cli-win32-arm64': 2.6.8
+      '@biomejs/cli-win32-x64': 2.6.8
 
-  '@biomejs/cli-android-arm64@2.6.7':
+  '@biomejs/cli-android-arm64@2.6.8':
     optional: true
 
-  '@biomejs/cli-android-x64@2.6.7':
+  '@biomejs/cli-android-x64@2.6.8':
     optional: true
 
-  '@biomejs/cli-darwin-arm64@2.6.7':
+  '@biomejs/cli-darwin-arm64@2.6.8':
     optional: true
 
-  '@biomejs/cli-darwin-x64@2.6.7':
+  '@biomejs/cli-darwin-x64@2.6.8':
     optional: true
 
-  '@biomejs/cli-linux-arm64-musl@2.6.7':
+  '@biomejs/cli-linux-arm64-musl@2.6.8':
     optional: true
 
-  '@biomejs/cli-linux-arm64@2.6.7':
+  '@biomejs/cli-linux-arm64@2.6.8':
     optional: true
 
-  '@biomejs/cli-linux-x64-musl@2.6.7':
+  '@biomejs/cli-linux-x64-musl@2.6.8':
     optional: true
 
-  '@biomejs/cli-linux-x64@2.6.7':
+  '@biomejs/cli-linux-x64@2.6.8':
     optional: true
 
-  '@biomejs/cli-win32-arm64@2.6.7':
+  '@biomejs/cli-win32-arm64@2.6.8':
     optional: true
 
-  '@biomejs/cli-win32-x64@2.6.7':
+  '@biomejs/cli-win32-x64@2.6.8':
     optional: true
 
   '@formatjs/fast-memoize@3.1.7': {}
@@ -2268,6 +2261,24 @@ snapshots:
     optional: true
 
   '@oxfmt/binding-win32-x64-msvc@0.78.0':
+    optional: true
+
+  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
+    optional: true
+
+  '@oxlint-tsgolint/darwin-x64@7.0.2007':
+    optional: true
+
+  '@oxlint-tsgolint/linux-arm64@7.0.2007':
+    optional: true
+
+  '@oxlint-tsgolint/linux-x64@7.0.2007':
+    optional: true
+
+  '@oxlint-tsgolint/win32-arm64@7.0.2007':
+    optional: true
+
+  '@oxlint-tsgolint/win32-x64@7.0.2007':
     optional: true
 
   '@oxlint/binding-android-arm-eabi@1.93.0':
@@ -2975,7 +2986,7 @@ snapshots:
       fetch-blob: 3.2.0
       formdata-polyfill: 4.0.10
 
-  node@runtime:27.0.0-alpha.0.1.0: {}
+  node@runtime:27.0.0-alpha.0.1.1: {}
 
   normalize-package-data@6.0.2:
     dependencies:
@@ -3043,6 +3054,15 @@ snapshots:
       '@oxfmt/binding-win32-arm64-msvc': 0.78.0
       '@oxfmt/binding-win32-ia32-msvc': 0.78.0
       '@oxfmt/binding-win32-x64-msvc': 0.78.0
+
+  oxlint-tsgolint@7.0.2007:
+    optionalDependencies:
+      '@oxlint-tsgolint/darwin-arm64': 7.0.2007
+      '@oxlint-tsgolint/darwin-x64': 7.0.2007
+      '@oxlint-tsgolint/linux-arm64': 7.0.2007
+      '@oxlint-tsgolint/linux-x64': 7.0.2007
+      '@oxlint-tsgolint/win32-arm64': 7.0.2007
+      '@oxlint-tsgolint/win32-x64': 7.0.2007
 
   oxlint@1.93.0(oxlint-tsgolint@7.0.2007):
     optionalDependencies:
@@ -3381,36 +3401,3 @@ snapshots:
       zod: 4.6.6
 
   zod@4.6.6: {}
-
-  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
-    optional: true
-
-
-  '@oxlint-tsgolint/darwin-x64@7.0.2007':
-    optional: true
-
-
-  '@oxlint-tsgolint/linux-arm64@7.0.2007':
-    optional: true
-
-
-  '@oxlint-tsgolint/linux-x64@7.0.2007':
-    optional: true
-
-
-  '@oxlint-tsgolint/win32-arm64@7.0.2007':
-    optional: true
-
-
-  '@oxlint-tsgolint/win32-x64@7.0.2007':
-    optional: true
-
-
-  oxlint-tsgolint@7.0.2007:
-    optionalDependencies:
-      '@oxlint-tsgolint/darwin-arm64': 7.0.2007
-      '@oxlint-tsgolint/darwin-x64': 7.0.2007
-      '@oxlint-tsgolint/linux-arm64': 7.0.2007
-      '@oxlint-tsgolint/linux-x64': 7.0.2007
-      '@oxlint-tsgolint/win32-arm64': 7.0.2007
-      '@oxlint-tsgolint/win32-x64': 7.0.2007
