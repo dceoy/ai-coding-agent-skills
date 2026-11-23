@@ -20,12 +20,12 @@ jobs:
       || github.event_name == 'pull_request'
     permissions:
       contents: read
-    uses: dceoy/gha-for-devops/.github/workflows/shell-lint.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
+    uses: dceoy/gha-for-devops/.github/workflows/shell-lint.yml@2a8aaab7fcc91494813c33293345e000244a0d90  # v2.3.1
   markdown-lint:
     if: >
       github.event_name == 'push'
       || github.event_name == 'pull_request'
-    uses: dceoy/gha-for-devops/.github/workflows/markdown-lint.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
+    uses: dceoy/gha-for-devops/.github/workflows/markdown-lint.yml@2a8aaab7fcc91494813c33293345e000244a0d90  # v2.3.1
     with:
       search-path: .
   python-lint:
@@ -34,18 +34,18 @@ jobs:
       || github.event_name == 'pull_request'
     permissions:
       contents: read
-    uses: dceoy/gha-for-devops/.github/workflows/python-package-lint-and-scan.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
+    uses: dceoy/gha-for-devops/.github/workflows/python-package-lint-and-scan.yml@2a8aaab7fcc91494813c33293345e000244a0d90  # v2.3.1
   python-test:
     if: >
       github.event_name == 'push'
       || github.event_name == 'pull_request'
     permissions:
       contents: read
-    uses: dceoy/gha-for-devops/.github/workflows/python-package-test.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
+    uses: dceoy/gha-for-devops/.github/workflows/python-package-test.yml@2a8aaab7fcc91494813c33293345e000244a0d90  # v2.3.1
   javascript-package-lint-and-test:
     permissions:
       contents: read
-    uses: dceoy/gha-for-devops/.github/workflows/typescript-package-script.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
+    uses: dceoy/gha-for-devops/.github/workflows/typescript-package-script.yml@2a8aaab7fcc91494813c33293345e000244a0d90  # v2.3.1
     with:
       package-scripts: format:check,lint,typecheck,build:check,test
       package-path: .
@@ -59,7 +59,7 @@ jobs:
       - python-lint
       - python-test
       - javascript-package-lint-and-test
-    uses: dceoy/gha-for-devops/.github/workflows/dependabot-auto-merge.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
+    uses: dceoy/gha-for-devops/.github/workflows/dependabot-auto-merge.yml@2a8aaab7fcc91494813c33293345e000244a0d90  # v2.3.1
     permissions:
       contents: write
       pull-requests: write
