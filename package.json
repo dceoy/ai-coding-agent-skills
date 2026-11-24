@@ -27,8 +27,8 @@
 		"@biomejs/biome": "^2.6.8",
 		"@google/clasp": "3.4.1",
 		"@types/node": "26.6.6",
-		"oxfmt": "^0.78.0",
-		"oxlint": "^1.93.0",
+		"oxfmt": "^0.79.0",
+		"oxlint": "^1.94.0",
 		"typescript": "7.0.2",
 		"oxlint-tsgolint": "7.0.2007",
 		"markdownlint-cli2": "^0.24.1"
